@@ -2199,7 +2199,7 @@ h1,h2,h3,.gm-heading {
 }
 .v3-bnav-item.active { color:var(--gm-forest); }
 .v3-bnav-icon { font-size:20px; line-height:1; }
-.v3-bnav-label { font-size:10px; font-weight:600; }
+.v3-bnav-label { font-size:9px; font-weight:600; }
 
 /* ─────────────────────────────────────────────────────────────
    CONTENT WRAPPER
@@ -2480,24 +2480,28 @@ h1,h2,h3,.gm-heading {
 /* ─────────────────────────────────────────────────────────────
    PROFILE SCREEN
 ───────────────────────────────────────────────────────────── */
-.v3-profile-hero {
+.v3-profile-card {
   background:var(--gm-white); border-radius:var(--gm-r-card);
-  box-shadow:var(--gm-shadow); padding:24px; margin-bottom:12px; text-align:center;
+  box-shadow:var(--gm-shadow); margin-bottom:12px; overflow:hidden;
+}
+.v3-profile-hero {
+  background:linear-gradient(135deg,#B45309,#F5B100);
+  border-radius:16px 16px 0 0; padding:24px; text-align:center;
 }
 .v3-profile-avatar {
-  width:72px; height:72px; border-radius:50%; background:var(--gm-forest); color:#fff;
+  width:72px; height:72px; border-radius:50%; background:rgba(255,255,255,0.25); color:#fff;
   font-family:'Plus Jakarta Sans','Nunito',sans-serif; font-size:24px; font-weight:800;
   display:flex; align-items:center; justify-content:center; margin:0 auto 12px;
 }
 .v3-profile-name {
   font-family:'Plus Jakarta Sans','Nunito',sans-serif;
-  font-size:1.2rem; font-weight:800; color:var(--gm-text);
+  font-size:1.2rem; font-weight:800; color:#fff;
 }
 .v3-profile-role-pill {
-  display:inline-block; background:#E8F5E9; color:var(--gm-forest);
+  display:inline-block; background:rgba(255,255,255,0.2); color:#fff;
   font-size:12px; font-weight:600; border-radius:999px; padding:4px 12px; margin-top:6px;
 }
-.v3-profile-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:0; border-top:0.5px solid var(--gm-border); padding-top:16px; margin-top:16px; }
+.v3-profile-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:0; background:var(--gm-white); border-radius:0 0 16px 16px; padding:16px 0; }
 .v3-profile-stat { text-align:center; }
 .v3-profile-stat:not(:last-child) { border-right:0.5px solid var(--gm-border); }
 .v3-stat-num {
@@ -16491,8 +16495,9 @@ function renderNavBar(active) {
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
     { id:'home',    label:'Learn',    icon:'📚', fn:'showHome()' },
-    { id:'history', label:'History',  icon:'📈', fn:'showStudyHistory()' },
-    { id:'ai-chat', label:'AI Tutor', icon:'✨', fn:'showAIChatTab()' },
+    { id:'history', label:'History',  icon:'📋', fn:'showStudyHistory()' },
+    { id:'mastery', label:'Mastery',  icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',    icon:'✨', fn:'showAIChatTab()' },
     { id:'profile', label:'Profile',  icon:'👤', fn:'showProfile()' },
   ];
   return `<aside class="v3-sidebar" aria-label="Main navigation">
@@ -18589,11 +18594,13 @@ function showProfile() {
   const html = `
 ${renderNavBar('profile')}
 <div class="v3-screen" id="screen-profile">
-  <div class="v3-profile-hero">
-    <div class="v3-profile-avatar">${(user.display_name||'S').charAt(0).toUpperCase()}</div>
-    <div class="v3-profile-name">${user.display_name || 'Student'}</div>
-    <div style="font-size:13px;color:var(--gm-muted);margin-top:3px;">${user.email || ''}</div>
-    <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
+  <div class="v3-profile-card">
+    <div class="v3-profile-hero">
+      <div class="v3-profile-avatar">${(user.display_name||'S').charAt(0).toUpperCase()}</div>
+      <div class="v3-profile-name">${user.display_name || 'Student'}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:3px;">${user.email || ''}</div>
+      <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
+    </div>
     <div class="v3-profile-stats">
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
@@ -18804,11 +18811,11 @@ async function showProgressTracker() {
 
   // Show loading immediately
   render(`
-    ${renderNavBar('profile')}
+    ${renderNavBar('mastery')}
     <div class="v3-screen" id="screen-progress-tracker">
       <div class="top-bar">
         <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
-        <div class="top-bar-title">Long Term Progress Tracker</div>
+        <div class="top-bar-title">My Mastery Tracker</div>
         <div></div>
       </div>
       <div style="text-align:center;padding:60px 20px;color:#64748B;">
@@ -18870,11 +18877,11 @@ async function showProgressTracker() {
 
   // ── Render ──
   let h = `
-    ${renderNavBar('profile')}
+    ${renderNavBar('mastery')}
     <div class="v3-screen" id="screen-progress-tracker">
       <div class="top-bar">
         <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
-        <div class="top-bar-title">Long Term Progress Tracker</div>
+        <div class="top-bar-title">My Mastery Tracker</div>
         <div></div>
       </div>
       <div class="pt-wrap">
@@ -21706,8 +21713,9 @@ function renderNavBar(active) {
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
     { id:'home',    label:'Learn',    icon:'📚', fn:'showHome()' },
-    { id:'history', label:'History',  icon:'📈', fn:'showStudyHistory()' },
-    { id:'ai-chat', label:'AI Tutor', icon:'✨', fn:'showAIChatTab()' },
+    { id:'history', label:'History',  icon:'📋', fn:'showStudyHistory()' },
+    { id:'mastery', label:'Mastery',  icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',    icon:'✨', fn:'showAIChatTab()' },
     { id:'profile', label:'Profile',  icon:'👤', fn:'showProfile()' },
   ];
   return `<aside class="v3-sidebar" aria-label="Main navigation">
@@ -23882,11 +23890,13 @@ function showProfile() {
   const html = `
 ${renderNavBar('profile')}
 <div class="v3-screen" id="screen-profile">
-  <div class="v3-profile-hero">
-    <div class="v3-profile-avatar">${(user.display_name||'S').charAt(0).toUpperCase()}</div>
-    <div class="v3-profile-name">${user.display_name || 'Student'}</div>
-    <div style="font-size:13px;color:var(--gm-muted);margin-top:3px;">${user.email || ''}</div>
-    <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
+  <div class="v3-profile-card">
+    <div class="v3-profile-hero">
+      <div class="v3-profile-avatar">${(user.display_name||'S').charAt(0).toUpperCase()}</div>
+      <div class="v3-profile-name">${user.display_name || 'Student'}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:3px;">${user.email || ''}</div>
+      <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
+    </div>
     <div class="v3-profile-stats">
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
@@ -24097,11 +24107,11 @@ async function showProgressTracker() {
 
   // Show loading immediately
   render(`
-    ${renderNavBar('profile')}
+    ${renderNavBar('mastery')}
     <div class="v3-screen" id="screen-progress-tracker">
       <div class="top-bar">
         <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
-        <div class="top-bar-title">Long Term Progress Tracker</div>
+        <div class="top-bar-title">My Mastery Tracker</div>
         <div></div>
       </div>
       <div style="text-align:center;padding:60px 20px;color:#64748B;">
@@ -24163,11 +24173,11 @@ async function showProgressTracker() {
 
   // ── Render ──
   let h = `
-    ${renderNavBar('profile')}
+    ${renderNavBar('mastery')}
     <div class="v3-screen" id="screen-progress-tracker">
       <div class="top-bar">
         <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
-        <div class="top-bar-title">Long Term Progress Tracker</div>
+        <div class="top-bar-title">My Mastery Tracker</div>
         <div></div>
       </div>
       <div class="pt-wrap">
