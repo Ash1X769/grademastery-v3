@@ -2226,37 +2226,37 @@ h1,h2,h3,.gm-heading {
    GREETING CARD
 ───────────────────────────────────────────────────────────── */
 .v3-greeting-card {
-  background:var(--gm-white); border-radius:var(--gm-r-card);
-  box-shadow:var(--gm-shadow); padding:20px; margin-bottom:12px;
+  background:linear-gradient(135deg,#216D39,#03A860); border-radius:var(--gm-r-card);
+  box-shadow:var(--gm-shadow-md); padding:20px; margin-bottom:12px;
 }
 .v3-greeting-name {
   font-family:'Plus Jakarta Sans','Nunito',sans-serif;
-  font-size:1.2rem; font-weight:800; color:var(--gm-text); margin-bottom:8px;
+  font-size:1.2rem; font-weight:800; color:#fff; margin-bottom:8px;
 }
 .v3-greeting-pills { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
 .v3-streak-pill-sm {
   display:inline-flex; align-items:center; gap:4px;
-  background:#FFF7ED; color:var(--gm-orange); border:1px solid #FED7AA;
+  background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.5);
   border-radius:999px; padding:4px 12px; font-size:12px; font-weight:700;
 }
 .v3-xp-pill-sm {
   display:inline-flex; align-items:center; gap:4px;
-  background:#FEFCE8; color:#B45309; border:1px solid #FDE68A;
+  background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.5);
   border-radius:999px; padding:4px 12px; font-size:12px; font-weight:700;
 }
 .v3-progress-bar-wrap { margin-top:12px; }
 .v3-progress-bar-track {
-  height:6px; border-radius:3px; background:var(--gm-border); overflow:hidden;
+  height:6px; border-radius:3px; background:rgba(255,255,255,0.3); overflow:hidden;
 }
 .v3-progress-bar-fill {
-  height:100%; border-radius:3px; background:var(--gm-accent);
+  height:100%; border-radius:3px; background:#fff;
   transition:width 0.6s cubic-bezier(0.4,0,0.2,1);
 }
 .v3-streak-motiv {
-  font-size:13px; color:var(--gm-muted); margin-top:8px; cursor:pointer;
+  font-size:13px; color:rgba(255,255,255,0.8); margin-top:8px; cursor:pointer;
   display:flex; align-items:center; gap:6px; user-select:none;
 }
-.v3-streak-motiv-body { display:none; font-size:12px; color:var(--gm-muted); margin-top:6px; line-height:1.6; }
+.v3-streak-motiv-body { display:none; font-size:12px; color:rgba(255,255,255,0.75); margin-top:6px; line-height:1.6; }
 .v3-streak-motiv-body.open { display:block; }
 
 /* ─────────────────────────────────────────────────────────────
@@ -16395,8 +16395,8 @@ ${renderNavBar('home')}
         <div class="v3-progress-bar-fill" style="width:${Math.min(100,Math.round((xpInLevel/200)*100))}%;"></div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-top:4px;">
-        <span style="font-size:11px;font-weight:600;color:var(--gm-muted);">Level ${level}</span>
-        <span style="font-size:11px;font-weight:600;color:var(--gm-muted);">${xpInLevel} / 200 XP</span>
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Level ${level}</span>
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">${xpInLevel} / 200 XP</span>
       </div>
     </div>
     ${streak > 0 ? `<div class="v3-streak-motiv" onclick="this.nextElementSibling.classList.toggle('open')">
@@ -21610,8 +21610,8 @@ ${renderNavBar('home')}
         <div class="v3-progress-bar-fill" style="width:${Math.min(100,Math.round((xpInLevel/200)*100))}%;"></div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-top:4px;">
-        <span style="font-size:11px;font-weight:600;color:var(--gm-muted);">Level ${level}</span>
-        <span style="font-size:11px;font-weight:600;color:var(--gm-muted);">${xpInLevel} / 200 XP</span>
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Level ${level}</span>
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">${xpInLevel} / 200 XP</span>
       </div>
     </div>
     ${streak > 0 ? `<div class="v3-streak-motiv" onclick="this.nextElementSibling.classList.toggle('open')">
