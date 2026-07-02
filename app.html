@@ -2707,6 +2707,105 @@ h1,h2,h3,.gm-heading {
 @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 @keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
 @keyframes cardRevealIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+/* ─────────────────────────────────────────────────────────────
+   KNOWLEDGE ORGANISERS (V3)
+───────────────────────────────────────────────────────────── */
+.v3-ko-sticky-bar {
+  position:sticky; top:0; z-index:10;
+  padding:8px 16px; font-size:13px; font-weight:700;
+  border-bottom:1px solid var(--gm-border); flex-shrink:0;
+}
+.v3-ko-sticky-bio  { background:var(--bio-bg);  color:var(--bio-text); }
+.v3-ko-sticky-chem { background:var(--chem-bg); color:var(--chem-text); }
+.v3-ko-sticky-phys { background:var(--phys-bg); color:var(--phys-text); }
+.v3-ko-subject-pill {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap;
+}
+.v3-ko-subj-bio  { background:var(--bio-bg);  color:var(--bio-text);  border:1px solid var(--bio-border); }
+.v3-ko-subj-chem { background:var(--chem-bg); color:var(--chem-text); border:1px solid var(--chem-border); }
+.v3-ko-subj-phys { background:var(--phys-bg); color:var(--phys-text); border:1px solid var(--phys-border); }
+.v3-ko-search-wrap {
+  position:relative; margin:12px 16px; display:flex; align-items:center;
+}
+.v3-ko-search-input {
+  width:100%; height:40px; border-radius:20px;
+  border:1.5px solid var(--gm-border); padding:0 36px 0 14px;
+  font-family:'Inter','Nunito',sans-serif; font-size:14px;
+  color:var(--gm-text); background:var(--gm-white); outline:none;
+  transition:border-color var(--gm-transition),box-shadow var(--gm-transition);
+}
+.v3-ko-search-input:focus { border-color:var(--gm-accent); box-shadow:0 0 0 3px rgba(3,168,96,0.12); }
+.v3-ko-search-clear {
+  position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  background:none; border:none; font-size:14px; color:var(--gm-muted);
+  cursor:pointer; padding:4px; line-height:1;
+}
+.v3-ko-content {
+  position:relative; max-width:900px; margin:0 auto; padding:4px 16px 32px;
+  user-select:none; -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none;
+}
+.v3-ko-watermark {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:0;
+  background:repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 120px,
+    rgba(33,109,57,0.04) 120px, rgba(33,109,57,0.04) 121px
+  );
+}
+.v3-ko-section { position:relative; z-index:1; margin-bottom:16px; }
+.v3-ko-table {
+  width:100%; border-collapse:collapse;
+  border-radius:12px; overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,0.07);
+}
+.v3-ko-sechdr-cell {
+  padding:0; border-top:2px solid;
+}
+.v3-ko-sechdr-inner {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; flex-wrap:wrap; padding:8px 12px;
+}
+.v3-ko-section-hdr-bio  .v3-ko-sechdr-cell { background:var(--bio-bg);  color:var(--bio-text);  border-color:var(--bio-border); }
+.v3-ko-section-hdr-chem .v3-ko-sechdr-cell { background:var(--chem-bg); color:var(--chem-text); border-color:var(--chem-border); }
+.v3-ko-section-hdr-phys .v3-ko-sechdr-cell { background:var(--phys-bg); color:var(--phys-text); border-color:var(--phys-border); }
+.v3-ko-section-name { font-size:13px; font-weight:700; }
+.v3-ko-rpa-badge {
+  display:inline-block; background:#EDE9FE; color:#4338CA;
+  font-size:10px; font-weight:700; border-radius:999px; padding:2px 7px;
+  margin-left:6px; vertical-align:middle;
+}
+.v3-ko-watermark-stamp {
+  font-size:10px; font-weight:400; opacity:0.4; color:var(--gm-muted);
+  white-space:nowrap; margin-left:auto; flex-shrink:0;
+}
+.v3-ko-col-hdr-bio  td, .v3-ko-col-hdr-bio  th { background:var(--bio-bg);  color:var(--bio-text);  }
+.v3-ko-col-hdr-chem td, .v3-ko-col-hdr-chem th { background:var(--chem-bg); color:var(--chem-text); }
+.v3-ko-col-hdr-phys td, .v3-ko-col-hdr-phys th { background:var(--phys-bg); color:var(--phys-text); }
+.v3-ko-col-hdr th {
+  padding:6px 12px; text-align:left;
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.05em; border-bottom:1px solid var(--gm-border);
+}
+.v3-ko-q {
+  width:40%; padding:10px 12px; font-weight:600; font-size:14px;
+  color:var(--gm-text); border-bottom:0.5px solid var(--gm-border);
+  vertical-align:top; border-right:0.5px solid var(--gm-border);
+}
+.v3-ko-a {
+  padding:10px 12px; font-size:14px; color:var(--gm-text);
+  border-bottom:0.5px solid var(--gm-border); vertical-align:top;
+}
+.v3-ko-bullets { list-style:disc; margin:0; padding-left:16px; display:flex; flex-direction:column; gap:4px; }
+.v3-ko-no-results {
+  text-align:center; padding:32px 16px; color:var(--gm-muted);
+  font-size:14px; font-weight:500;
+}
+@media print {
+  #ko-content-wrapper { display:none !important; }
+  .ko-print-block { display:block !important; }
+}
 </style>
 
 </head>
@@ -16516,6 +16615,8 @@ function renderNavBar(active) {
       <div class="profile-dropdown" id="profile-dropdown">
         <button class="pd-item" onclick="closeProfileDropdown();showProfile()">👤 My Profile</button>
         <div class="pd-sep"></div>
+        <button class="pd-item" onclick="closeProfileDropdown();showKOTopicPicker()">📖 Knowledge Organisers</button>
+        <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();showAbout()">ℹ️ About GradeMastery</button>
         <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();doLogout()">🚪 Sign Out</button>
@@ -17136,6 +17237,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
         ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;">' + _mastery + '%</span>'
         : '';
       const reviseBtn = '<button onclick="startQuickRevision(\'' + topicKey + '\')" style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;border:none;background:#6366F1;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
+      const koBtn = '<button onclick="showKnowledgeOrganiser(\'' + topicKey + '\')" title="View Knowledge Organiser" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:0.5px solid var(--gm-border);background:var(--gm-white);color:var(--gm-forest);cursor:pointer;white-space:nowrap;">📖 KO</button>';
       const isExpanded = _expandedTopics.has(topicKey);
       const expandArgs = childUserId
         ? "'" + topicKey + "'," + isParentCtx + ",'" + childUserId + "'"
@@ -17147,10 +17249,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       h += '<div style="display:flex;align-items:center;flex:1;min-width:0;">' + expandArrow;
       h += '<div style="font-size:13px;font-weight:700;color:#374151;">' + topicKey + ' — ' + displayName + tripleBadge + masteryBadge + '</div></div>';
       if (scheduleLocked) {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn;
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="font-size:12px;font-weight:700;color:' + (topicState !== 'off' ? '#15803D' : '#B91C1C') + ';">' + (topicState !== 'off' ? 'On' : 'Off') + '</div></div>';
       } else {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn;
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div onclick="' + topicOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>';
         h += '</div></div>';
@@ -18457,50 +18559,100 @@ ${renderNavBar('ko')}
   render(html);
 }
 
-function showKnowledgeOrganiser(key) {
-  const ko = KNOWLEDGE_ORGANISERS[key];
-  if (!ko) return;
-
+function showKnowledgeOrganiser(topicKey) {
+  const _user = STATE.user;
+  if (!_user) return;
+  const _tk = (topicKey || '').toUpperCase();
+  const _FREE_KO = ['B1','C1','P1'];
+  if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
+    showUpgradeModal('Unlock all Knowledge Organisers with Standard — from £14.99/month');
+    return;
+  }
+  const _cards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === _tk);
+  if (!_cards.length) { showToast('No content for this topic yet'); return; }
+  const _topicName = _cards[0].topic_name;
+  const _subj      = _cards[0].subject;
+  const _sc        = _subj === 'Biology' ? 'bio' : _subj === 'Chemistry' ? 'chem' : 'phys';
+  // Group by subtopic_name preserving insertion order
+  const _groups = {}, _order = [];
+  _cards.forEach(c => {
+    const sn = c.subtopic_name || 'General';
+    if (!_groups[sn]) { _groups[sn] = []; _order.push(sn); }
+    _groups[sn].push(c);
+  });
+  const _uname = _user.display_name || 'Student';
+  const _today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  // KO bold: **text** → forest-coloured strong
+  const _koBold = t => (t||'').replace(/\*\*(.+?)\*\*/g,'<strong style="color:var(--gm-forest);font-weight:700;">$1</strong>');
+  // Build subtopic section HTML
+  const _sectHTML = _order.map((sn, si) => {
+    const _sc_cards = _groups[sn];
+    const _isRPA = _sc_cards.some(c => c.subtopic && c.subtopic.toUpperCase().includes('RPA'));
+    const _rpaBadge = _isRPA ? '<span class="v3-ko-rpa-badge">Required Practical</span>' : '';
+    const _rows = _sc_cards.map((card, ri) => {
+      const _aBullets = Array.isArray(card.a) ? card.a : [(card.a||'').toString()];
+      const _bg = ri % 2 === 1 ? ' style="background:var(--gm-off);"' : '';
+      return '<tr' + _bg + '>' +
+        '<td class="v3-ko-q">' + _koBold(card.q||'') + '</td>' +
+        '<td class="v3-ko-a"><ul class="v3-ko-bullets">' +
+          _aBullets.map(b => '<li>' + _koBold(b) + '</li>').join('') +
+        '</ul></td>' +
+        '</tr>';
+    }).join('');
+    return '<div class="v3-ko-section" id="ko-section-' + si + '">' +
+      '<table class="v3-ko-table"><thead>' +
+        '<tr class="v3-ko-section-hdr v3-ko-section-hdr-' + _sc + '">' +
+          '<th colspan="2" class="v3-ko-sechdr-cell">' +
+            '<div class="v3-ko-sechdr-inner">' +
+              '<div><span class="v3-ko-section-name">' + sn + '</span>' + _rpaBadge + '</div>' +
+              '<span class="v3-ko-watermark-stamp">' + _uname + ' · ' + _today + '</span>' +
+            '</div>' +
+          '</th>' +
+        '</tr>' +
+        '<tr class="v3-ko-col-hdr v3-ko-col-hdr-' + _sc + '">' +
+          '<th style="width:40%;">Question / Key Term</th><th>Key Facts</th>' +
+        '</tr>' +
+      '</thead><tbody>' + _rows + '</tbody></table>' +
+    '</div>';
+  }).join('');
+  STATE.screen = 'ko-v3';
+  STATE._koV3Order = _order;
   const html = `
-<div class="v3-screen" id="screen-ko-detail">
+${renderNavBar('profile')}
+<div class="v3-screen" id="screen-ko-v3">
   <div class="top-bar">
-    <button class="btn btn-ghost btn-sm" onclick="showAllKO()">← Back</button>
-    <div style="font-size:16px;font-weight:800;">${ko.topic}</div>
-    <div></div>
+    <button class="btn btn-ghost btn-sm" onclick="showProfile()">← My Topics</button>
+    <div class="top-bar-title">My Knowledge Organiser</div>
+    <span class="v3-ko-subject-pill v3-ko-subj-${_sc}">${_subj}</span>
   </div>
-
-  <div style="flex:1;overflow-y:auto;padding:16px 16px 100px;">
-    ${ko.is_mock ? `<div class="placeholder-notice" style="margin-bottom:16px;">⚠️ Placeholder content — real Knowledge Organiser upload coming soon</div>` : ''}
-
-    <div class="ko-topic-block">
-      <div class="ko-topic-header" style="background:${subjectColor(ko.subject)};">
-        ${ko.topic}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;background:var(--bg);">
-        <div style="padding:8px 16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Key Term / Question</div>
-        <div style="padding:8px 16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Answer</div>
-      </div>
-      ${ko.pairs.map(p => `
-        <div class="ko-item">
-          <div class="ko-item-q">${bold(p.q)}</div>
-          <div class="ko-item-a">${bold(p.a)}</div>
-        </div>
-      `).join('')}
+  <div style="flex:1;overflow-y:auto;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));">
+    <div class="v3-ko-sticky-bar v3-ko-sticky-${_sc}">
+      <strong>${_tk}</strong> &mdash; ${_topicName}
     </div>
-
-    ${_getSimConfig(key) ? `<div id="sim-mount-ko" style="margin-top:16px;"></div>` : ''}
-    <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="startFlashcardsForTopic('${key}')">
-      📚 Study These Cards
-    </button>
+    <div class="v3-ko-search-wrap">
+      <input id="ko-search" class="v3-ko-search-input" type="search"
+        placeholder="Search topics or subtopics…"
+        oninput="_koFilterSections(this.value)"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="ko-search-clear" class="v3-ko-search-clear" style="display:none;"
+        onclick="_koFilterSections('');document.getElementById('ko-search').value='';">&#x2715;</button>
+    </div>
+    <div id="ko-content-wrapper" class="v3-ko-content"
+      oncontextmenu="return false" ondragstart="return false">
+      <div class="v3-ko-watermark" aria-hidden="true"></div>
+      ${_sectHTML}
+      <div id="ko-no-results" class="v3-ko-no-results" style="display:none;">
+        No results for &ldquo;<span id="ko-nr-term"></span>&rdquo; &mdash; try a different search
+      </div>
+    </div>
+    <div class="ko-print-block" style="display:none;">
+      <p style="font-size:18px;font-weight:700;text-align:center;margin:60px auto;max-width:400px;line-height:1.6;">
+        Knowledge Organisers are available exclusively within the GradeMastery app.<br>Visit grademastery.co.uk
+      </p>
+    </div>
   </div>
 </div>`;
-
   render(html);
-  const _koSimEl = document.getElementById('sim-mount-ko');
-  if (_koSimEl) {
-    const _koTier = STATE.user?.tier?.includes('higher') ? 'higher' : 'foundation';
-    _mountSim('ko', _koSimEl, _getSimConfig(key), { mode: 'inline', tier: _koTier });
-  }
 }
 
 function resumeMidSession() {
@@ -21734,6 +21886,8 @@ function renderNavBar(active) {
       <div class="profile-dropdown" id="profile-dropdown">
         <button class="pd-item" onclick="closeProfileDropdown();showProfile()">👤 My Profile</button>
         <div class="pd-sep"></div>
+        <button class="pd-item" onclick="closeProfileDropdown();showKOTopicPicker()">📖 Knowledge Organisers</button>
+        <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();showAbout()">ℹ️ About GradeMastery</button>
         <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();doLogout()">🚪 Sign Out</button>
@@ -22354,6 +22508,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
         ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;">' + _mastery + '%</span>'
         : '';
       const reviseBtn = '<button onclick="startQuickRevision(\'' + topicKey + '\')" style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;border:none;background:#6366F1;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
+      const koBtn = '<button onclick="showKnowledgeOrganiser(\'' + topicKey + '\')" title="View Knowledge Organiser" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;border:0.5px solid var(--gm-border);background:var(--gm-white);color:var(--gm-forest);cursor:pointer;white-space:nowrap;">📖 KO</button>';
       const isExpanded = _expandedTopics.has(topicKey);
       const expandArgs = childUserId
         ? "'" + topicKey + "'," + isParentCtx + ",'" + childUserId + "'"
@@ -22365,10 +22520,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       h += '<div style="display:flex;align-items:center;flex:1;min-width:0;">' + expandArrow;
       h += '<div style="font-size:13px;font-weight:700;color:#374151;">' + topicKey + ' — ' + displayName + tripleBadge + masteryBadge + '</div></div>';
       if (scheduleLocked) {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn;
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="font-size:12px;font-weight:700;color:' + (topicState !== 'off' ? '#15803D' : '#B91C1C') + ';">' + (topicState !== 'off' ? 'On' : 'Off') + '</div></div>';
       } else {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn;
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div onclick="' + topicOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>';
         h += '</div></div>';
@@ -23753,50 +23908,100 @@ ${renderNavBar('ko')}
   render(html);
 }
 
-function showKnowledgeOrganiser(key) {
-  const ko = KNOWLEDGE_ORGANISERS[key];
-  if (!ko) return;
-
+function showKnowledgeOrganiser(topicKey) {
+  const _user = STATE.user;
+  if (!_user) return;
+  const _tk = (topicKey || '').toUpperCase();
+  const _FREE_KO = ['B1','C1','P1'];
+  if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
+    showUpgradeModal('Unlock all Knowledge Organisers with Standard — from £14.99/month');
+    return;
+  }
+  const _cards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === _tk);
+  if (!_cards.length) { showToast('No content for this topic yet'); return; }
+  const _topicName = _cards[0].topic_name;
+  const _subj      = _cards[0].subject;
+  const _sc        = _subj === 'Biology' ? 'bio' : _subj === 'Chemistry' ? 'chem' : 'phys';
+  // Group by subtopic_name preserving insertion order
+  const _groups = {}, _order = [];
+  _cards.forEach(c => {
+    const sn = c.subtopic_name || 'General';
+    if (!_groups[sn]) { _groups[sn] = []; _order.push(sn); }
+    _groups[sn].push(c);
+  });
+  const _uname = _user.display_name || 'Student';
+  const _today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  // KO bold: **text** → forest-coloured strong
+  const _koBold = t => (t||'').replace(/\*\*(.+?)\*\*/g,'<strong style="color:var(--gm-forest);font-weight:700;">$1</strong>');
+  // Build subtopic section HTML
+  const _sectHTML = _order.map((sn, si) => {
+    const _sc_cards = _groups[sn];
+    const _isRPA = _sc_cards.some(c => c.subtopic && c.subtopic.toUpperCase().includes('RPA'));
+    const _rpaBadge = _isRPA ? '<span class="v3-ko-rpa-badge">Required Practical</span>' : '';
+    const _rows = _sc_cards.map((card, ri) => {
+      const _aBullets = Array.isArray(card.a) ? card.a : [(card.a||'').toString()];
+      const _bg = ri % 2 === 1 ? ' style="background:var(--gm-off);"' : '';
+      return '<tr' + _bg + '>' +
+        '<td class="v3-ko-q">' + _koBold(card.q||'') + '</td>' +
+        '<td class="v3-ko-a"><ul class="v3-ko-bullets">' +
+          _aBullets.map(b => '<li>' + _koBold(b) + '</li>').join('') +
+        '</ul></td>' +
+        '</tr>';
+    }).join('');
+    return '<div class="v3-ko-section" id="ko-section-' + si + '">' +
+      '<table class="v3-ko-table"><thead>' +
+        '<tr class="v3-ko-section-hdr v3-ko-section-hdr-' + _sc + '">' +
+          '<th colspan="2" class="v3-ko-sechdr-cell">' +
+            '<div class="v3-ko-sechdr-inner">' +
+              '<div><span class="v3-ko-section-name">' + sn + '</span>' + _rpaBadge + '</div>' +
+              '<span class="v3-ko-watermark-stamp">' + _uname + ' · ' + _today + '</span>' +
+            '</div>' +
+          '</th>' +
+        '</tr>' +
+        '<tr class="v3-ko-col-hdr v3-ko-col-hdr-' + _sc + '">' +
+          '<th style="width:40%;">Question / Key Term</th><th>Key Facts</th>' +
+        '</tr>' +
+      '</thead><tbody>' + _rows + '</tbody></table>' +
+    '</div>';
+  }).join('');
+  STATE.screen = 'ko-v3';
+  STATE._koV3Order = _order;
   const html = `
-<div class="v3-screen" id="screen-ko-detail">
+${renderNavBar('profile')}
+<div class="v3-screen" id="screen-ko-v3">
   <div class="top-bar">
-    <button class="btn btn-ghost btn-sm" onclick="showAllKO()">← Back</button>
-    <div style="font-size:16px;font-weight:800;">${ko.topic}</div>
-    <div></div>
+    <button class="btn btn-ghost btn-sm" onclick="showProfile()">← My Topics</button>
+    <div class="top-bar-title">My Knowledge Organiser</div>
+    <span class="v3-ko-subject-pill v3-ko-subj-${_sc}">${_subj}</span>
   </div>
-
-  <div style="flex:1;overflow-y:auto;padding:16px 16px 100px;">
-    ${ko.is_mock ? `<div class="placeholder-notice" style="margin-bottom:16px;">⚠️ Placeholder content — real Knowledge Organiser upload coming soon</div>` : ''}
-
-    <div class="ko-topic-block">
-      <div class="ko-topic-header" style="background:${subjectColor(ko.subject)};">
-        ${ko.topic}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;background:var(--bg);">
-        <div style="padding:8px 16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Key Term / Question</div>
-        <div style="padding:8px 16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Answer</div>
-      </div>
-      ${ko.pairs.map(p => `
-        <div class="ko-item">
-          <div class="ko-item-q">${bold(p.q)}</div>
-          <div class="ko-item-a">${bold(p.a)}</div>
-        </div>
-      `).join('')}
+  <div style="flex:1;overflow-y:auto;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));">
+    <div class="v3-ko-sticky-bar v3-ko-sticky-${_sc}">
+      <strong>${_tk}</strong> &mdash; ${_topicName}
     </div>
-
-    ${_getSimConfig(key) ? `<div id="sim-mount-ko" style="margin-top:16px;"></div>` : ''}
-    <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="startFlashcardsForTopic('${key}')">
-      📚 Study These Cards
-    </button>
+    <div class="v3-ko-search-wrap">
+      <input id="ko-search" class="v3-ko-search-input" type="search"
+        placeholder="Search topics or subtopics…"
+        oninput="_koFilterSections(this.value)"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="ko-search-clear" class="v3-ko-search-clear" style="display:none;"
+        onclick="_koFilterSections('');document.getElementById('ko-search').value='';">&#x2715;</button>
+    </div>
+    <div id="ko-content-wrapper" class="v3-ko-content"
+      oncontextmenu="return false" ondragstart="return false">
+      <div class="v3-ko-watermark" aria-hidden="true"></div>
+      ${_sectHTML}
+      <div id="ko-no-results" class="v3-ko-no-results" style="display:none;">
+        No results for &ldquo;<span id="ko-nr-term"></span>&rdquo; &mdash; try a different search
+      </div>
+    </div>
+    <div class="ko-print-block" style="display:none;">
+      <p style="font-size:18px;font-weight:700;text-align:center;margin:60px auto;max-width:400px;line-height:1.6;">
+        Knowledge Organisers are available exclusively within the GradeMastery app.<br>Visit grademastery.co.uk
+      </p>
+    </div>
   </div>
 </div>`;
-
   render(html);
-  const _koSimEl = document.getElementById('sim-mount-ko');
-  if (_koSimEl) {
-    const _koTier = STATE.user?.tier?.includes('higher') ? 'higher' : 'foundation';
-    _mountSim('ko', _koSimEl, _getSimConfig(key), { mode: 'inline', tier: _koTier });
-  }
 }
 
 function resumeMidSession() {
@@ -28425,6 +28630,65 @@ function updateDDGuidance() {
     }
     tipEl.style.display = showTip ? 'block' : 'none';
   }
+}
+
+// ─── KO V3 HELPERS ──────────────────────────────────────────────
+
+function _koFilterSections(term) {
+  const t = (term || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('ko-search-clear');
+  if (clearBtn) clearBtn.style.display = t ? 'inline' : 'none';
+  const sections = document.querySelectorAll('#ko-content-wrapper .v3-ko-section');
+  let visible = 0;
+  sections.forEach(sec => {
+    if (!t) { sec.style.display = ''; visible++; return; }
+    const text = (sec.textContent || '').toLowerCase();
+    const match = text.includes(t);
+    sec.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const noRes = document.getElementById('ko-no-results');
+  const noResTerm = document.getElementById('ko-nr-term');
+  if (noRes) noRes.style.display = (t && visible === 0) ? '' : 'none';
+  if (noResTerm) noResTerm.textContent = term;
+}
+
+function showKOTopicPicker() {
+  const _subEmoji = { Biology:'🌿', Chemistry:'⚗️', Physics:'⚡' };
+  const _subClass = { Biology:'bio', Chemistry:'chem', Physics:'phys' };
+  const _subjects = {};
+  SAMPLE_CARDS.forEach(c => {
+    const tk = c.topic.toUpperCase();
+    if (!_subjects[c.subject]) _subjects[c.subject] = {};
+    if (!_subjects[c.subject][tk]) _subjects[c.subject][tk] = c.topic_name;
+  });
+  const listHTML = Object.entries(_subjects).map(([subj, topics]) =>
+    '<div style="margin-bottom:16px;">' +
+    '<div style="font-size:11px;font-weight:800;color:var(--gm-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">' + _subEmoji[subj] + ' ' + subj + '</div>' +
+    Object.entries(topics).map(([tk, tn]) =>
+      '<button data-topic="' + tk + '" class="ko-picker-btn" style="display:block;width:100%;text-align:left;padding:9px 12px;border-radius:9px;border:1px solid var(--gm-border);background:var(--gm-white);color:var(--gm-text);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:5px;font-family:inherit;">' +
+      '<span style="font-size:11px;font-weight:800;color:var(--' + _subClass[subj] + '-text);background:var(--' + _subClass[subj] + '-bg);border-radius:4px;padding:1px 5px;margin-right:8px;">' + tk + '</span>' + tn +
+      '</button>'
+    ).join('') +
+    '</div>'
+  ).join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'ko-picker-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:5000;display:flex;align-items:flex-end;justify-content:center;padding:0 0 env(safe-area-inset-bottom,0px);animation:fadeIn .2s ease;';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML =
+    '<div id="ko-picker-sheet" style="background:var(--gm-white);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;animation:slideUp .25s ease;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--gm-border);flex-shrink:0;">' +
+        '<div style="font-size:16px;font-weight:800;color:var(--gm-text);">📖 Knowledge Organisers</div>' +
+        '<button id="ko-picker-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gm-muted);padding:4px;line-height:1;">✕</button>' +
+      '</div>' +
+      '<div style="overflow-y:auto;padding:16px 20px 32px;">' + listHTML + '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('ko-picker-close').onclick = () => overlay.remove();
+  overlay.querySelectorAll('.ko-picker-btn').forEach(btn => {
+    btn.onclick = () => { overlay.remove(); showKnowledgeOrganiser(btn.dataset.topic); };
+  });
 }
 
 </script>
