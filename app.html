@@ -18446,11 +18446,11 @@ async function sendTutorMessage(message) {
   if (!STATE.user?.is_paid) {
     const daily = getAITutorDailyCount();
     const weekly = getAITutorWeeklyCount();
-    if (daily >= CONFIG.FREE_AI_TUTOR_DAILY) {
+    if (daily >= getAITutorDailyLimit()) {
       showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`);
       return;
     }
-    if (weekly >= CONFIG.FREE_AI_TUTOR_WEEKLY) {
+    if (weekly >= getAITutorWeeklyLimit()) {
       showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
       return;
     }
@@ -23823,11 +23823,11 @@ async function sendTutorMessage(message) {
   if (!STATE.user?.is_paid) {
     const daily = getAITutorDailyCount();
     const weekly = getAITutorWeeklyCount();
-    if (daily >= CONFIG.FREE_AI_TUTOR_DAILY) {
+    if (daily >= getAITutorDailyLimit()) {
       showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`);
       return;
     }
-    if (weekly >= CONFIG.FREE_AI_TUTOR_WEEKLY) {
+    if (weekly >= getAITutorWeeklyLimit()) {
       showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
       return;
     }
@@ -27766,11 +27766,27 @@ window.addEventListener('appinstalled', () => dismissInstallBanner());
 function getAIMarkingLimit() {
   const user = STATE.user;
   if (!user) return 0;
-  // DEV TESTING: force Smart Mark for test account — remove before launch
-  if (user.email === 'swifts.59.carnage@icloud.com') return 0;
+  // DEV TESTING: unlimited for test account — remove before launch
+  if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (!user.is_paid) return CONFIG.FREE_AI_MARKING_DAILY;
   return CONFIG.STANDARD_AI_MARKING_DAILY;
 }
+function getAITutorDailyLimit() {
+  // DEV TESTING: unlimited for test account — remove before launch
+  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  return STATE.user?.is_paid ? CONFIG.STANDARD_AI_TUTOR_DAILY : CONFIG.FREE_AI_TUTOR_DAILY;
+}
+function getAITutorWeeklyLimit() {
+  // DEV TESTING: unlimited for test account — remove before launch
+  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  return STATE.user?.is_paid ? Infinity : CONFIG.FREE_AI_TUTOR_WEEKLY;
+}
+function getBrainDumpLimit() {
+  // DEV TESTING: unlimited for test account — remove before launch
+  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  return Infinity;
+}
+
 function aiMarkingAvailable() {
   return getAIMarkingDailyCount() < getAIMarkingLimit();
 }
