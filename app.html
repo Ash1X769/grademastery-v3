@@ -18620,7 +18620,8 @@ function showKnowledgeOrganiser(topicKey) {
         '</ul></td>' +
         '</tr>';
     }).join('');
-    return '<div class="v3-ko-section" id="ko-section-' + si + '">' +
+    const _stext = ([sn].concat(_sc_cards.map(c => (c.q||'').replace(/\*\*(.+?)\*\*/g,'$1')), _sc_cards.map(c => { const b = Array.isArray(c.a)?c.a:[(c.a||'').toString()]; return b.join(' ').replace(/\*\*(.+?)\*\*/g,'$1'); }))).join(' ').toLowerCase().replace(/"/g,'&quot;');
+    return '<div class="v3-ko-section" id="ko-section-' + si + '" data-searchtext="' + _stext + '">' +
       '<table class="v3-ko-table"><thead>' +
         '<tr class="v3-ko-section-hdr v3-ko-section-hdr-' + _sc + '">' +
           '<th colspan="2" class="v3-ko-sechdr-cell">' +
@@ -18663,7 +18664,7 @@ ${renderNavBar('profile')}
       <div class="v3-ko-watermark" aria-hidden="true"></div>
       ${_sectHTML}
       <div id="ko-no-results" class="v3-ko-no-results" style="display:none;">
-        No results for &ldquo;<span id="ko-nr-term"></span>&rdquo; &mdash; try a different search
+        No results for "<span id="ko-nr-term"></span>" — try a different spelling
       </div>
     </div>
     <div class="ko-print-block" style="display:none;">
@@ -24005,7 +24006,8 @@ function showKnowledgeOrganiser(topicKey) {
         '</ul></td>' +
         '</tr>';
     }).join('');
-    return '<div class="v3-ko-section" id="ko-section-' + si + '">' +
+    const _stext = ([sn].concat(_sc_cards.map(c => (c.q||'').replace(/\*\*(.+?)\*\*/g,'$1')), _sc_cards.map(c => { const b = Array.isArray(c.a)?c.a:[(c.a||'').toString()]; return b.join(' ').replace(/\*\*(.+?)\*\*/g,'$1'); }))).join(' ').toLowerCase().replace(/"/g,'&quot;');
+    return '<div class="v3-ko-section" id="ko-section-' + si + '" data-searchtext="' + _stext + '">' +
       '<table class="v3-ko-table"><thead>' +
         '<tr class="v3-ko-section-hdr v3-ko-section-hdr-' + _sc + '">' +
           '<th colspan="2" class="v3-ko-sechdr-cell">' +
@@ -24048,7 +24050,7 @@ ${renderNavBar('profile')}
       <div class="v3-ko-watermark" aria-hidden="true"></div>
       ${_sectHTML}
       <div id="ko-no-results" class="v3-ko-no-results" style="display:none;">
-        No results for &ldquo;<span id="ko-nr-term"></span>&rdquo; &mdash; try a different search
+        No results for "<span id="ko-nr-term"></span>" — try a different spelling
       </div>
     </div>
     <div class="ko-print-block" style="display:none;">
@@ -29136,7 +29138,9 @@ function _koFilterSections(term) {
   let visible = 0;
   sections.forEach(sec => {
     if (!t) { sec.style.display = ''; visible++; return; }
-    const text = (sec.textContent || '').toLowerCase();
+    // Prefer pre-computed data attribute (subtopic name + question + answer text, stripped of ** markers)
+    // Fall back to textContent for older rendered sections
+    const text = sec.dataset.searchtext || (sec.textContent || '').toLowerCase();
     const match = text.includes(t);
     sec.style.display = match ? '' : 'none';
     if (match) visible++;
