@@ -2821,6 +2821,7 @@ h1,h2,h3,.gm-heading {
 }
 </style>
 
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js"></script>
 </head>
 <body>
 
@@ -2866,13 +2867,16 @@ const CONFIG = {
   STRIPE_PUBLISHABLE_KEY: 'pk_test_51ToibMBeyG4M2T8lVF3BhHOaLzlCR5iJBtRZfmMWH36x6QxYIPLTu9mShLbK2vqDciNPH4K2Bq1Iz4ylfJkk01lO00ljCewpnO',
   FREE_CARDS_PER_WEEK: 15,
   FREE_AI_PER_DAY: 2,
-  FREE_AI_TUTOR_DAILY: 3,
-  FREE_AI_TUTOR_WEEKLY: 15,
-  FREE_AI_MARKING_DAILY: 0,
-  STANDARD_AI_MARKING_DAILY: 40,
-  STANDARD_AI_TUTOR_DAILY: 10,
+  FREE_AI_TUTOR_DAILY: 5,
+  FREE_AI_TUTOR_WEEKLY: 35,
+  FREE_AI_MARKING_DAILY: 10,
+  STANDARD_AI_MARKING_DAILY: 30,
+  STANDARD_AI_TUTOR_DAILY: 20,
   STANDARD_BRAIN_DUMP_WEEKLY: 2,
-  PREMIUM_AI_TUTOR_DAILY: 20,
+  PREMIUM_AI_TUTOR_DAILY: 40,
+  PREMIUM_AI_MARKING_DAILY: 50,
+  PREMIUM_PLUS_AI_TUTOR_DAILY: 80,
+  PREMIUM_PLUS_AI_MARKING_DAILY: 100,
   CLAUDE_API_KEY: '', // Handled securely by Netlify function
   CLAUDE_MODEL: 'claude-sonnet-4-5',
   XP_PER_SESSION: 50,
@@ -15570,6 +15574,7 @@ async function afterLogin(startScreen) {
     await restoreCardProgressFromSupabase(STATE.user);
     STATE.isDataReady = true;
     if (STATE.screen === 'home') showHome();  // re-render with restored card counts
+    loadUnreadCount();
     // Offer to resume mid-session if one was saved
     const snap = LS.get('mid_session');
     const today = new Date().toISOString().slice(0, 10);
@@ -15623,7 +15628,7 @@ async function loadUserPaidStatus() {
   if (!user?.token || !user?.id) return;
   try {
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -15658,12 +15663,14 @@ async function loadUserPaidStatus() {
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
+      STATE.user.allow_self_grade       = p.allow_self_grade !== false;
       if (p.class_code) {
-        fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock', {
+        fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
         }).then(r => r.json()).then(d => {
           STATE.user.class_allow_student_unlock = d[0]?.allow_student_unlock !== false;
-        }).catch(() => { STATE.user.class_allow_student_unlock = true; });
+          STATE.user.class_ai_marking_locked = d[0]?.ai_marking_locked === true;
+        }).catch(() => { STATE.user.class_allow_student_unlock = true; STATE.user.class_ai_marking_locked = false; });
       } else {
         STATE.user.class_allow_student_unlock = true;
       }
@@ -16622,10 +16629,10 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
-    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'<ph-books weight="duotone"></ph-books>', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'<ph-chart-line-up weight="duotone"></ph-chart-line-up>', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'<ph-chalkboard-teacher weight="duotone"></ph-chalkboard-teacher>', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'<ph-user-circle weight="duotone"></ph-user-circle>', fn:'showProfile()' },
   ];
   const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
   const _sbPins = _buildSidebarPinsHTML(_pins);
@@ -16635,6 +16642,10 @@ function renderNavBar(active) {
     <div class="v3-sb-nav">
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
       <div id="gm-sb-pins">${_sbPins}</div>
+    </div>
+    <div class="gm-sb-notif-wrap" onclick="openNotificationPanel()" style="position:relative;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;">
+      <ph-bell weight="duotone" style="font-size:22px;color:rgba(255,255,255,0.7);"></ph-bell>
+      <span id="notif-badge" style="position:absolute;top:-4px;right:8px;background:#DC2626;color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;line-height:16px;text-align:center;display:none;"></span>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
   </aside>
@@ -16763,7 +16774,8 @@ function renderFlashcard() {
       </div>
       <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
     </div>
-    ${aiMode ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
+    ${aiMode && !(STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false) ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
+    ${STATE.user?.class_ai_marking_locked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">Your teacher requires AI marking for this class</div>` : ''}
   </div>
 
   <!-- Card -->
@@ -17027,6 +17039,10 @@ function flipCard() {
 }
 
 function selfGrade(cardId, grade) {
+  if (STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false && !STATE.currentAutoGrade) {
+    showToast('AI marking is required in your class');
+    return;
+  }
   // In Deep Dive: good(2) and easy(3) silently downgraded to hard(1) for SRS
   const srsGrade = STATE.sessionPhase === 'deepDive' ? Math.min(grade, 1) : grade;
   const _autoMap = { again: 0, hard: 1, good: 2, easy: 3 };
@@ -20318,6 +20334,17 @@ function showStudentDetail(name, studentUserId) {
         <div id="topic-access-content-${studentUserId.replace(/-/g,'')}" style="display:none;padding-top:8px;"></div>
       </div>` : ''}
       ${studentUserId ? `
+      <div class="card" style="padding:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">⚙️ AI MARKING</div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:10px;">Override class AI marking requirement for this student.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:700;">Allow self-grading</span>
+          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:#22C55E;position:relative;flex-shrink:0;" data-on="true">
+            <div style="position:absolute;top:2px;right:3px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
+          </div>
+        </div>
+      </div>` : ''}
+      ${studentUserId ? `
       <div style="padding:4px 0;">
         <button onclick="removeStudentFromClass('${studentUserId}','${name}')" style="width:100%;padding:8px 16px;border-radius:10px;border:1.5px solid #DC2626;background:transparent;color:#DC2626;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🚪 Remove from class</button>
       </div>` : ''}
@@ -20970,6 +20997,7 @@ async function afterLogin(startScreen) {
     await restoreCardProgressFromSupabase(STATE.user);
     STATE.isDataReady = true;
     if (STATE.screen === 'home') showHome();  // re-render with restored card counts
+    loadUnreadCount();
     // Offer to resume mid-session if one was saved
     const snap = LS.get('mid_session');
     const today = new Date().toISOString().slice(0, 10);
@@ -21008,7 +21036,7 @@ async function loadUserPaidStatus() {
   if (!user?.token || !user?.id) return;
   try {
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -21043,12 +21071,14 @@ async function loadUserPaidStatus() {
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
+      STATE.user.allow_self_grade       = p.allow_self_grade !== false;
       if (p.class_code) {
-        fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock', {
+        fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
         }).then(r => r.json()).then(d => {
           STATE.user.class_allow_student_unlock = d[0]?.allow_student_unlock !== false;
-        }).catch(() => { STATE.user.class_allow_student_unlock = true; });
+          STATE.user.class_ai_marking_locked = d[0]?.ai_marking_locked === true;
+        }).catch(() => { STATE.user.class_allow_student_unlock = true; STATE.user.class_ai_marking_locked = false; });
       } else {
         STATE.user.class_allow_student_unlock = true;
       }
@@ -22007,10 +22037,10 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
-    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'<ph-books weight="duotone"></ph-books>', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'<ph-chart-line-up weight="duotone"></ph-chart-line-up>', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'<ph-chalkboard-teacher weight="duotone"></ph-chalkboard-teacher>', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'<ph-user-circle weight="duotone"></ph-user-circle>', fn:'showProfile()' },
   ];
   const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
   const _sbPins = _buildSidebarPinsHTML(_pins);
@@ -22020,6 +22050,10 @@ function renderNavBar(active) {
     <div class="v3-sb-nav">
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
       <div id="gm-sb-pins">${_sbPins}</div>
+    </div>
+    <div class="gm-sb-notif-wrap" onclick="openNotificationPanel()" style="position:relative;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;">
+      <ph-bell weight="duotone" style="font-size:22px;color:rgba(255,255,255,0.7);"></ph-bell>
+      <span id="notif-badge" style="position:absolute;top:-4px;right:8px;background:#DC2626;color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;line-height:16px;text-align:center;display:none;"></span>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
   </aside>
@@ -22148,7 +22182,8 @@ function renderFlashcard() {
       </div>
       <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
     </div>
-    ${aiMode ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
+    ${aiMode && !(STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false) ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
+    ${STATE.user?.class_ai_marking_locked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">Your teacher requires AI marking for this class</div>` : ''}
   </div>
 
   <!-- Card -->
@@ -22412,6 +22447,10 @@ function flipCard() {
 }
 
 function selfGrade(cardId, grade) {
+  if (STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false && !STATE.currentAutoGrade) {
+    showToast('AI marking is required in your class');
+    return;
+  }
   // In Deep Dive: good(2) and easy(3) silently downgraded to hard(1) for SRS
   const srsGrade = STATE.sessionPhase === 'deepDive' ? Math.min(grade, 1) : grade;
   const _autoMap = { again: 0, hard: 1, good: 2, easy: 3 };
@@ -25768,6 +25807,17 @@ function showStudentDetail(name, studentUserId) {
         <div id="topic-access-content-${studentUserId.replace(/-/g,'')}" style="display:none;padding-top:8px;"></div>
       </div>` : ''}
       ${studentUserId ? `
+      <div class="card" style="padding:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">⚙️ AI MARKING</div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:10px;">Override class AI marking requirement for this student.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:700;">Allow self-grading</span>
+          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:#22C55E;position:relative;flex-shrink:0;" data-on="true">
+            <div style="position:absolute;top:2px;right:3px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
+          </div>
+        </div>
+      </div>` : ''}
+      ${studentUserId ? `
       <div style="padding:4px 0;">
         <button onclick="removeStudentFromClass('${studentUserId}','${name}')" style="width:100%;padding:8px 16px;border-radius:10px;border:1.5px solid #DC2626;background:transparent;color:#DC2626;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🚪 Remove from class</button>
       </div>` : ''}
@@ -26441,17 +26491,17 @@ function closeStickerPicker() {
 
 // ── Pin shortcuts system ─────────────────────────────────────────────────
 const PIN_SHORTCUTS = [
-  { key: 'deepDive',          icon: '🌊', label: 'Deep Dive',           action: 'startDeepDive()' },
-  { key: 'quickRevision',     icon: '⚡', label: 'Quick Revision',      action: 'showQuickRevision()' },
-  { key: 'knowledgeOrganiser',icon: '📖', label: 'Knowledge Organisers',action: 'showKOTopicPicker()' },
-  { key: 'myTopics',          icon: '📚', label: 'My Topics',           action: 'showTopicsTab()' },
-  { key: 'masteryTracker',    icon: '🎯', label: 'Mastery Tracker',     action: 'showProgressTracker()' },
-  { key: 'badges',            icon: '🏆', label: 'Badges',              action: 'showBadges()' },
-  { key: 'history',           icon: '📋', label: 'History',             action: 'showStudyHistory()' },
-  { key: 'targetGrade',       icon: '🎓', label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'examDates',         icon: '📅', label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'studyJournal',      icon: '🚀', label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'settings',          icon: '⚙️', label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'deepDive',          icon: '<ph-waves weight="duotone"></ph-waves>',                                          label: 'Deep Dive',           action: 'startDeepDive()' },
+  { key: 'quickRevision',     icon: '<ph-lightning weight="duotone"></ph-lightning>',                                  label: 'Quick Revision',      action: 'showQuickRevision()' },
+  { key: 'knowledgeOrganiser',icon: '<ph-book-open weight="duotone"></ph-book-open>',                                  label: 'Knowledge Organisers',action: 'showKOTopicPicker()' },
+  { key: 'myTopics',          icon: '<ph-folders weight="duotone"></ph-folders>',                                      label: 'My Topics',           action: 'showTopicsTab()' },
+  { key: 'masteryTracker',    icon: '<ph-chart-line-up weight="duotone"></ph-chart-line-up>',                          label: 'Mastery Tracker',     action: 'showProgressTracker()' },
+  { key: 'badges',            icon: '<ph-trophy weight="duotone"></ph-trophy>',                                        label: 'Badges',              action: 'showBadges()' },
+  { key: 'history',           icon: '<ph-clock-counter-clockwise weight="duotone"></ph-clock-counter-clockwise>',      label: 'History',             action: 'showStudyHistory()' },
+  { key: 'targetGrade',       icon: '<ph-graduation-cap weight="duotone"></ph-graduation-cap>',                        label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'examDates',         icon: '<ph-calendar weight="duotone"></ph-calendar>',                                    label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'studyJournal',      icon: '<ph-rocket weight="duotone"></ph-rocket>',                                        label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'settings',          icon: '<ph-gear weight="duotone"></ph-gear>',                                            label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
 ];
 
 function _getPins() {
@@ -27433,6 +27483,133 @@ function loadTeacherTopicAccess(studentUserId) {
   .catch(() => { el.innerHTML = '<div style="font-size:12px;color:#94A3B8;padding:8px;">Could not load topic data</div>'; });
 }
 
+function toggleStudentSelfGrade(studentUserId, toggleEl) {
+  var currentlyOn = toggleEl.getAttribute('data-on') !== 'false';
+  var newVal = !currentlyOn;
+  toggleEl.style.background = newVal ? '#22C55E' : '#E2E8F0';
+  toggleEl.setAttribute('data-on', String(newVal));
+  var thumb = toggleEl.querySelector('div');
+  if (thumb) { thumb.style.right = newVal ? '3px' : ''; thumb.style.left = newVal ? '' : '3px'; }
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + studentUserId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ allow_self_grade: newVal })
+  }).then(function(r) {
+    if (r.ok) showToast(newVal ? 'Self-grading allowed ✓' : 'AI marking only for this student ✓');
+    else showToast('Could not update — try again');
+  });
+}
+
+function openNotificationPanel() {
+  var isMobile = window.innerWidth < 640;
+  var overlay = document.createElement('div');
+  overlay.id = 'notif-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9000;display:flex;' + (isMobile ? 'align-items:flex-end;' : 'align-items:stretch;justify-content:flex-end;');
+  overlay.onclick = function(e) { if (e.target === overlay) closeNotificationPanel(); };
+  overlay.innerHTML =
+    '<div id="notif-panel" style="background:white;width:' + (isMobile ? '100%' : '320px') + ';' + (isMobile ? 'border-radius:20px 20px 0 0;max-height:80vh;' : 'height:100%;') + 'display:flex;flex-direction:column;overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E2E8F0;flex-shrink:0;">'
+    + '<div style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;color:#0F172A;"><ph-bell weight="duotone" style="font-size:20px;"></ph-bell> Notifications</div>'
+    + '<div style="display:flex;align-items:center;gap:12px;">'
+    + '<span onclick="markAllNotificationsRead()" style="font-size:12px;font-weight:600;color:var(--gm-forest);cursor:pointer;">Mark all read</span>'
+    + '<button onclick="closeNotificationPanel()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8;padding:4px;line-height:1;">✕</button>'
+    + '</div></div>'
+    + '<div id="notif-list" style="flex:1;overflow-y:auto;padding:8px 0;"><div style="padding:16px;text-align:center;color:#94A3B8;font-size:13px;font-weight:600;">… Loading</div></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  loadNotifications();
+}
+
+function closeNotificationPanel() {
+  var el = document.getElementById('notif-overlay');
+  if (el) el.remove();
+}
+
+function _timeAgo(isoStr) {
+  var diff = Date.now() - new Date(isoStr).getTime();
+  var m = Math.floor(diff / 60000);
+  if (m < 60) return m + 'm ago';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  var d = Math.floor(h / 24);
+  if (d === 1) return 'Yesterday';
+  return d + ' days ago';
+}
+
+async function loadNotifications() {
+  var list = document.getElementById('notif-list');
+  if (!list || !STATE.user?.token) return;
+  try {
+    var res = await fetch(
+      CONFIG.SUPABASE_URL + '/rest/v1/notifications?user_id=eq.' + STATE.user.id + '&order=created_at.desc&limit=20',
+      { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token } }
+    );
+    var rows = res.ok ? await res.json() : [];
+    if (!rows.length) {
+      list.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;gap:12px;"><ph-bell-slash style="font-size:40px;color:#CBD5E1;"></ph-bell-slash><div style="font-size:14px;font-weight:700;color:#94A3B8;">No notifications yet</div></div>';
+      return;
+    }
+    list.innerHTML = rows.map(function(n) {
+      return '<div onclick="markNotificationRead(\'' + n.id + '\')" style="padding:12px 20px;border-left:3px solid ' + (n.read ? 'transparent' : 'var(--gm-forest)') + ';background:' + (n.read ? '#F8FAFC' : 'white') + ';cursor:pointer;border-bottom:1px solid #F1F5F9;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+        + '<div style="font-size:13px;font-weight:700;color:#0F172A;flex:1;">' + (n.title||'') + '</div>'
+        + '<div style="font-size:10px;color:#94A3B8;font-weight:600;white-space:nowrap;">' + _timeAgo(n.created_at) + '</div>'
+        + '</div>'
+        + '<div style="font-size:12px;color:#64748B;font-weight:500;margin-top:3px;line-height:1.4;">' + (n.body||'') + '</div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {
+    var listEl = document.getElementById('notif-list');
+    if (listEl) listEl.innerHTML = '<div style="padding:16px;color:#EF4444;font-size:13px;">Could not load notifications</div>';
+  }
+}
+
+async function markAllNotificationsRead() {
+  if (!STATE.user?.token) return;
+  await fetch(
+    CONFIG.SUPABASE_URL + '/rest/v1/notifications?user_id=eq.' + STATE.user.id + '&read=eq.false',
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Prefer': 'return=minimal' }, body: JSON.stringify({ read: true }) }
+  ).catch(function(){});
+  var badge = document.getElementById('notif-badge');
+  if (badge) badge.style.display = 'none';
+  loadNotifications();
+}
+
+async function markNotificationRead(id) {
+  if (!STATE.user?.token) return;
+  await fetch(
+    CONFIG.SUPABASE_URL + '/rest/v1/notifications?id=eq.' + id,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Prefer': 'return=minimal' }, body: JSON.stringify({ read: true }) }
+  ).catch(function(){});
+  loadNotifications();
+  loadUnreadCount();
+}
+
+async function loadUnreadCount() {
+  if (!STATE.user?.token || !STATE.user?.id) return;
+  try {
+    var res = await fetch(
+      CONFIG.SUPABASE_URL + '/rest/v1/notifications?user_id=eq.' + STATE.user.id + '&read=eq.false&select=id',
+      { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token } }
+    );
+    var rows = res.ok ? await res.json() : [];
+    var count = rows.length;
+    var badge = document.getElementById('notif-badge');
+    if (badge) {
+      badge.textContent = count > 9 ? '9+' : String(count);
+      badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+  } catch(e) {}
+}
+
+async function sendNotification(userId, title, body) {
+  if (!STATE.user?.token) return;
+  await fetch(
+    CONFIG.SUPABASE_URL + '/rest/v1/notifications',
+    { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Prefer': 'return=minimal' }, body: JSON.stringify({ user_id: userId, title: title, body: body }) }
+  ).catch(function(){});
+}
+
 async function saveParentDisplayName() {
   const name = (document.getElementById('parent-edit-name')?.value || '').trim();
   if (!name) { showToast('Please enter a name'); return; }
@@ -28282,15 +28459,20 @@ window.addEventListener('appinstalled', () => dismissInstallBanner());
 function getAIMarkingLimit() {
   const user = STATE.user;
   if (!user) return 0;
-  // DEV TESTING: unlimited for test account — remove before launch
   if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (!user.is_paid) return CONFIG.FREE_AI_MARKING_DAILY;
+  if (user.tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_MARKING_DAILY;
+  if (user.tier === 'premium') return CONFIG.PREMIUM_AI_MARKING_DAILY;
   return CONFIG.STANDARD_AI_MARKING_DAILY;
 }
 function getAITutorDailyLimit() {
-  // DEV TESTING: unlimited for test account — remove before launch
-  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
-  return STATE.user?.is_paid ? CONFIG.STANDARD_AI_TUTOR_DAILY : CONFIG.FREE_AI_TUTOR_DAILY;
+  const user = STATE.user;
+  if (!user) return 0;
+  if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  if (!user.is_paid) return CONFIG.FREE_AI_TUTOR_DAILY;
+  if (user.tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_TUTOR_DAILY;
+  if (user.tier === 'premium') return CONFIG.PREMIUM_AI_TUTOR_DAILY;
+  return CONFIG.STANDARD_AI_TUTOR_DAILY;
 }
 function getAITutorWeeklyLimit() {
   // DEV TESTING: unlimited for test account — remove before launch
