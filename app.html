@@ -26151,7 +26151,7 @@ const VB_STICKER_CATS = [
   { label: 'Flags',         stickers: ['🇬🇧'] },
 ];
 
-const PG_BANNED = ['fuck','shit','bitch','cunt','ass','asshole','bastard','piss','cock','dick','pussy','whore','slut','twat','wank','bollocks','bugger','wanker','knob'];
+const PG_BANNED = ['fuck','shit','bitch','cunt','ass','asshole','bastard','piss','cock','dick','pussy','whore','slut','twat','wank','bollocks','bugger','wanker','knob','fuk','sheit','biatch','fcuk','shite','bellend','prick','tosser','minger','pillock'];
 
 function _getVBStickers() {
   try { return JSON.parse(localStorage.getItem('gm_vb_stickers') || '[]'); } catch(e) { return []; }
@@ -26159,8 +26159,13 @@ function _getVBStickers() {
 function _saveVBStickers(arr) { localStorage.setItem('gm_vb_stickers', JSON.stringify(arr)); }
 
 function _pgFilter(text) {
-  var words = text.toLowerCase().split(/\W+/);
-  return words.some(function(w) { return PG_BANNED.indexOf(w) !== -1; });
+  const normalised = text.toLowerCase()
+    .replace(/\*/g, '').replace(/1/g, 'i').replace(/4/g, 'a')
+    .replace(/3/g, 'e').replace(/0/g, 'o').replace(/\$/g, 's');
+  const check = function(t) {
+    return t.split(/\W+/).some(function(w) { return PG_BANNED.indexOf(w) !== -1; });
+  };
+  return check(text.toLowerCase()) || check(normalised);
 }
 
 function buildVisionBoardHTML(user) {
