@@ -15617,7 +15617,7 @@ async function loadUserPaidStatus() {
   if (!user?.token || !user?.id) return;
   try {
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -15650,6 +15650,7 @@ async function loadUserPaidStatus() {
       STATE.user.ai_tutor_weekly_count  = p.ai_tutor_weekly_count  || 0;
       STATE.user.ai_marking_daily_count = p.ai_marking_daily_count || 0;
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
+      STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       _resetAICountsIfNeeded();
       LS.set('demo_user', STATE.user);
       if (STATE.screen === 'home') showHome();
@@ -18936,7 +18937,7 @@ ${renderNavBar('profile')}
     <div id="profile-notifications-section"><div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div></div>
 
     <!-- Vision Board -->
-    ${buildVisionBoardHTML(user)}
+    ${STATE.user.vision_board_enabled === false ? '<div class="card" id="profile-journal-section" style="margin-bottom:16px;"><div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:24px;text-align:center;"><div style="font-size:32px;margin-bottom:8px;">🔒</div><div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:4px;">Vision Board locked</div><div style="font-size:12px;color:#64748B;">Your parent has disabled the Vision Board. Ask them to re-enable it in their parent portal.</div></div></div>' : buildVisionBoardHTML(user)}
 
     <!-- Badges -->
     <div class="card" id="profile-badges-section" style="margin-bottom:16px;">
@@ -20916,7 +20917,7 @@ async function loadUserPaidStatus() {
   if (!user?.token || !user?.id) return;
   try {
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -20949,6 +20950,7 @@ async function loadUserPaidStatus() {
       STATE.user.ai_tutor_weekly_count  = p.ai_tutor_weekly_count  || 0;
       STATE.user.ai_marking_daily_count = p.ai_marking_daily_count || 0;
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
+      STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       _resetAICountsIfNeeded();
       LS.set('demo_user', STATE.user);
       if (STATE.screen === 'home') showHome();
@@ -24320,7 +24322,7 @@ ${renderNavBar('profile')}
     <div id="profile-notifications-section"><div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div></div>
 
     <!-- Vision Board -->
-    ${buildVisionBoardHTML(user)}
+    ${STATE.user.vision_board_enabled === false ? '<div class="card" id="profile-journal-section" style="margin-bottom:16px;"><div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:24px;text-align:center;"><div style="font-size:32px;margin-bottom:8px;">🔒</div><div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:4px;">Vision Board locked</div><div style="font-size:12px;color:#64748B;">Your parent has disabled the Vision Board. Ask them to re-enable it in their parent portal.</div></div></div>' : buildVisionBoardHTML(user)}
 
     <!-- Badges -->
     <div class="card" id="profile-badges-section" style="margin-bottom:16px;">
@@ -26453,7 +26455,7 @@ async function showParentPortal() {
 
   if (linkedStudentId) {
     try {
-      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade';
+      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade,vision_board_enabled';
       console.log('[ParentPortal] fetching child profile:', cUrl);
       const cRes = await fetch(cUrl, { headers });
       const cProfiles = cRes.ok ? await cRes.json() : [];
@@ -26471,7 +26473,8 @@ async function showParentPortal() {
           exam_board: cp.exam_board || 'AQA',
           user_id: cp.user_id,
           locked_topics: Array.isArray(cp.locked_topics) ? cp.locked_topics : [],
-          schedule_locked: cp.schedule_locked || false
+          schedule_locked: cp.schedule_locked || false,
+          vision_board_enabled: cp.vision_board_enabled !== false
         };
         console.log('[ParentPortal] child loaded:', child.name, 'user_id:', child.user_id);
       } else {
@@ -27122,6 +27125,22 @@ function buildParentProfileTabHTML(user, children, activeChildId) {
     </div>`;
   }
 
+  // ── Vision Board toggle ──
+  if (childId) {
+    const vbEnabled = STATE._parentChildProfile?.vision_board_enabled !== false;
+    const safeVBId = JSON.stringify(String(childId).replace(/'/g,''));
+    const statusVBId = 'parent-vb-status';
+    h += '<div style="background:white;border-radius:16px;padding:20px;margin-bottom:14px;border:1px solid #E2E8F0;box-shadow:0 1px 6px rgba(0,0,0,.06);">';
+    h += '<div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:12px;">VISION BOARD</div>';
+    h += '<div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">Allow ' + childFirstName + ' to use their Vision Board. Turning this off shows a locked message on their profile.</div>';
+    h += '<div style="display:flex;gap:8px;">';
+    h += '<button onclick="toggleVBEnabled(' + safeVBId + ', true, \'' + statusVBId + '\')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #E2E8F0;background:' + (vbEnabled ? 'var(--gm-forest)' : 'white') + ';color:' + (vbEnabled ? 'white' : '#64748B') + ';font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Enable ✅</button>';
+    h += '<button onclick="toggleVBEnabled(' + safeVBId + ', false, \'' + statusVBId + '\')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #E2E8F0;background:' + (!vbEnabled ? '#FEE2E2' : 'white') + ';color:' + (!vbEnabled ? '#991B1B' : '#64748B') + ';font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">🔒 Disable</button>';
+    h += '</div>';
+    h += '<div id="' + statusVBId + '" style="font-size:11px;color:#16A34A;font-weight:700;margin-top:8px;"></div>';
+    h += '</div>';
+  }
+
   // ── Collapsible Account Details ──
   h += '<div style="' + cardStyle + '">';
   h += '<div onclick="toggleParentAccountDetails()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;">';
@@ -27166,6 +27185,22 @@ function toggleParentAccountDetails() {
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
   if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+async function toggleVBEnabled(childId, enabled, statusId) {
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + childId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ vision_board_enabled: enabled })
+    });
+    if (res.ok) {
+      if (STATE._parentChildProfile) STATE._parentChildProfile.vision_board_enabled = enabled;
+      showToast(enabled ? 'Vision Board enabled ✅' : 'Vision Board disabled 🔒');
+      const statusEl = document.getElementById(statusId);
+      if (statusEl) statusEl.textContent = enabled ? 'Enabled — your child can use their Vision Board' : '⚠️ Disabled — your child sees a locked message';
+    } else { showToast('Could not update — check RLS allows parent to update child profile'); }
+  } catch(e) { showToast('Update failed'); }
 }
 
 async function saveParentDisplayName() {
