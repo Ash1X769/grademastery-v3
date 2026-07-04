@@ -2666,6 +2666,14 @@ h1,h2,h3,.gm-heading {
   .v3-toast { top:16px; right:8px; left:8px; max-width:calc(100% - 16px); }
 }
 
+@keyframes gmShake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.gm-shake { animation: gmShake 0.4s; }
+
 /* ─────────────────────────────────────────────────────────────
    UPGRADE MODAL
 ───────────────────────────────────────────────────────────── */
@@ -16695,6 +16703,7 @@ function startFlashcards() {
 
   STATE.cardQueue = getDueCards(user);
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
   STATE.screen = 'flashcards';
 
@@ -16997,6 +17006,11 @@ function recordAndAdvance(cardId, grade) {
 
   const isQR = STATE.sessionPhase === 'quickRevision';
 
+  if (!isQR && card) {
+    if (!STATE.sessionResults) STATE.sessionResults = [];
+    STATE.sessionResults.push({ card, grade: gradeNum });
+  }
+
   if (!isQR) {
     // Only new cards count toward the daily new-card limit
     if (wasNew && card?.subject) {
@@ -17045,7 +17059,12 @@ function recordAndAdvance(cardId, grade) {
           } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
             showTransition('cards-to-exam');
           } else {
-            endSession();
+            const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+            if (againHard.length > 0) {
+              showBeforeTomorrowScreen(againHard, endSession);
+            } else {
+              endSession();
+            }
           }
         } else {
           if (STATE.sessionPhase === 'embed') {
@@ -17240,6 +17259,7 @@ function startFlashcardsForSubject(subject) {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
   STATE.screen = 'flashcards';
   renderFlashcard();
@@ -17594,6 +17614,11 @@ function recordGrade(cardId, grade, aiGraded) {
   const isQR = STATE.sessionPhase === 'quickRevision';
   const isDD = STATE.sessionPhase === 'deepDive';
 
+  if (!isQR && !isDD && card) {
+    if (!STATE.sessionResults) STATE.sessionResults = [];
+    STATE.sessionResults.push({ card, grade });
+  }
+
   if (!isQR && !isDD) {
     // Only new cards count toward the daily new-card limit
     if (wasNew && card?.subject) {
@@ -17631,7 +17656,12 @@ function nextCard() {
     } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
       showTransition('cards-to-exam');
     } else {
-      showSessionEnd();
+      const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+      if (againHard.length > 0) {
+        showBeforeTomorrowScreen(againHard, showSessionEnd);
+      } else {
+        showSessionEnd();
+      }
     }
   } else {
     if (STATE.sessionPhase === 'embed') {
@@ -18334,6 +18364,134 @@ function _renderSessionEnd() {
 }
 
 // ============================================================
+// BEFORE TOMORROW — end-of-session Again/Hard review prompt
+// ============================================================
+const BEFORE_TOMORROW_MSGS = [
+  "Your future self will literally thank you. Takes 5 mins. Do it.",
+  "The exam doesn't care that you were tired. These words do.",
+  "Say it out loud. Yes, out loud. No one's watching. Probably.",
+  "Write it in the air. Feel silly? Good. You'll remember it.",
+  "5 minutes now = not crying the night before the exam. Maths.",
+  "Your brain deletes stuff it hasn't seen twice. Don't let it.",
+  "The kids getting 9s are doing this right now. Just saying.",
+  "Repeat after me: partially permeable membrane. See? You've got this.",
+  "Close this and you'll forget by morning. Keep going for 4 more mins.",
+  "One day you'll be explaining this to someone else. Start now.",
+  "Boring? Yes. Worth it? Ask yourself in the exam hall.",
+  "Say the key terms out loud 3 times. Your brain is listening even if you're not.",
+];
+
+function _btKeyTerms(card) {
+  const answers = Array.isArray(card?.a) ? card.a : [];
+  return answers.flatMap(a => [...String(a).matchAll(/\*\*(.*?)\*\*/g)].map(m => m[1]));
+}
+
+function _btBoldForest(text) {
+  return (text || '').replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--gm-forest);">$1</strong>');
+}
+
+function showBeforeTomorrowScreen(againHardCards, onContinue) {
+  STATE._btResults = againHardCards || [];
+  STATE._btSelected = [];
+  STATE._btOnContinue = onContinue;
+  STATE._btMsg = BEFORE_TOMORROW_MSGS[Math.floor(Math.random() * BEFORE_TOMORROW_MSGS.length)];
+  _renderBeforeTomorrowScreen();
+}
+
+function toggleBeforeTomorrowCard(cardId) {
+  const results = STATE._btResults || [];
+  const selected = STATE._btSelected || (STATE._btSelected = []);
+  const target = Math.min(3, results.length);
+  const idx = selected.indexOf(cardId);
+  if (idx > -1) {
+    selected.splice(idx, 1);
+  } else if (selected.length >= target) {
+    showToast('Pick just 3 — quality over quantity 😉');
+    const el = document.getElementById('bt-card-' + cardId);
+    if (el) {
+      el.classList.remove('gm-shake');
+      void el.offsetWidth;
+      el.classList.add('gm-shake');
+    }
+    return;
+  } else {
+    selected.push(cardId);
+  }
+  _renderBeforeTomorrowScreen();
+}
+
+function _beforeTomorrowContinue(didIt) {
+  const onContinue = STATE._btOnContinue;
+  delete STATE._btResults;
+  delete STATE._btSelected;
+  delete STATE._btOnContinue;
+  delete STATE._btMsg;
+  if (!didIt) showToast('No worries — try to glance at them before tomorrow 👀');
+  if (onContinue) onContinue();
+}
+
+function _renderBeforeTomorrowScreen() {
+  const results = STATE._btResults || [];
+  const selected = STATE._btSelected || [];
+  const target = Math.min(3, results.length);
+  const isComplete = target > 0 && selected.length >= target;
+  const gradeMeta = {
+    0: { label: 'Again 😰', color: '#DC2626', bg: '#FEF2F2' },
+    1: { label: 'Hard 😤',  color: '#D97706', bg: '#FFFBEB' },
+  };
+
+  const cardsHTML = results.map(entry => {
+    const card = entry.card;
+    const meta = gradeMeta[entry.grade] || gradeMeta[0];
+    const isSelected = selected.includes(card.id);
+    return `<div id="bt-card-${card.id}" onclick="toggleBeforeTomorrowCard('${card.id}')" style="background:${isSelected ? '#F0FDF4' : 'white'};border:${isSelected ? '2px' : '1.5px'} solid ${isSelected ? 'var(--gm-forest)' : 'var(--gm-border)'};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color 0.15s ease,background 0.15s ease;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="font-size:14px;font-weight:600;color:var(--gm-text);line-height:1.4;flex:1;">${_btBoldForest(card.q || card.question || '')}</div>
+        <span style="flex-shrink:0;font-size:11px;font-weight:700;color:${meta.color};background:${meta.bg};border-radius:999px;padding:3px 10px;white-space:nowrap;">${meta.label}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const masteredHTML = isComplete ? selected.map(id => {
+    const entry = results.find(e => e.card.id === id);
+    if (!entry) return '';
+    const terms = _btKeyTerms(entry.card);
+    const pillsHTML = terms.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${terms.map(t => `<span style="display:inline-flex;align-items:center;background:#216D39;color:white;border-radius:999px;font-size:10px;padding:3px 10px;">${t}</span>`).join('')}</div>`
+      : '';
+    return `<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;color:#216D39;margin-bottom:6px;">KEY TERMS TO REMEMBER:</div>
+      ${pillsHTML}
+      <div style="font-size:13px;color:#64748B;margin-top:8px;font-style:italic;">"Say each one out loud 3 times. Write it in the air. Done."</div>
+    </div>`;
+  }).join('') : '';
+
+  const actionHTML = isComplete ? `
+    <div style="margin-top:24px;">
+      <div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Your ${selected.length} to master:</div>
+      ${masteredHTML}
+      <div style="background:#FEFCE8;border:1px solid #FDE68A;border-radius:14px;padding:12px;font-size:13px;color:#B45309;font-style:italic;text-align:center;margin:16px 0 20px;">${STATE._btMsg}</div>
+      <button class="btn btn-primary btn-full" style="height:48px;" onclick="_beforeTomorrowContinue(true)">I did it! ✓</button>
+      <button onclick="_beforeTomorrowContinue(false)" style="background:none;border:none;color:var(--gm-muted);font-size:13px;font-weight:600;padding:10px;width:100%;cursor:pointer;margin-top:4px;">Skip for now</button>
+    </div>` : '';
+
+  const html = `
+<div class="screen" style="background:#FAFAFA;min-height:100vh;">
+  <div style="background:var(--gm-forest);padding:20px;">
+    <div style="font-family:'Plus Jakarta Sans','Nunito',sans-serif;font-size:20px;font-weight:800;color:white;">Before Tomorrow 🧠</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Your brain is literally deleting these right now. 5 mins = sorted.</div>
+  </div>
+  <div style="padding:20px;max-width:520px;margin:0 auto;">
+    <div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Pick 3 to nail tomorrow</div>
+    ${cardsHTML}
+    ${actionHTML}
+  </div>
+</div>`;
+
+  render(html);
+}
+
+// ============================================================
 // ENGAGEMENT: SOUND, CONFETTI, LEVEL-UP, LEADERBOARD
 // ============================================================
 
@@ -18770,6 +18928,7 @@ function resumeMidSession() {
   STATE.cardQueue = queue;
   STATE.currentCardIndex = Math.min(snap.index, queue.length - 1);
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE._activeTopic = snap.topic || null;
   STATE.screen = 'flashcards';
   renderFlashcard();
@@ -18816,6 +18975,7 @@ function startFlashcardsForTopic(topicKey) {
   STATE.cardQueue = queue;
   STATE.currentCardIndex = 0;
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE._activeTopic = topicKey;
   renderFlashcard();
 }
@@ -22137,6 +22297,7 @@ function startFlashcards() {
 
   STATE.cardQueue = getDueCards(user);
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
   STATE.screen = 'flashcards';
 
@@ -22412,6 +22573,11 @@ function recordAndAdvance(cardId, grade) {
 
   const isQR = STATE.sessionPhase === 'quickRevision';
 
+  if (!isQR && card) {
+    if (!STATE.sessionResults) STATE.sessionResults = [];
+    STATE.sessionResults.push({ card, grade: gradeNum });
+  }
+
   if (!isQR) {
     // Only new cards count toward the daily new-card limit
     if (wasNew && card?.subject) {
@@ -22460,7 +22626,12 @@ function recordAndAdvance(cardId, grade) {
           } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
             showTransition('cards-to-exam');
           } else {
-            endSession();
+            const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+            if (againHard.length > 0) {
+              showBeforeTomorrowScreen(againHard, endSession);
+            } else {
+              endSession();
+            }
           }
         } else {
           if (STATE.sessionPhase === 'embed') {
@@ -22655,6 +22826,7 @@ function startFlashcardsForSubject(subject) {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
   STATE.screen = 'flashcards';
   renderFlashcard();
@@ -23096,6 +23268,11 @@ function recordGrade(cardId, grade, aiGraded) {
   const isQR = STATE.sessionPhase === 'quickRevision';
   const isDD = STATE.sessionPhase === 'deepDive';
 
+  if (!isQR && !isDD && card) {
+    if (!STATE.sessionResults) STATE.sessionResults = [];
+    STATE.sessionResults.push({ card, grade });
+  }
+
   if (!isQR && !isDD) {
     // Only new cards count toward the daily new-card limit
     if (wasNew && card?.subject) {
@@ -23133,7 +23310,12 @@ function nextCard() {
     } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
       showTransition('cards-to-exam');
     } else {
-      showSessionEnd();
+      const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+      if (againHard.length > 0) {
+        showBeforeTomorrowScreen(againHard, showSessionEnd);
+      } else {
+        showSessionEnd();
+      }
     }
   } else {
     if (STATE.sessionPhase === 'embed') {
@@ -24270,6 +24452,7 @@ function resumeMidSession() {
   STATE.cardQueue = queue;
   STATE.currentCardIndex = Math.min(snap.index, queue.length - 1);
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE._activeTopic = snap.topic || null;
   STATE.screen = 'flashcards';
   renderFlashcard();
@@ -24316,6 +24499,7 @@ function startFlashcardsForTopic(topicKey) {
   STATE.cardQueue = queue;
   STATE.currentCardIndex = 0;
   STATE.cardsDone = [];
+  STATE.sessionResults = [];
   STATE._activeTopic = topicKey;
   renderFlashcard();
 }
