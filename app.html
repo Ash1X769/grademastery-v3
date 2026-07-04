@@ -18787,7 +18787,7 @@ ${renderNavBar('profile')}
   <!-- Profile chip navigation -->
   <div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
     <button onclick="document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">📚 My Topics</button>
-    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🎯 Vision Board</button>
+    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🚀 Vision Board</button>
     <button onclick="document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🏆 Badges</button>
     <button onclick="document.getElementById('profile-notifications-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🔔 Notifications</button>
     <button onclick="document.getElementById('profile-settings-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">⚙️ Settings</button>
@@ -24172,7 +24172,7 @@ ${renderNavBar('profile')}
   <!-- Profile chip navigation -->
   <div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
     <button onclick="document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">📚 My Topics</button>
-    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🎯 Vision Board</button>
+    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🚀 Vision Board</button>
     <button onclick="document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🏆 Badges</button>
     <button onclick="document.getElementById('profile-notifications-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🔔 Notifications</button>
     <button onclick="document.getElementById('profile-settings-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">⚙️ Settings</button>
@@ -26193,7 +26193,7 @@ function buildVisionBoardHTML(user) {
   var dateStr = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'});
   return '<div class="card" id="profile-journal-section" style="margin-bottom:16px;">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
-    +   '<div style="font-size:15px;font-weight:800;">🎯 My Vision Board</div>'
+    +   '<div style="font-size:15px;font-weight:800;">🚀 My Vision Board</div>'
     + '</div>'
     + '<div style="font-size:11px;color:#64748B;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:8px 12px;margin-bottom:12px;">'
     +   '👀 Visible to your parents and teachers'
@@ -26292,14 +26292,14 @@ function closeStickerPicker() {
 const PIN_SHORTCUTS = [
   { key: 'deepDive',          icon: '🌊', label: 'Deep Dive',           action: 'startDeepDive()' },
   { key: 'quickRevision',     icon: '⚡', label: 'Quick Revision',      action: 'showQuickRevision()' },
-  { key: 'knowledgeOrganiser',icon: '📖', label: 'Knowledge Organisers',action: 'showKnowledgeOrganiser()' },
+  { key: 'knowledgeOrganiser',icon: '📖', label: 'Knowledge Organisers',action: 'showKOTopicPicker()' },
   { key: 'myTopics',          icon: '📚', label: 'My Topics',           action: 'showTopicsTab()' },
   { key: 'masteryTracker',    icon: '🎯', label: 'Mastery Tracker',     action: 'showProgressTracker()' },
   { key: 'badges',            icon: '🏆', label: 'Badges',              action: 'showBadges()' },
   { key: 'history',           icon: '📋', label: 'History',             action: 'showStudyHistory()' },
   { key: 'targetGrade',       icon: '🎓', label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
   { key: 'examDates',         icon: '📅', label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'studyJournal',      icon: '🎯', label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'studyJournal',      icon: '🚀', label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
   { key: 'settings',          icon: '⚙️', label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
 ];
 
@@ -26390,7 +26390,7 @@ function closePinPicker() {
 // Stubs for pin actions that map to existing functions
 function startDeepDive() { showDeepDivePicker(); }
 function showQuickRevision() { startQuickRevision(); }
-function showKnowledgeOrganiser() { showKOTopicPicker(); }
+
 function showTopicsTab() { showProfile(); setTimeout(function(){ document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'}); }, 300); }
 function showBadges() { showProfile(); setTimeout(function(){ document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'}); }, 300); }
 
