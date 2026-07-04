@@ -2901,6 +2901,17 @@ const CONFIG = {
   MASTERY_THRESHOLD: 0.8,
 };
 
+const STRIPE_PRICES = {
+  basic_monthly: 'price_1TpbzOBeyG4M2T8lSxHgOlPM',
+  basic_annual: 'price_1Tpc50BeyG4M2T8ldkBPg1O5',
+  standard_monthly: 'price_1Tpc0fBeyG4M2T8lAM06cuGZ',
+  standard_annual: 'price_1Tpc5OBeyG4M2T8lK3ua1FcH',
+  premium_monthly: 'price_1Tpc1oBeyG4M2T8lTcMKYkVx',
+  premium_annual: 'price_1Tpc5tBeyG4M2T8l5ew9RA1j',
+  premium_plus_monthly: 'price_1Tpc2eBeyG4M2T8lY6cdAme5',
+  premium_plus_annual: 'price_1Tpc6OBeyG4M2T8lcB8pjIYd'
+};
+
 // ============================================================
 // STATE
 // ============================================================
@@ -15791,10 +15802,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:'price_basic_monthly',   annual:'price_basic_annual',   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'std',     name:'Standard',monthly:'price_standard_monthly',annual:'price_standard_annual', price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:'price_premium_monthly', annual:'price_premium_annual',  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
-    { id:'plus',    name:'Plus',    monthly:'price_premium_plus_monthly',annual:'price_premium_plus_annual',price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -15828,14 +15839,14 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£4.99',a:'£3.49'},std:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},plus:{m:'£19.99',a:'£13.99'}};
-  const PRICE_IDS = {basic:{m:'price_basic_monthly',a:'price_basic_annual'},std:{m:'price_standard_monthly',a:'price_standard_annual'},premium:{m:'price_premium_monthly',a:'price_premium_annual'},plus:{m:'price_premium_plus_monthly',a:'price_premium_plus_annual'}};
+  const PRICES = {basic:{m:'£4.99',a:'£3.49'},standard:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},premium_plus:{m:'£19.99',a:'£13.99'}};
+  const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
     if (el) el.textContent = p[period];
   });
   document.querySelectorAll('.v3-tier-cta').forEach((btn, i) => {
-    const ids = ['basic','std','premium','plus'];
+    const ids = ['basic','standard','premium','premium_plus'];
     if (!btn.classList.contains('current-plan')) {
       const pid = PRICE_IDS[ids[i]]?.[period];
       if (pid) btn.onclick = () => initiateStripeCheckout(pid, ids[i]);
@@ -15870,7 +15881,7 @@ async function initiateStripeCheckout(priceId, tier) {
 }
 
 async function startCheckout() {
-  initiateStripeCheckout('price_standard_monthly', 'standard');
+  initiateStripeCheckout(STRIPE_PRICES.standard_monthly, 'standard');
 }
 
 function showUpgradedCelebration() {
@@ -21385,10 +21396,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:'price_basic_monthly',   annual:'price_basic_annual',   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'std',     name:'Standard',monthly:'price_standard_monthly',annual:'price_standard_annual', price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:'price_premium_monthly', annual:'price_premium_annual',  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
-    { id:'plus',    name:'Plus',    monthly:'price_premium_plus_monthly',annual:'price_premium_plus_annual',price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -21422,14 +21433,14 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£4.99',a:'£3.49'},std:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},plus:{m:'£19.99',a:'£13.99'}};
-  const PRICE_IDS = {basic:{m:'price_basic_monthly',a:'price_basic_annual'},std:{m:'price_standard_monthly',a:'price_standard_annual'},premium:{m:'price_premium_monthly',a:'price_premium_annual'},plus:{m:'price_premium_plus_monthly',a:'price_premium_plus_annual'}};
+  const PRICES = {basic:{m:'£4.99',a:'£3.49'},standard:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},premium_plus:{m:'£19.99',a:'£13.99'}};
+  const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
     if (el) el.textContent = p[period];
   });
   document.querySelectorAll('.v3-tier-cta').forEach((btn, i) => {
-    const ids = ['basic','std','premium','plus'];
+    const ids = ['basic','standard','premium','premium_plus'];
     if (!btn.classList.contains('current-plan')) {
       const pid = PRICE_IDS[ids[i]]?.[period];
       if (pid) btn.onclick = () => initiateStripeCheckout(pid, ids[i]);
@@ -21464,7 +21475,7 @@ async function initiateStripeCheckout(priceId, tier) {
 }
 
 async function startCheckout() {
-  initiateStripeCheckout('price_standard_monthly', 'standard');
+  initiateStripeCheckout(STRIPE_PRICES.standard_monthly, 'standard');
 }
 
 function showUpgradedCelebration() {
