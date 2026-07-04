@@ -1933,6 +1933,16 @@ textarea.input { resize: vertical; min-height: 100px; }
   .gap-input.correct { border-color: var(--ss-green); background: #F0FDF4; }
   .gap-input.wrong { border-color: var(--ss-red); background: #FFF0F0; }
   .keyword-chip:active { background: #BBF7D0 !important; transform: scale(0.95); }
+/* ── Pin shortcuts ─────────────────────────────────────────────────────────────────────── */
+.gm-mobile-pins-row{display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;gap:8px;padding:6px 12px;background:white;border-top:0.5px solid var(--gm-border,#E2E8F0);box-shadow:0 -2px 8px rgba(0,0,0,0.06);flex-shrink:0;}
+.gm-mobile-pins-row::-webkit-scrollbar{display:none;}
+@media(min-width:1024px){.gm-mobile-pins-row{display:none;}}
+.gm-sb-pin-wrap{position:relative;display:flex;justify-content:center;}
+.gm-sb-pin-tip{position:absolute;left:56px;top:50%;transform:translateY(-50%);background:white;color:#1A2E22;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:opacity 0.15s;z-index:200;}
+.gm-sb-pin-wrap:hover .gm-sb-pin-tip{opacity:1;}
+@keyframes gmPinPulse{0%,100%{opacity:0.5;}50%{opacity:1;}}
+.gm-pulse{animation:gmPinPulse 2s ease-in-out infinite;}
+.gm-sb-divider{height:1px;background:rgba(255,255,255,0.2);margin:6px 8px;}
 
 </style>
 
@@ -16595,16 +16605,19 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',    icon:'📚', fn:'showHome()' },
-    { id:'history', label:'History',  icon:'📋', fn:'showStudyHistory()' },
-    { id:'mastery', label:'Mastery',  icon:'🎯', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',    icon:'✨', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile',  icon:'👤', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
   ];
+  const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
+  const _sbPins = _buildSidebarPinsHTML(_pins);
+  const _mbPins = _buildMobilePinsHTML(_pins);
   return `<aside class="v3-sidebar" aria-label="Main navigation">
     <div class="v3-sb-mono">G</div>
     <div class="v3-sb-nav">
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
+      <div id="gm-sb-pins">${_sbPins}</div>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
   </aside>
@@ -16625,6 +16638,7 @@ function renderNavBar(active) {
       </div>
     </div>
   </nav>
+  <div id="gm-mobile-pins-row" class="gm-mobile-pins-row">${_mbPins}</div>
   <nav class="v3-bottom-nav" aria-label="Mobile navigation">
     ${tabs.map(t => `<button class="v3-bnav-item${active===t.id?' active':''}" onclick="${t.fn}"><span class="v3-bnav-icon">${t.icon}</span><span class="v3-bnav-label">${t.label}</span></button>`).join('')}
   </nav>`;
@@ -18764,6 +18778,19 @@ ${renderNavBar('profile')}
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${Object.keys(LS.get('card_progress')||{}).length}</span><span class="v3-stat-lbl">Cards Done</span></div>
     </div>
+    <div style="text-align:center;padding:0 16px 14px;">
+      <button onclick="doLogout()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Profile chip navigation -->
+  <div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+    <button onclick="document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">📚 My Topics</button>
+    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">✨ Study Journal</button>
+    <button onclick="document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🏆 Badges</button>
+    <button onclick="document.getElementById('profile-notifications-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🔔 Notifications</button>
+    <button onclick="document.getElementById('profile-settings-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">⚙️ Settings</button>
+    <button onclick="document.getElementById('profile-signout-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#DC2626;cursor:pointer;white-space:nowrap;">🚪 Sign Out</button>
   </div>
 
     <!-- Premium Status -->
@@ -18845,7 +18872,7 @@ ${renderNavBar('profile')}
     </div>
 
     <!-- Account Settings -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-settings-section" style="margin-bottom:16px;">
       <div style="font-size:15px;font-weight:800;margin-bottom:16px;">Account Settings</div>
       <div class="form-group">
         <label class="label">Display Name</label>
@@ -18885,7 +18912,7 @@ ${renderNavBar('profile')}
     ${buildScheduleCardHTML(user)}
 
     <!-- My Topics -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-topics-section" style="margin-bottom:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.topics-chevron').textContent=this.nextElementSibling.style.display==='block'?'▲':'▼';">
         <div>
           <div style="font-size:15px;font-weight:800;">📚 My Topics</div>
@@ -18906,10 +18933,10 @@ ${renderNavBar('profile')}
     </div>
 
     <!-- Notifications -->
-    <div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div>
+    <div id="profile-notifications-section"><div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div></div>
 
     <!-- Study Coach Journal -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-journal-section" style="margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <div style="font-size:15px;font-weight:800;">✨ Study Coach</div>
         <span style="background:var(--gm-accent,#03A860);color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;">NEW</span>
@@ -18927,7 +18954,7 @@ ${renderNavBar('profile')}
     </div>` : ''}
 
     <!-- Badges -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-badges-section" style="margin-bottom:16px;">
       <div style="font-size:15px;font-weight:800;margin-bottom:16px;">🏅 Badges</div>
       <div class="badge-grid">
         ${badges.map(b => `
@@ -18939,7 +18966,7 @@ ${renderNavBar('profile')}
       </div>
     </div>
 
-    <div style="padding:16px;margin:16px;text-align:center;">
+    <div id="profile-signout-section" style="padding:16px;margin:16px;text-align:center;">
       <button onclick="doLogout()" style="background:transparent;border:1.5px solid var(--gm-border,#E2E8F0);color:var(--gm-muted,#64748B);border-radius:12px;padding:12px 32px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Sign Out</button>
     </div>
   </div>
@@ -21892,16 +21919,19 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',    icon:'📚', fn:'showHome()' },
-    { id:'history', label:'History',  icon:'📋', fn:'showStudyHistory()' },
-    { id:'mastery', label:'Mastery',  icon:'🎯', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',    icon:'✨', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile',  icon:'👤', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
   ];
+  const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
+  const _sbPins = _buildSidebarPinsHTML(_pins);
+  const _mbPins = _buildMobilePinsHTML(_pins);
   return `<aside class="v3-sidebar" aria-label="Main navigation">
     <div class="v3-sb-mono">G</div>
     <div class="v3-sb-nav">
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
+      <div id="gm-sb-pins">${_sbPins}</div>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
   </aside>
@@ -21922,6 +21952,7 @@ function renderNavBar(active) {
       </div>
     </div>
   </nav>
+  <div id="gm-mobile-pins-row" class="gm-mobile-pins-row">${_mbPins}</div>
   <nav class="v3-bottom-nav" aria-label="Mobile navigation">
     ${tabs.map(t => `<button class="v3-bnav-item${active===t.id?' active':''}" onclick="${t.fn}"><span class="v3-bnav-icon">${t.icon}</span><span class="v3-bnav-label">${t.label}</span></button>`).join('')}
   </nav>`;
@@ -24146,6 +24177,19 @@ ${renderNavBar('profile')}
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${Object.keys(LS.get('card_progress')||{}).length}</span><span class="v3-stat-lbl">Cards Done</span></div>
     </div>
+    <div style="text-align:center;padding:0 16px 14px;">
+      <button onclick="doLogout()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Profile chip navigation -->
+  <div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+    <button onclick="document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">📚 My Topics</button>
+    <button onclick="document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">✨ Study Journal</button>
+    <button onclick="document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🏆 Badges</button>
+    <button onclick="document.getElementById('profile-notifications-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🔔 Notifications</button>
+    <button onclick="document.getElementById('profile-settings-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">⚙️ Settings</button>
+    <button onclick="document.getElementById('profile-signout-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#DC2626;cursor:pointer;white-space:nowrap;">🚪 Sign Out</button>
   </div>
 
     <!-- Premium Status -->
@@ -24227,7 +24271,7 @@ ${renderNavBar('profile')}
     </div>
 
     <!-- Account Settings -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-settings-section" style="margin-bottom:16px;">
       <div style="font-size:15px;font-weight:800;margin-bottom:16px;">Account Settings</div>
       <div class="form-group">
         <label class="label">Display Name</label>
@@ -24267,7 +24311,7 @@ ${renderNavBar('profile')}
     ${buildScheduleCardHTML(user)}
 
     <!-- My Topics -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-topics-section" style="margin-bottom:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.topics-chevron').textContent=this.nextElementSibling.style.display==='block'?'▲':'▼';">
         <div>
           <div style="font-size:15px;font-weight:800;">📚 My Topics</div>
@@ -24288,10 +24332,10 @@ ${renderNavBar('profile')}
     </div>
 
     <!-- Notifications -->
-    <div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div>
+    <div id="profile-notifications-section"><div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div></div>
 
     <!-- Study Coach Journal -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-journal-section" style="margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <div style="font-size:15px;font-weight:800;">✨ Study Coach</div>
         <span style="background:var(--gm-accent,#03A860);color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;">NEW</span>
@@ -24309,7 +24353,7 @@ ${renderNavBar('profile')}
     </div>` : ''}
 
     <!-- Badges -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card" id="profile-badges-section" style="margin-bottom:16px;">
       <div style="font-size:15px;font-weight:800;margin-bottom:16px;">🏅 Badges</div>
       <div class="badge-grid">
         ${badges.map(b => `
@@ -24321,7 +24365,7 @@ ${renderNavBar('profile')}
       </div>
     </div>
 
-    <div style="padding:16px;margin:16px;text-align:center;">
+    <div id="profile-signout-section" style="padding:16px;margin:16px;text-align:center;">
       <button onclick="doLogout()" style="background:transparent;border:1.5px solid var(--gm-border,#E2E8F0);color:var(--gm-muted,#64748B);border-radius:12px;padding:12px 32px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Sign Out</button>
     </div>
   </div>
@@ -26151,6 +26195,113 @@ function toggleJournalEntry(el) {
   const full = el.nextElementSibling;
   if (full) { full.style.display = full.style.display === 'none' ? 'block' : 'none'; }
 }
+
+// ── Pin shortcuts system ─────────────────────────────────────────────────
+const PIN_SHORTCUTS = [
+  { key: 'deepDive',          icon: '🌊', label: 'Deep Dive',           action: 'startDeepDive()' },
+  { key: 'quickRevision',     icon: '⚡', label: 'Quick Revision',      action: 'showQuickRevision()' },
+  { key: 'knowledgeOrganiser',icon: '📖', label: 'Knowledge Organisers',action: 'showKnowledgeOrganiser()' },
+  { key: 'myTopics',          icon: '📚', label: 'My Topics',           action: 'showTopicsTab()' },
+  { key: 'masteryTracker',    icon: '🎯', label: 'Mastery Tracker',     action: 'showProgressTracker()' },
+  { key: 'badges',            icon: '🏆', label: 'Badges',              action: 'showBadges()' },
+  { key: 'history',           icon: '📋', label: 'History',             action: 'showStudyHistory()' },
+  { key: 'targetGrade',       icon: '🎓', label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'examDates',         icon: '📅', label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'studyJournal',      icon: '✨', label: 'Study Journal',       action: "showProfile();setTimeout(()=>document.getElementById('study-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'settings',          icon: '⚙️', label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+];
+
+function _getPins() {
+  try { return JSON.parse(localStorage.getItem('gm_pinned_shortcuts') || '[]'); } catch(e) { return []; }
+}
+function _savePins(pins) {
+  localStorage.setItem('gm_pinned_shortcuts', JSON.stringify(pins));
+}
+
+function _buildSidebarPinsHTML(pins) {
+  var html = '';
+  if (pins.length > 0) {
+    html += '<div class="gm-sb-divider"></div>';
+    pins.forEach(function(key) {
+      var sc = PIN_SHORTCUTS.find(function(s){ return s.key === key; });
+      if (!sc) return;
+      html += '<div class="gm-sb-pin-wrap"><button class="v3-sb-item" onclick="executePinAction(\'' + key + '\')" title="' + sc.label + '">' + sc.icon + '</button><span class="gm-sb-pin-tip">' + sc.label + '</span></div>';
+    });
+  }
+  html += '<button class="v3-sb-item' + (pins.length === 0 ? ' gm-pulse' : '') + '" onclick="openPinPicker()" title="Personalise shortcuts" style="opacity:0.5;font-size:16px;">➕</button>';
+  return html;
+}
+
+function _buildMobilePinsHTML(pins) {
+  var html = '';
+  pins.forEach(function(key) {
+    var sc = PIN_SHORTCUTS.find(function(s){ return s.key === key; });
+    if (!sc) return;
+    html += '<button onclick="executePinAction(\'' + key + '\')" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:20px;padding:0 12px;height:36px;font-size:10px;font-weight:600;color:var(--gm-forest);cursor:pointer;white-space:nowrap;font-family:inherit;">' + sc.icon + ' ' + sc.label + '</button>';
+  });
+  html += '<button onclick="openPinPicker()" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;background:white;border:1px solid #E2E8F0;border-radius:20px;padding:0 12px;height:36px;font-size:10px;font-weight:600;color:#64748B;cursor:pointer;white-space:nowrap;font-family:inherit;">➕ Add</button>';
+  return html;
+}
+
+function renderPinnedShortcuts() {
+  var pins = _getPins();
+  var sbEl = document.getElementById('gm-sb-pins');
+  if (sbEl) sbEl.innerHTML = _buildSidebarPinsHTML(pins);
+  var mbEl = document.getElementById('gm-mobile-pins-row');
+  if (mbEl) mbEl.innerHTML = _buildMobilePinsHTML(pins);
+}
+
+function executePinAction(key) {
+  var sc = PIN_SHORTCUTS.find(function(s){ return s.key === key; });
+  if (!sc) return;
+  try { new Function(sc.action)(); } catch(e) { console.error('Pin action failed:', key, e); }
+}
+
+function togglePin(key) {
+  var pins = _getPins();
+  var idx = pins.indexOf(key);
+  if (idx !== -1) {
+    pins.splice(idx, 1);
+  } else {
+    if (pins.length >= 5) { showToast('You can pin up to 5 shortcuts — unpin one first 📌'); return; }
+    pins.push(key);
+  }
+  _savePins(pins);
+  renderPinnedShortcuts();
+  openPinPicker();
+}
+
+function openPinPicker() {
+  var pins = _getPins();
+  var grid = PIN_SHORTCUTS.map(function(sc) {
+    var pinned = pins.includes(sc.key);
+    return '<div onclick="togglePin(\'' + sc.key + '\')" style="display:flex;align-items:center;justify-content:space-between;background:' + (pinned?'#F0FDF4':'white') + ';border:1.5px solid ' + (pinned?'var(--gm-forest)':'#E2E8F0') + ';border-radius:12px;padding:12px;cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:24px;">' + sc.icon + '</span><span style="font-size:13px;font-weight:600;color:#1A2E22;">' + sc.label + '</span></div>'
+      + '<div style="width:22px;height:22px;border-radius:50%;border:2px solid ' + (pinned?'var(--gm-forest)':'#E2E8F0') + ';background:' + (pinned?'var(--gm-forest)':'white') + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:white;">' + (pinned?'✓':'') + '</div>'
+      + '</div>';
+  }).join('');
+  showModal('<div class="modal-handle"></div>'
+    + '<div style="padding:0 4px 4px;">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px;">Personalise your shortcuts</div>'
+    + '<div style="font-size:13px;color:#64748B;margin-bottom:4px;">Pin up to 5 shortcuts for quick access</div>'
+    + '<div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-bottom:14px;">' + pins.length + ' / 5 pinned</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">' + grid + '</div>'
+    + '<button onclick="closePinPicker()" style="width:100%;height:48px;background:var(--gm-forest);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Done</button>'
+    + '</div>');
+}
+
+function closePinPicker() {
+  closeModal();
+  renderPinnedShortcuts();
+}
+
+// Stubs for pin actions that map to existing functions
+function startDeepDive() { showDeepDivePicker(); }
+function showQuickRevision() { startQuickRevision(); }
+function showKnowledgeOrganiser() { showKOTopicPicker(); }
+function showTopicsTab() { showProfile(); setTimeout(function(){ document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'}); }, 300); }
+function showBadges() { showProfile(); setTimeout(function(){ document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'}); }, 300); }
+
 
 // ── Student StudyCoach Feed screen ───────────────────────────────────────
 function showStudyCoachFeed() {
