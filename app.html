@@ -15665,22 +15665,24 @@ async function loadUserPaidStatus() {
       // No auth token (demo/token-less or pending-checkout account) — still
       // confirm is_paid via the anon key so a stale cached value can't stick.
       const res = await fetch(
-        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid',
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier',
         { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY } }
       );
       const profiles = res.ok ? await res.json() : [];
       STATE.user.is_paid = profiles[0]?.is_paid || false;
+      STATE.user.subscription_tier = profiles[0]?.subscription_tier || 'free';
       LS.set('demo_user', STATE.user);
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
     STATE.user.is_paid = profiles[0]?.is_paid || false;
     if (profiles[0]) {
       const p = profiles[0];
+      STATE.user.subscription_tier = p.subscription_tier || 'free';
       STATE.user.trial_ends_at = p.trial_ends_at || null;
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
@@ -19070,6 +19072,16 @@ function showProfile() {
   STATE.screen = 'profile';
   const user = STATE.user;
 
+  const subTier = STATE.user.subscription_tier || 'free';
+  const tierDisplay = {
+    'free': { name: 'Free Plan', desc: '6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day' },
+    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · Quick Revision · No AI features' },
+    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · 30 AI Marking/day · Deep Dive sessions' },
+    'premium': { name: 'Premium', desc: '40 AI Tutor/day · 50 AI Marking/day · Parent portal · Unlimited Deep Dive' },
+    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · 100 AI Marking/day · AI Learning Coach · Unlimited everything' }
+  };
+  const display = tierDisplay[subTier] || tierDisplay['free'];
+
   const badges = [
     { icon: '🔥', label: 'First Streak', earned: (user.streak||0) >= 1 },
     { icon: '⚡', label: '5-Day Streak', earned: (user.streak||0) >= 5 },
@@ -19118,8 +19130,8 @@ ${renderNavBar('profile')}
       ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <div style="font-size:15px;font-weight:800;color:var(--gm-forest);">⚡ GradeMastery Premium</div>
-              <div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-top:3px;">All features unlocked · All subjects</div>
+              <div style="font-size:15px;font-weight:800;color:var(--gm-forest);">⚡ GradeMastery ${display.name}</div>
+              <div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-top:3px;">${display.desc}</div>
             </div>
             <div style="font-size:28px;">✅</div>
           </div>
@@ -21327,22 +21339,24 @@ async function loadUserPaidStatus() {
       // No auth token (demo/token-less or pending-checkout account) — still
       // confirm is_paid via the anon key so a stale cached value can't stick.
       const res = await fetch(
-        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid',
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier',
         { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY } }
       );
       const profiles = res.ok ? await res.json() : [];
       STATE.user.is_paid = profiles[0]?.is_paid || false;
+      STATE.user.subscription_tier = profiles[0]?.subscription_tier || 'free';
       LS.set('demo_user', STATE.user);
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
     STATE.user.is_paid = profiles[0]?.is_paid || false;
     if (profiles[0]) {
       const p = profiles[0];
+      STATE.user.subscription_tier = p.subscription_tier || 'free';
       STATE.user.trial_ends_at = p.trial_ends_at || null;
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
@@ -24648,6 +24662,16 @@ function showProfile() {
   STATE.screen = 'profile';
   const user = STATE.user;
 
+  const subTier = STATE.user.subscription_tier || 'free';
+  const tierDisplay = {
+    'free': { name: 'Free Plan', desc: '6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day' },
+    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · Quick Revision · No AI features' },
+    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · 30 AI Marking/day · Deep Dive sessions' },
+    'premium': { name: 'Premium', desc: '40 AI Tutor/day · 50 AI Marking/day · Parent portal · Unlimited Deep Dive' },
+    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · 100 AI Marking/day · AI Learning Coach · Unlimited everything' }
+  };
+  const display = tierDisplay[subTier] || tierDisplay['free'];
+
   const badges = [
     { icon: '🔥', label: 'First Streak', earned: (user.streak||0) >= 1 },
     { icon: '⚡', label: '5-Day Streak', earned: (user.streak||0) >= 5 },
@@ -24696,8 +24720,8 @@ ${renderNavBar('profile')}
       ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <div style="font-size:15px;font-weight:800;color:var(--gm-forest);">⚡ GradeMastery Premium</div>
-              <div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-top:3px;">All features unlocked · All subjects</div>
+              <div style="font-size:15px;font-weight:800;color:var(--gm-forest);">⚡ GradeMastery ${display.name}</div>
+              <div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-top:3px;">${display.desc}</div>
             </div>
             <div style="font-size:28px;">✅</div>
           </div>
