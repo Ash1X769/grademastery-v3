@@ -15589,6 +15589,14 @@ function showSignupError(msg) {
 async function afterLogin(startScreen) {
   // Always refresh paid status in background after login
   loadUserPaidStatus();
+
+  // If arriving from a landing-page pricing CTA, auto-open the upgrade modal
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('upgrade') === 'true') {
+    const tier = urlParams.get('tier') || 'standard';
+    setTimeout(() => showUpgradeModal('Choose your plan'), 500);
+  }
+
   // Students always land on Home — never restore to a sub-screen on load
   if (startScreen === 'teacher') { showTeacherDashboard(); return; }
   if (startScreen === 'parent-insight') { showParentTipScreen(); return; }
@@ -19063,11 +19071,11 @@ ${renderNavBar('profile')}
         </div>`
       : `<div class="v3-profile-section" style="margin-bottom:12px;background:#FFF7ED;border:1.5px solid #FED7AA;">
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
-          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">15 cards/week · 1 subject · 2 AI messages/day<br>Upgrade for everything unlimited.</div>
+          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day<br>Upgrade for everything unlimited.</div>
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Premium will be £12.99/month — beta testers get a special founding member discount.</div>
+            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
-          <button onclick="startCheckout()" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade to Premium — £12.99/month →</button>
+          <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
         </div>`
     }
 
@@ -21198,6 +21206,14 @@ function showSignupError(msg) {
 async function afterLogin(startScreen) {
   // Always refresh paid status in background after login
   loadUserPaidStatus();
+
+  // If arriving from a landing-page pricing CTA, auto-open the upgrade modal
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('upgrade') === 'true') {
+    const tier = urlParams.get('tier') || 'standard';
+    setTimeout(() => showUpgradeModal('Choose your plan'), 500);
+  }
+
   // Students always land on Home — never restore to a sub-screen on load
   if (startScreen === 'teacher') { showTeacherDashboard(); return; }
   if (startScreen === 'parent-insight') { showParentTipScreen(); return; }
@@ -24587,11 +24603,11 @@ ${renderNavBar('profile')}
         </div>`
       : `<div class="v3-profile-section" style="margin-bottom:12px;background:#FFF7ED;border:1.5px solid #FED7AA;">
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
-          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">15 cards/week · 1 subject · 2 AI messages/day<br>Upgrade for everything unlimited.</div>
+          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day<br>Upgrade for everything unlimited.</div>
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Premium will be £12.99/month — beta testers get a special founding member discount.</div>
+            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
-          <button onclick="startCheckout()" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade to Premium — £12.99/month →</button>
+          <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
         </div>`
     }
 
