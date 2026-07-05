@@ -1172,6 +1172,15 @@ Or just throw a specific topic at me! 🔬</div>
 <script>
 async function landingCheckout(tier, priceId) {
   const btn = event.target;
+
+  // No logged-in user on the landing page — always collect an email so
+  // Stripe has somewhere to send the receipt.
+  const email = prompt('Enter your email address to receive your receipt:');
+  if (!email || !email.includes('@')) {
+    alert('Please enter a valid email address');
+    return;
+  }
+
   btn.textContent = 'Loading...';
   btn.disabled = true;
 
@@ -1182,7 +1191,7 @@ async function landingCheckout(tier, priceId) {
       body: JSON.stringify({
         priceId: priceId,
         userId: 'pending',
-        email: '',
+        email: email,
         tier: tier,
         successUrl: 'https://ash1x769.github.io/grademastery-v3/app.html?newuser=true&tier=' + tier,
         cancelUrl: 'https://ash1x769.github.io/grademastery-v3/'
