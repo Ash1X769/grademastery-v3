@@ -2141,13 +2141,10 @@ h1,h2,h3,.gm-heading {
   display:flex; align-items:center; justify-content:center;
   border:none; background:transparent; cursor:pointer; font-size:20px;
   transition:background var(--gm-transition), opacity var(--gm-transition);
-  opacity:0.45;
+  opacity:0.6;
 }
 .v3-sb-item:hover { background:rgba(255,255,255,0.14); opacity:0.85; }
 .v3-sb-item.active { background:rgba(255,255,255,0.2); opacity:1; }
-.v3-sb-item svg { display:block; margin:0 auto; color: rgba(255,255,255,0.55); transition: color 0.2s; }
-.v3-sb-item.active svg { color: white; }
-.v3-sb-item:hover svg { color: white; }
 .v3-sb-streak {
   color:rgba(255,255,255,0.85); font-size:11px; font-weight:700;
   text-align:center; margin-bottom:16px; line-height:1.3;
@@ -2214,8 +2211,6 @@ h1,h2,h3,.gm-heading {
   transition:color var(--gm-transition); font-family:'Inter','Nunito',sans-serif; padding-top:8px;
 }
 .v3-bnav-item.active { color:var(--gm-forest); }
-.v3-bnav-item svg { color:#94A3B8; }
-.v3-bnav-item.active svg { color:#216D39; }
 .v3-bnav-icon { font-size:20px; line-height:1; }
 .v3-bnav-label { font-size:9px; font-weight:600; }
 
@@ -16698,10 +16693,10 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',   icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M231.65,194.54,197.35,64.22a16,16,0,0,0-19.49-11.33l-32.28,8.65A15.94,15.94,0,0,0,136,56H40A16,16,0,0,0,24,72V184a16,16,0,0,0,16,16H136a15.94,15.94,0,0,0,9.55-3.17l22.76,6.1a16,16,0,0,0,19.49-11.33l4.21-15.71ZM143.92,74.17l-.09.31L136,96.28V72A16,16,0,0,1,143.92,74.17ZM40,184V72H120V184Zm96,0H136V113.09l.06-.17,7.86-29.3V184ZM202.43,188l-38.93-10.44,30.67-114.4,38.93,10.44Z" opacity=".3"/><path d="M231.65,194.54,197.35,64.22A16,16,0,0,0,177.86,52.9l-32.28,8.64A15.94,15.94,0,0,0,136,56H40A16,16,0,0,0,24,72V184a16,16,0,0,0,16,16H136a15.94,15.94,0,0,0,9.55-3.17l22.76,6.1A16,16,0,0,0,188,204a16.4,16.4,0,0,0,4.16-.55l19.88-5.32A16,16,0,0,0,231.65,194.54ZM136,72V96H120V72Zm0,112H40V72h64V96a16,16,0,0,0,16,16h16V184Zm53.19,0-32.2-8.63L188.36,61.67l32.2,8.63Z"/></svg>', fn:'showHome()' },
-    { id:'mastery', label:'Mastery', icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M224,200H32V72l72,72,40-40,80,72Z" opacity=".3"/><path d="M232,208H24a8,8,0,0,1,0-16H32V72a8,8,0,0,1,8-8H80a8,8,0,0,1,8,8v48h16V120a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8v40h16V96a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V192h8a8,8,0,0,1,0,16Z"/></svg>', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',   icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M232,180H24V48H232Z" opacity=".3"/><path d="M240,180h-8V48a8,8,0,0,0-8-8H32a8,8,0,0,0-8,8V180H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM40,56H216V180H40Z"/></svg>', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile', icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Z" opacity=".3"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.92,67.5a79.56,79.56,0,0,0-36.06-28.37,48,48,0,1,0-59.72,0,79.56,79.56,0,0,0-36.06,28.37,88,88,0,1,1,131.84,0Z"/></svg>', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
   ];
   const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
   const _sbPins = _buildSidebarPinsHTML(_pins);
@@ -16713,7 +16708,7 @@ function renderNavBar(active) {
       <div id="gm-sb-pins">${_sbPins}</div>
     </div>
     <div class="gm-sb-notif-wrap" onclick="openNotificationPanel()" style="position:relative;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 256 256" fill="currentColor" style="color:rgba(255,255,255,0.7);"><path d="M216,136v56H40V136a88,88,0,0,1,176,0Z" opacity=".3"/><path d="M221.8,175.94C216.25,166.38,208,139.5,208,104a80,80,0,1,0-160,0c0,35.5-8.25,62.38-13.8,71.94A16,16,0,0,0,48,200H88a40,40,0,0,0,80,0h40a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-24-24h48A24,24,0,0,1,128,216Z"/></svg>
+      <span style="font-size:22px;color:rgba(255,255,255,0.7);">🔔</span>
       <span id="notif-badge" style="position:absolute;top:-4px;right:8px;background:#DC2626;color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;line-height:16px;text-align:center;display:none;"></span>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
@@ -22321,10 +22316,10 @@ function renderNavBar(active) {
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
   const tabs = [
-    { id:'home',    label:'Learn',   icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M231.65,194.54,197.35,64.22a16,16,0,0,0-19.49-11.33l-32.28,8.65A15.94,15.94,0,0,0,136,56H40A16,16,0,0,0,24,72V184a16,16,0,0,0,16,16H136a15.94,15.94,0,0,0,9.55-3.17l22.76,6.1a16,16,0,0,0,19.49-11.33l4.21-15.71ZM143.92,74.17l-.09.31L136,96.28V72A16,16,0,0,1,143.92,74.17ZM40,184V72H120V184Zm96,0H136V113.09l.06-.17,7.86-29.3V184ZM202.43,188l-38.93-10.44,30.67-114.4,38.93,10.44Z" opacity=".3"/><path d="M231.65,194.54,197.35,64.22A16,16,0,0,0,177.86,52.9l-32.28,8.64A15.94,15.94,0,0,0,136,56H40A16,16,0,0,0,24,72V184a16,16,0,0,0,16,16H136a15.94,15.94,0,0,0,9.55-3.17l22.76,6.1A16,16,0,0,0,188,204a16.4,16.4,0,0,0,4.16-.55l19.88-5.32A16,16,0,0,0,231.65,194.54ZM136,72V96H120V72Zm0,112H40V72h64V96a16,16,0,0,0,16,16h16V184Zm53.19,0-32.2-8.63L188.36,61.67l32.2,8.63Z"/></svg>', fn:'showHome()' },
-    { id:'mastery', label:'Mastery', icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M224,200H32V72l72,72,40-40,80,72Z" opacity=".3"/><path d="M232,208H24a8,8,0,0,1,0-16H32V72a8,8,0,0,1,8-8H80a8,8,0,0,1,8,8v48h16V120a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8v40h16V96a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V192h8a8,8,0,0,1,0,16Z"/></svg>', fn:'showProgressTracker()' },
-    { id:'ai-chat', label:'Tutor',   icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M232,180H24V48H232Z" opacity=".3"/><path d="M240,180h-8V48a8,8,0,0,0-8-8H32a8,8,0,0,0-8,8V180H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM40,56H216V180H40Z"/></svg>', fn:'showAIChatTab()' },
-    { id:'profile', label:'Profile', icon:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Z" opacity=".3"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.92,67.5a79.56,79.56,0,0,0-36.06-28.37,48,48,0,1,0-59.72,0,79.56,79.56,0,0,0-36.06,28.37,88,88,0,1,1,131.84,0Z"/></svg>', fn:'showProfile()' },
+    { id:'home',    label:'Learn',   icon:'📚', fn:'showHome()' },
+    { id:'mastery', label:'Mastery', icon:'🎯', fn:'showProgressTracker()' },
+    { id:'ai-chat', label:'Tutor',   icon:'✨', fn:'showAIChatTab()' },
+    { id:'profile', label:'Profile', icon:'👤', fn:'showProfile()' },
   ];
   const _pins = (function(){ try{ return JSON.parse(localStorage.getItem('gm_pinned_shortcuts')||'[]'); }catch(e){ return []; } })();
   const _sbPins = _buildSidebarPinsHTML(_pins);
@@ -22336,7 +22331,7 @@ function renderNavBar(active) {
       <div id="gm-sb-pins">${_sbPins}</div>
     </div>
     <div class="gm-sb-notif-wrap" onclick="openNotificationPanel()" style="position:relative;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 256 256" fill="currentColor" style="color:rgba(255,255,255,0.7);"><path d="M216,136v56H40V136a88,88,0,0,1,176,0Z" opacity=".3"/><path d="M221.8,175.94C216.25,166.38,208,139.5,208,104a80,80,0,1,0-160,0c0,35.5-8.25,62.38-13.8,71.94A16,16,0,0,0,48,200H88a40,40,0,0,0,80,0h40a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-24-24h48A24,24,0,0,1,128,216Z"/></svg>
+      <span style="font-size:22px;color:rgba(255,255,255,0.7);">🔔</span>
       <span id="notif-badge" style="position:absolute;top:-4px;right:8px;background:#DC2626;color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;line-height:16px;text-align:center;display:none;"></span>
     </div>
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
@@ -26804,17 +26799,17 @@ function closeStickerPicker() {
 
 // ── Pin shortcuts system ─────────────────────────────────────────────────
 const PIN_SHORTCUTS = [
-  { key: 'deepDive',          icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="#0284C7" stroke-width="20" stroke-linecap="round"><path d="M32,152c24,0,24,16,48,16s24-16,48-16,24,16,48,16,24-16,48-16" opacity=".3"/><path d="M32,104c24,0,24,16,48,16s24-16,48-16,24,16,48,16,24-16,48-16"/></svg>',                                          label: 'Deep Dive',           action: 'startDeepDive()' },
-  { key: 'quickRevision',     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#F97316"><path d="M215.79,118.17a8,8,0,0,0-5.3-4.9l-58.14-16.46,14.63-73.15a8,8,0,0,0-13.86-6.69L40.55,130.43a8,8,0,0,0,1.46,11.08A8.14,8.14,0,0,0,47,143.22l58.14,16.46L90.45,232.83a8,8,0,0,0,13.86,6.69L214.45,129.57A8,8,0,0,0,215.79,118.17Z" opacity=".3"/><path d="M215.79,118.17a8,8,0,0,0-5.3-4.9l-58.14-16.46,14.63-73.15a8,8,0,0,0-13.86-6.69L40.55,130.43a8,8,0,0,0,1.46,11.08A8.14,8.14,0,0,0,47,143.22l58.14,16.46L90.45,232.83a8,8,0,0,0,13.86,6.69L214.45,129.57A8,8,0,0,0,215.79,118.17Z"/></svg>',                                  label: 'Quick Revision',      action: 'showTopicsTab()' },
-  { key: 'knowledgeOrganiser',icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#216D39"><path d="M224,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H32a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h64a8,8,0,0,0,8-8V56A8,8,0,0,0,224,48Z" opacity=".3"/><path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24A16,16,0,0,0,8,64V192a16,16,0,0,0,16,16H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h64a16,16,0,0,0,16-16V64A16,16,0,0,0,232,48Z"/></svg>',                                  label: 'Knowledge Organisers',action: 'showKOTopicPicker()' },
-  { key: 'myTopics',          icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#03A860"><path d="M224,48H32a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8H224a8,8,0,0,0,8-8V56A8,8,0,0,0,224,48ZM88,168H64a8,8,0,0,1,0-16H88a8,8,0,0,1,0,16Zm0-40H64a8,8,0,0,1,0-16H88a8,8,0,0,1,0,16Zm104,40H120a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Zm0-40H120a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Z" opacity=".3"/><path d="M224,40H32A16,16,0,0,0,16,56V200a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V56A16,16,0,0,0,224,40Zm0,160H32V56H224ZM88,96H64a8,8,0,0,0,0,16H88a8,8,0,0,0,0-16Zm0,40H64a8,8,0,0,0,0,16H88a8,8,0,0,0,0-16Zm104-40H120a8,8,0,0,0,0,16H192a8,8,0,0,0,0-16Zm0,40H120a8,8,0,0,0,0,16H192a8,8,0,0,0,0-16Z"/></svg>',                                      label: 'My Topics',           action: 'showTopicsTab()' },
-  { key: 'masteryTracker',    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#7C3AED"><path d="M224,200H32V72l72,72,40-40,80,72Z" opacity=".3"/><path d="M232,208H24a8,8,0,0,1,0-16H32V72a8,8,0,0,1,8-8H80a8,8,0,0,1,8,8v48h16V120a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8v40h16V96a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V192h8a8,8,0,0,1,0,16Z"/></svg>',                          label: 'Mastery Tracker',     action: 'showProgressTracker()' },
-  { key: 'badges',            icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#F5B100"><path d="M228,64H208V48H48V64H28A12,12,0,0,0,16,76V96a60.07,60.07,0,0,0,56.5,59.88A72,72,0,0,0,120,191.62V216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V191.62a72,72,0,0,0,47.5-35.74A60.07,60.07,0,0,0,240,96V76A12,12,0,0,0,228,64Z" opacity=".3"/><path d="M232,76H208V48a8,8,0,0,0-8-8H56a8,8,0,0,0-8,8V76H24A20,20,0,0,0,4,96v8a52.07,52.07,0,0,0,48.44,51.86A72.12,72.12,0,0,0,120,191.62V216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V191.62a72.12,72.12,0,0,0,67.56-35.76A52.07,52.07,0,0,0,252,104V96A20,20,0,0,0,232,76ZM20,104V92H48v52.15A36,36,0,0,1,20,104Zm116,72a56,56,0,0,1-56-56V56H176v64A56.06,56.06,0,0,1,136,176Zm100-72a36,36,0,0,1-28,35.15V92h28Z"/></svg>',                                        label: 'Badges',              action: 'showBadges()' },
-  { key: 'history',           icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#64748B"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm40,112H128a8,8,0,0,1-8-8V80a8,8,0,0,1,16,0v40h32a8,8,0,0,1,0,16Z" opacity=".3"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V80a8,8,0,0,1,16,0v40h48A8,8,0,0,1,192,128Z"/></svg>',      label: 'History',             action: 'showStudyHistory()' },
-  { key: 'targetGrade',       icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#216D39"><path d="M128,152,32,104l96-48,96,48Z" opacity=".3"/><path d="M251.76,88.94l-120-64a8,8,0,0,0-7.52,0l-120,64a8,8,0,0,0,0,14.12L64,132.69V176a8,8,0,0,0,2.34,5.66l32,32a8,8,0,0,0,11.32,0l32-32A8,8,0,0,0,144,176V132.69l32-17.07V160a8,8,0,0,0,16,0V108.43l59.76-31.49a8,8,0,0,0,0-14.12Z"/></svg>',                        label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'examDates',         icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#EA580C"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48Z" opacity=".3"/><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V96H208Z"/></svg>',                                    label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'studyJournal',      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#F97316"><path d="M200,32C128,40,80,96,72,160l24,24C160,176,216,128,224,56Z" opacity=".3"/><path d="M225.6,52.5C216.7,36.2,201,24,180.3,24H180a8,8,0,0,0-5.6,2.3C122,79.2,87.4,140,80.2,202.6a8,8,0,0,0,2.3,6.8l32,32A8,8,0,0,0,120,244a8.4,8.4,0,0,0,1-.06,8,8,0,0,0,6.6-5.4c4.5-14,11.3-34.6,20.8-52.7l27.5,27.5a8,8,0,0,0,11.3,0l16-16a8,8,0,0,0,2.3-6.6C198.8,135.5,236,84.5,232,57.1A8.1,8.1,0,0,0,225.6,52.5Z"/></svg>',                                        label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
-  { key: 'settings',          icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="#94A3B8"><path d="M128,80a48,48,0,1,0,48,48A48,48,0,0,0,128,80Z" opacity=".3"/><path d="M216,130.16q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.6,107.6,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.29,107.29,0,0,0-26.25-10.86,8,8,0,0,0-7.06,1.48L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.6,107.6,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg>',                                            label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'deepDive',          icon: '🌊', label: 'Deep Dive',           action: 'startDeepDive()' },
+  { key: 'quickRevision',     icon: '⚡', label: 'Quick Revision',      action: 'showTopicsTab()' },
+  { key: 'knowledgeOrganiser',icon: '📖', label: 'Knowledge Organisers',action: 'showKOTopicPicker()' },
+  { key: 'myTopics',          icon: '🗂️', label: 'My Topics',           action: 'showTopicsTab()' },
+  { key: 'masteryTracker',    icon: '🎯', label: 'Mastery Tracker',     action: 'showProgressTracker()' },
+  { key: 'badges',            icon: '🏆', label: 'Badges',              action: 'showBadges()' },
+  { key: 'history',           icon: '📋', label: 'History',             action: 'showStudyHistory()' },
+  { key: 'targetGrade',       icon: '🎓', label: 'Target Grade',        action: "showProfile();setTimeout(()=>document.getElementById('target-grade-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'examDates',         icon: '📅', label: 'Exam Dates',          action: "showProfile();setTimeout(()=>document.getElementById('exam-dates-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'studyJournal',      icon: '🚀', label: 'Vision Board',        action: "showProfile();setTimeout(()=>document.getElementById('profile-journal-section')?.scrollIntoView({behavior:'smooth'}),300)" },
+  { key: 'settings',          icon: '⚙️', label: 'Settings',             action: "showProfile();setTimeout(()=>document.getElementById('account-settings-section')?.scrollIntoView({behavior:'smooth'}),300)" },
 ];
 
 function _getPins() {
