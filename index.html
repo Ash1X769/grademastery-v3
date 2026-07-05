@@ -273,8 +273,9 @@ p  { line-height: 1.7; }
 .pricing-features li.no { color: var(--gm-muted); }
 .pricing-features li span { font-size: .8rem; }
 .pricing-cta { margin-top: auto; }
-.pricing-cta a { display: block; text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .875rem; padding: 12px 16px; border-radius: 999px; text-decoration: none; border: 2px solid; transition: all .2s; }
-.pricing-cta a:hover { transform: translateY(-1px); }
+.pricing-cta a, .pricing-cta button { display: block; width: 100%; text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: .875rem; padding: 12px 16px; border-radius: 999px; text-decoration: none; border: 2px solid; transition: all .2s; background: transparent; cursor: pointer; }
+.pricing-cta a:hover, .pricing-cta button:not(:disabled):hover { transform: translateY(-1px); }
+.pricing-cta button:disabled { opacity: .7; cursor: default; }
 .pricing-footer { text-align: center; margin-top: 40px; }
 .pricing-footer p { font-size: .88rem; color: var(--gm-muted); margin-bottom: 8px; }
 .pricing-footer a { color: var(--gm-forest); font-weight: 600; }
@@ -972,7 +973,7 @@ Or just throw a specific topic at me! 🔬</div>
           <li class="no"><span style="color:var(--gm-muted)">✗</span> No AI Tutor</li>
         </ul>
         <div class="pricing-cta">
-          <a href="app.html?upgrade=true&tier=basic" style="color:var(--gm-forest);border-color:var(--gm-forest);">Get Basic</a>
+          <button onclick="landingCheckout('basic', 'price_1TpbzOBeyG4M2T8lSxHgOlPM')" style="color:var(--gm-forest);border-color:var(--gm-forest);">Get Basic</button>
         </div>
       </div>
 
@@ -995,7 +996,7 @@ Or just throw a specific topic at me! 🔬</div>
           <li><span>✓</span> StudyCoach tips</li>
         </ul>
         <div class="pricing-cta">
-          <a href="app.html?upgrade=true&tier=standard" style="background:var(--gm-orange);color:#fff;border-color:var(--gm-orange);font-size:1rem;padding:14px 20px;">Start Free Trial</a>
+          <button onclick="landingCheckout('standard', 'price_1Tpc0fBeyG4M2T8lAM06cuGZ')" style="background:var(--gm-orange);color:#fff;border-color:var(--gm-orange);font-size:1rem;padding:14px 20px;">Start Free Trial</button>
         </div>
       </div>
 
@@ -1018,7 +1019,7 @@ Or just throw a specific topic at me! 🔬</div>
           <li><span>✓</span> Teacher portal (if school uses GradeMastery)</li>
         </ul>
         <div class="pricing-cta">
-          <a href="app.html?upgrade=true&tier=premium" style="background:var(--gm-forest);color:#fff;border-color:var(--gm-forest);">Get Premium</a>
+          <button onclick="landingCheckout('premium', 'price_1Tpc1oBeyG4M2T8lTcMKYkVx')" style="background:var(--gm-forest);color:#fff;border-color:var(--gm-forest);">Get Premium</button>
         </div>
       </div>
 
@@ -1040,7 +1041,7 @@ Or just throw a specific topic at me! 🔬</div>
           <li><span>✓</span> Priority support</li>
         </ul>
         <div class="pricing-cta">
-          <a href="app.html?upgrade=true&tier=premium_plus" style="color:var(--gm-gold);border-color:var(--gm-gold);">Get Premium Plus</a>
+          <button onclick="landingCheckout('premium_plus', 'price_1Tpc2eBeyG4M2T8lY6cdAme5')" style="color:var(--gm-gold);border-color:var(--gm-gold);">Get Premium Plus</button>
         </div>
       </div>
 
@@ -1168,6 +1169,39 @@ Or just throw a specific topic at me! 🔬</div>
 </footer>
 
 <!-- ── JavaScript ────────────────────────────────────────────────────── -->
+<script>
+async function landingCheckout(tier, priceId) {
+  const btn = event.target;
+  btn.textContent = 'Loading...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        priceId: priceId,
+        userId: 'pending',
+        email: '',
+        tier: tier,
+        successUrl: 'https://ash1x769.github.io/grademastery-v3/app.html?newuser=true&tier=' + tier,
+        cancelUrl: 'https://ash1x769.github.io/grademastery-v3/'
+      })
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error('No URL returned');
+    }
+  } catch(e) {
+    btn.textContent = 'Try again';
+    btn.disabled = false;
+    alert('Something went wrong — please try again');
+  }
+}
+</script>
+
 <script>
 (function() {
   'use strict';
