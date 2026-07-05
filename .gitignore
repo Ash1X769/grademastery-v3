@@ -1,0 +1,8 @@
+# Secrets — never commit
+deploy.sh
+*.docx
+stripe_backup_code.txt
+
+# Local backups and screenshots — not part of the deployed site
+app_backup_*.html
+Screenshot *.png
