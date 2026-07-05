@@ -15664,16 +15664,28 @@ function saveScreen(name) {
 
 async function loadUserPaidStatus() {
   const user = STATE.user;
-  if (!user?.token || !user?.id) return;
+  if (!user?.id) return;
   try {
+    if (!user.token) {
+      // No auth token (demo/token-less or pending-checkout account) — still
+      // confirm is_paid via the anon key so a stale cached value can't stick.
+      const res = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid',
+        { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY } }
+      );
+      const profiles = res.ok ? await res.json() : [];
+      STATE.user.is_paid = profiles[0]?.is_paid || false;
+      LS.set('demo_user', STATE.user);
+      return;
+    }
     const res = await fetch(
       CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
+    STATE.user.is_paid = profiles[0]?.is_paid || false;
     if (profiles[0]) {
       const p = profiles[0];
-      STATE.user.is_paid = p.is_paid || false;
       STATE.user.trial_ends_at = p.trial_ends_at || null;
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
@@ -15900,14 +15912,28 @@ async function startCheckout() {
   initiateStripeCheckout(STRIPE_PRICES.standard_monthly, 'standard');
 }
 
+async function waitForPaidStatus(maxAttempts = 8, delayMs = 2000) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, delayMs));
+    await loadUserPaidStatus();
+    if (STATE.user.is_paid) {
+      showToast('✅ Premium activated!');
+      showProfile();
+      return;
+    }
+  }
+  showToast('Payment received — activation may take a moment. Please refresh.');
+}
+
 function showUpgradedCelebration() {
   if (!STATE.user) return;
   // Clear ?upgraded=true from URL without reload
   if (window.history?.replaceState) window.history.replaceState({}, '', window.location.pathname);
-  // Reload paid status silently, then show toast
+  // Optimistic paid state, then confirm against the DB with retries
+  // (the Stripe webhook may not have landed yet when this redirect fires)
   STATE.user.is_paid = true;
   LS.set('demo_user', STATE.user);
-  loadUserPaidStatus(); // refresh from DB in background
+  waitForPaidStatus();
   render(`<div style="min-height:100vh;background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
     <div>
       <div style="font-size:72px;margin-bottom:20px;">🎉</div>
@@ -21274,16 +21300,28 @@ function saveScreen(name) {
 
 async function loadUserPaidStatus() {
   const user = STATE.user;
-  if (!user?.token || !user?.id) return;
+  if (!user?.id) return;
   try {
+    if (!user.token) {
+      // No auth token (demo/token-less or pending-checkout account) — still
+      // confirm is_paid via the anon key so a stale cached value can't stick.
+      const res = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid',
+        { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY } }
+      );
+      const profiles = res.ok ? await res.json() : [];
+      STATE.user.is_paid = profiles[0]?.is_paid || false;
+      LS.set('demo_user', STATE.user);
+      return;
+    }
     const res = await fetch(
       CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
+    STATE.user.is_paid = profiles[0]?.is_paid || false;
     if (profiles[0]) {
       const p = profiles[0];
-      STATE.user.is_paid = p.is_paid || false;
       STATE.user.trial_ends_at = p.trial_ends_at || null;
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
@@ -21514,10 +21552,11 @@ function showUpgradedCelebration() {
   if (!STATE.user) return;
   // Clear ?upgraded=true from URL without reload
   if (window.history?.replaceState) window.history.replaceState({}, '', window.location.pathname);
-  // Reload paid status silently, then show toast
+  // Optimistic paid state, then confirm against the DB with retries
+  // (the Stripe webhook may not have landed yet when this redirect fires)
   STATE.user.is_paid = true;
   LS.set('demo_user', STATE.user);
-  loadUserPaidStatus(); // refresh from DB in background
+  waitForPaidStatus();
   render(`<div style="min-height:100vh;background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
     <div>
       <div style="font-size:72px;margin-bottom:20px;">🎉</div>
