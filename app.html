@@ -15890,9 +15890,10 @@ async function initiateStripeCheckout(priceId, tier) {
         priceId,
         userId: user.id,
         email: user.email,
-        tier,
-        successUrl: window.location.origin + '/app.html?upgraded=true&tier=' + tier,
-        cancelUrl:  window.location.origin + '/app.html'
+        tier
+        // successUrl/cancelUrl intentionally omitted — window.location.origin
+        // strips the /grademastery-v3/ path prefix and produces a 404. The
+        // worker's own default already points to the correct full path.
       })
     });
     const data = await res.json();
@@ -21526,9 +21527,10 @@ async function initiateStripeCheckout(priceId, tier) {
         priceId,
         userId: user.id,
         email: user.email,
-        tier,
-        successUrl: window.location.origin + '/app.html?upgraded=true&tier=' + tier,
-        cancelUrl:  window.location.origin + '/app.html'
+        tier
+        // successUrl/cancelUrl intentionally omitted — window.location.origin
+        // strips the /grademastery-v3/ path prefix and produces a 404. The
+        // worker's own default already points to the correct full path.
       })
     });
     const data = await res.json();
