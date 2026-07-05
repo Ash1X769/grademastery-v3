@@ -15918,23 +15918,41 @@ async function waitForPaidStatus(maxAttempts = 8, delayMs = 2000) {
       return;
     }
   }
+  console.error('Webhook may not have fired — is_paid still false after 8 attempts');
   showToast('Payment received — activation may take a moment. Please refresh.');
 }
 
 function showUpgradedCelebration() {
   if (!STATE.user) return;
+  // Read tier before clearing the URL — replaceState below wipes ?tier=
+  const tier = new URLSearchParams(window.location.search).get('tier') || 'premium';
+  const tierNames = {
+    basic: 'Basic',
+    standard: 'Standard',
+    premium: 'Premium',
+    premium_plus: 'Premium Plus'
+  };
+  const tierName = tierNames[tier] || 'Premium';
+  const tierDescriptions = {
+    basic: 'Full spaced repetition, all topics, and Quick Revision mode — unlocked.',
+    standard: 'AI Grading on every answer, AI Tutor, and Deep Dive sessions — unlocked.',
+    premium: 'Unlimited AI Grading, more AI Tutor access, and Required Practicals — unlocked.',
+    premium_plus: 'Unlimited advanced AI, an AI Learning Coach, and weekly insights — unlocked.'
+  };
+  const tierDescription = tierDescriptions[tier] || tierDescriptions.premium;
   // Clear ?upgraded=true from URL without reload
   if (window.history?.replaceState) window.history.replaceState({}, '', window.location.pathname);
   // Optimistic paid state, then confirm against the DB with retries
   // (the Stripe webhook may not have landed yet when this redirect fires)
   STATE.user.is_paid = true;
+  STATE._justUpgraded = true;
   LS.set('demo_user', STATE.user);
   waitForPaidStatus();
   render(`<div style="min-height:100vh;background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
     <div>
       <div style="font-size:72px;margin-bottom:20px;">🎉</div>
-      <div style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">You're Premium!</div>
-      <div style="font-size:16px;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.6;margin-bottom:32px;">Welcome to GradeMastery Premium.<br>Unlimited cards, AI marking, all subjects — unlocked.</div>
+      <div style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">You're on GradeMastery ${tierName}!</div>
+      <div style="font-size:16px;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.6;margin-bottom:32px;">${tierDescription}</div>
       <button onclick="showHome()" style="background:white;color:var(--gm-forest);border:none;border-radius:14px;padding:16px 40px;font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;">Start Revising →</button>
     </div>
   </div>`);
@@ -19042,6 +19060,13 @@ function startFlashcardsForTopic(topicKey) {
 // PROFILE SCREEN
 // ============================================================
 function showProfile() {
+  // Just came from the upgrade celebration — force one fresh paid-status
+  // check before rendering, in case the webhook hadn't landed yet.
+  if (STATE._justUpgraded) {
+    STATE._justUpgraded = false;
+    setTimeout(() => { loadUserPaidStatus().then(() => showProfile()); }, 2000);
+    return;
+  }
   STATE.screen = 'profile';
   const user = STATE.user;
 
@@ -21547,18 +21572,35 @@ async function startCheckout() {
 
 function showUpgradedCelebration() {
   if (!STATE.user) return;
+  // Read tier before clearing the URL — replaceState below wipes ?tier=
+  const tier = new URLSearchParams(window.location.search).get('tier') || 'premium';
+  const tierNames = {
+    basic: 'Basic',
+    standard: 'Standard',
+    premium: 'Premium',
+    premium_plus: 'Premium Plus'
+  };
+  const tierName = tierNames[tier] || 'Premium';
+  const tierDescriptions = {
+    basic: 'Full spaced repetition, all topics, and Quick Revision mode — unlocked.',
+    standard: 'AI Grading on every answer, AI Tutor, and Deep Dive sessions — unlocked.',
+    premium: 'Unlimited AI Grading, more AI Tutor access, and Required Practicals — unlocked.',
+    premium_plus: 'Unlimited advanced AI, an AI Learning Coach, and weekly insights — unlocked.'
+  };
+  const tierDescription = tierDescriptions[tier] || tierDescriptions.premium;
   // Clear ?upgraded=true from URL without reload
   if (window.history?.replaceState) window.history.replaceState({}, '', window.location.pathname);
   // Optimistic paid state, then confirm against the DB with retries
   // (the Stripe webhook may not have landed yet when this redirect fires)
   STATE.user.is_paid = true;
+  STATE._justUpgraded = true;
   LS.set('demo_user', STATE.user);
   waitForPaidStatus();
   render(`<div style="min-height:100vh;background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;">
     <div>
       <div style="font-size:72px;margin-bottom:20px;">🎉</div>
-      <div style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">You're Premium!</div>
-      <div style="font-size:16px;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.6;margin-bottom:32px;">Welcome to GradeMastery Premium.<br>Unlimited cards, AI marking, all subjects — unlocked.</div>
+      <div style="font-size:28px;font-weight:900;color:white;margin-bottom:12px;">You're on GradeMastery ${tierName}!</div>
+      <div style="font-size:16px;color:rgba(255,255,255,0.85);font-weight:600;line-height:1.6;margin-bottom:32px;">${tierDescription}</div>
       <button onclick="showHome()" style="background:white;color:var(--gm-forest);border:none;border-radius:14px;padding:16px 40px;font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;">Start Revising →</button>
     </div>
   </div>`);
@@ -24596,6 +24638,13 @@ function startFlashcardsForTopic(topicKey) {
 // PROFILE SCREEN
 // ============================================================
 function showProfile() {
+  // Just came from the upgrade celebration — force one fresh paid-status
+  // check before rendering, in case the webhook hadn't landed yet.
+  if (STATE._justUpgraded) {
+    STATE._justUpgraded = false;
+    setTimeout(() => { loadUserPaidStatus().then(() => showProfile()); }, 2000);
+    return;
+  }
   STATE.screen = 'profile';
   const user = STATE.user;
 
