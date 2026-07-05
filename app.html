@@ -15597,6 +15597,12 @@ async function afterLogin(startScreen) {
     setTimeout(() => showUpgradeModal('Choose your plan'), 500);
   }
 
+  // If arriving from the checkout-first landing page flow (paid before creating an account)
+  if (urlParams.get('newuser') === 'true') {
+    showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
+    setTimeout(() => loadUserPaidStatus(), 3000);
+  }
+
   // Students always land on Home — never restore to a sub-screen on load
   if (startScreen === 'teacher') { showTeacherDashboard(); return; }
   if (startScreen === 'parent-insight') { showParentTipScreen(); return; }
@@ -15810,10 +15816,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
-    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -15833,7 +15839,7 @@ function showUpgradeModal(reason) {
         <div class="v3-tier-card${t.popular?' popular':''}">
           ${t.popular ? `<div class="v3-tier-badge">Most Popular</div>` : ''}
           <div class="v3-tier-name">${t.name}</div>
-          <div class="v3-tier-price"><span class="amount" id="v3-price-${t.id}">${t.price.m}</span><span class="period">/mo</span></div>
+          <div class="v3-tier-price"><span class="amount" id="v3-price-${t.id}">${t.price.m}</span><span class="period" id="v3-period-${t.id}">/mo</span></div>
           <ul class="v3-tier-features">${t.features.map(f=>`<li>${f}</li>`).join('')}</ul>
           <button class="v3-tier-cta${t.trial?' trial':''}" onclick="initiateStripeCheckout('${t.monthly}','${t.id}')">${t.cta}</button>
         </div>`).join('')}
@@ -15847,11 +15853,13 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£4.99',a:'£3.49'},standard:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},premium_plus:{m:'£19.99',a:'£13.99'}};
+  const PRICES = {basic:{m:'£3.99',a:'£34.99'},standard:{m:'£14.99',a:'£119.99'},premium:{m:'£24.99',a:'£199.99'},premium_plus:{m:'£44.99',a:'£349.99'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
     if (el) el.textContent = p[period];
+    const periodEl = document.getElementById('v3-period-'+id);
+    if (periodEl) periodEl.textContent = period === 'a' ? '/yr' : '/mo';
   });
   document.querySelectorAll('.v3-tier-cta').forEach((btn, i) => {
     const ids = ['basic','standard','premium','premium_plus'];
@@ -16717,7 +16725,7 @@ function startFlashcards() {
   if (!user.is_paid) {
     const weekCount = getWeeklyCardCount();
     if (weekCount >= CONFIG.FREE_CARDS_PER_WEEK) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £12.99/month`);
+      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £24.99/month`);
       return;
     }
   }
@@ -17700,7 +17708,7 @@ function nextCard() {
 // ============================================================
 function startFullSession() {
   if (!STATE.user?.is_paid) {
-    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £12.99/month');
+    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
     return;
   }
   showDeepDivePicker();
@@ -20053,7 +20061,7 @@ async function showTeacherDashboard(selectedClass) {
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £12.99/month — beta testers get a special founding member discount.</div>
+        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
       <div id="tcontent-overview">${overviewHTML}</div>
       <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
@@ -21214,6 +21222,12 @@ async function afterLogin(startScreen) {
     setTimeout(() => showUpgradeModal('Choose your plan'), 500);
   }
 
+  // If arriving from the checkout-first landing page flow (paid before creating an account)
+  if (urlParams.get('newuser') === 'true') {
+    showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
+    setTimeout(() => loadUserPaidStatus(), 3000);
+  }
+
   // Students always land on Home — never restore to a sub-screen on load
   if (startScreen === 'teacher') { showTeacherDashboard(); return; }
   if (startScreen === 'parent-insight') { showParentTipScreen(); return; }
@@ -21412,10 +21426,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£4.99',a:'£3.49'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£9.99',a:'£6.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£14.99',a:'£10.49'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
-    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£19.99',a:'£13.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -21435,7 +21449,7 @@ function showUpgradeModal(reason) {
         <div class="v3-tier-card${t.popular?' popular':''}">
           ${t.popular ? `<div class="v3-tier-badge">Most Popular</div>` : ''}
           <div class="v3-tier-name">${t.name}</div>
-          <div class="v3-tier-price"><span class="amount" id="v3-price-${t.id}">${t.price.m}</span><span class="period">/mo</span></div>
+          <div class="v3-tier-price"><span class="amount" id="v3-price-${t.id}">${t.price.m}</span><span class="period" id="v3-period-${t.id}">/mo</span></div>
           <ul class="v3-tier-features">${t.features.map(f=>`<li>${f}</li>`).join('')}</ul>
           <button class="v3-tier-cta${t.trial?' trial':''}" onclick="initiateStripeCheckout('${t.monthly}','${t.id}')">${t.cta}</button>
         </div>`).join('')}
@@ -21449,11 +21463,13 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£4.99',a:'£3.49'},standard:{m:'£9.99',a:'£6.99'},premium:{m:'£14.99',a:'£10.49'},premium_plus:{m:'£19.99',a:'£13.99'}};
+  const PRICES = {basic:{m:'£3.99',a:'£34.99'},standard:{m:'£14.99',a:'£119.99'},premium:{m:'£24.99',a:'£199.99'},premium_plus:{m:'£44.99',a:'£349.99'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
     if (el) el.textContent = p[period];
+    const periodEl = document.getElementById('v3-period-'+id);
+    if (periodEl) periodEl.textContent = period === 'a' ? '/yr' : '/mo';
   });
   document.querySelectorAll('.v3-tier-cta').forEach((btn, i) => {
     const ids = ['basic','standard','premium','premium_plus'];
@@ -22319,7 +22335,7 @@ function startFlashcards() {
   if (!user.is_paid) {
     const weekCount = getWeeklyCardCount();
     if (weekCount >= CONFIG.FREE_CARDS_PER_WEEK) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £12.99/month`);
+      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £24.99/month`);
       return;
     }
   }
@@ -23362,7 +23378,7 @@ function nextCard() {
 // ============================================================
 function startFullSession() {
   if (!STATE.user?.is_paid) {
-    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £12.99/month');
+    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
     return;
   }
   showDeepDivePicker();
@@ -25585,7 +25601,7 @@ async function showTeacherDashboard(selectedClass) {
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £12.99/month — beta testers get a special founding member discount.</div>
+        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
       <div id="tcontent-overview">${overviewHTML}</div>
       <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
@@ -27244,7 +27260,7 @@ async function showParentPortal() {
     <div style="max-width:860px;margin:0 auto;padding-top:8px;padding-bottom:80px;">
       <div style="padding:16px 20px 0;">
         <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £12.99/month — beta testers get a special founding member discount.</div>
+          <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
         </div>
       </div>
       <div id="pcontent-progress" style="padding:0 20px;">${progressHTML}</div>
@@ -28567,7 +28583,7 @@ async function sendAIChat() {
   if (!STATE.user?.is_paid) {
     const count = getAIDailyCount();
     if (count >= CONFIG.FREE_AI_PER_DAY) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £12.99/month`);
+      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £24.99/month`);
       return;
     }
     incrementAIDailyCount();
@@ -28617,7 +28633,7 @@ async function sendAITabChat() {
     const count = getAIDailyCount();
     if (count >= CONFIG.FREE_AI_PER_DAY) {
       closeModal();
-      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £12.99/month`);
+      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £24.99/month`);
       return;
     }
     incrementAIDailyCount();
