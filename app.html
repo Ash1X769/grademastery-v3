@@ -44,20 +44,7 @@
   --border-focus:#4F8EF7;
 }
 
-body{font-family:"Nunito",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;line-height:1.6}
-
-/* PORTAL TABS — pill style shared by Teacher Portal + Parent Portal only (main .nav-tab left untouched) */
-.portal-tab{padding:8px 20px;border-radius:20px;border:none;background:#fff;font-family:"Nunito",sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--gm-muted,#64748B);transition:all .18s;white-space:nowrap;flex-shrink:0}
-.portal-tab:hover{background:#F1F5F9}
-.portal-tab.active{background:var(--gm-forest,#216D39);color:#fff;box-shadow:0 2px 8px rgba(33,109,57,0.3)}
-
-/* Teacher Portal responsive containers/grid */
-.teacher-portal-container{padding:18px 14px;max-width:960px;margin:0 auto}
-.teacher-student-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-@media(max-width:768px){
-  .teacher-portal-container{max-width:100%;padding:0 16px}
-  .teacher-student-grid{grid-template-columns:1fr}
-}
+body{font-family:"Nunito",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
 /* NAV */
 .nav{background:#fff;border-bottom:1px solid #E8EDF2;padding:0 32px;padding-top:env(safe-area-inset-top,0px);display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:200;box-shadow:0 1px 0 #E8EDF2,0 4px 16px rgba(15,23,42,0.06);gap:16px}
@@ -1396,8 +1383,6 @@ textarea.input { resize: vertical; min-height: 100px; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.5);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
   z-index: 300;
   display: flex;
   align-items: flex-end;
@@ -1407,14 +1392,12 @@ textarea.input { resize: vertical; min-height: 100px; }
 
 .modal {
   background: white;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 24px;
   width: 100%;
   max-width: 480px;
   max-height: 85vh;
   overflow-y: auto;
-  position: relative;
   animation: slideUp 0.25s ease;
 }
 
@@ -1427,33 +1410,10 @@ textarea.input { resize: vertical; min-height: 100px; }
 }
 
 .modal-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
-  padding-bottom: 16px;
   margin-bottom: 16px;
-  border-bottom: 1px solid var(--gm-border,var(--border));
 }
-
-.modal-close-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #F1F5F9;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 15px;
-  color: var(--muted);
-  z-index: 1;
-}
-.modal-close-btn:hover { background: #E2E8F0; }
-
-.modal .btn { min-height: 48px; }
 
 /* ============================================================
    STUDY HISTORY
@@ -19970,7 +19930,12 @@ async function showTeacherDashboard(selectedClass) {
   const avgCards  = students.length ? Math.round(students.reduce((a,s) => a+s.cards,  0)/students.length) : 0;
   const avgAcc    = students.length ? Math.round(students.reduce((a,s) => a+s.accuracy,0)/students.length) : 0;
 
+  const topicSet = new Set();
+  students.forEach(s => Object.keys(s.topics).forEach(t => topicSet.add(t)));
+  const allTopics = [...topicSet].slice(0, 6);
+
   const ragColor = p => p >= 75 ? '#16A34A' : p >= 40 ? '#D97706' : '#DC2626';
+  const ragBg    = p => p >= 75 ? '#F0FDF4' : p >= 40 ? '#FEFCE8' : '#FEF2F2';
   const tierLabel = t => {
     if (!t) return 'Foundation';
     const lvl = t.includes('higher') ? 'Higher' : 'Foundation';
@@ -19989,12 +19954,12 @@ async function showTeacherDashboard(selectedClass) {
   const overviewHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;">
       ${[[''+students.length,'#1E293B','Students'],['🔥 '+avgStreak,'#F97316','Avg Streak'],[''+avgCards,'#3B82F6','Avg Cards'],[''+avgAcc+'%','#22C55E','Avg Accuracy']].map(([v,c,l]) =>
-        `<div style="background:white;border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;text-align:center;">
+        `<div style="background:white;border-radius:16px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
           <div style="font-size:30px;font-weight:900;color:${c};line-height:1;">${v}</div>
           <div style="font-size:11px;font-weight:800;color:#94A3B8;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px;">${l}</div>
         </div>`).join('')}
     </div>
-    ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;overflow:hidden;">
+    ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <span style="font-size:14px;font-weight:800;color:#1E293B;">All Students</span>
@@ -20031,36 +19996,67 @@ async function showTeacherDashboard(selectedClass) {
       }).join('')}
     </div>`}`;
 
+  // ── RAG GRID ──
+  const ragHTML = allTopics.length === 0 ? emptyState : `
+    <div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
+      <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
+        <div style="font-size:14px;font-weight:800;color:#1E293B;">Topic Accuracy Grid</div>
+        <div style="font-size:12px;font-weight:600;color:#94A3B8;margin-top:3px;">
+          <span style="color:#16A34A;">●</span> 75%+ &nbsp;
+          <span style="color:#D97706;">●</span> 40–74% &nbsp;
+          <span style="color:#DC2626;">●</span> Under 40% &nbsp;
+          <span style="color:#CBD5E1;">—</span> Not studied
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:480px;">
+          <thead><tr style="background:#F8FAFC;">
+            <th style="padding:11px 16px;text-align:left;font-size:12px;font-weight:800;color:#64748B;">Student</th>
+            ${allTopics.map(t => `<th style="padding:11px 10px;text-align:center;font-size:11px;font-weight:800;color:#64748B;">${t}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${students.map(s => `<tr style="border-top:1px solid #F1F5F9;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:700;">${s.name}</td>
+              ${allTopics.map(t => {
+                const td = s.topics[t];
+                return td !== undefined
+                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragBg(td.pct)};color:${ragColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`
+                  : `<td style="padding:7px 10px;text-align:center;color:#CBD5E1;font-size:15px;">—</td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
   // ── STUDENTS PHOTO GRID ──
   const studentsHTML = students.length === 0 ? emptyState : `
-    <div class="teacher-student-grid">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;">
       ${students.map((s,si) => {
         const col = avatarColors[si%avatarColors.length], bg = avatarBgs[si%avatarBgs.length];
         const safeId = 'sc-' + s.user_id.replace(/-/g,'');
         const topicEntries = Object.entries(s.topics);
-        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';this.style.transform='none'">
+        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
           <div style="position:relative;width:56px;margin:0 auto 12px;">
             <div style="width:56px;height:56px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:${col};">${s.name.charAt(0).toUpperCase()}</div>
             <div style="position:absolute;bottom:1px;right:1px;width:14px;height:14px;border-radius:50%;background:${s.studiedToday?'#22C55E':'#EF4444'};border:2px solid white;"></div>
           </div>
           <div style="text-align:center;margin-bottom:12px;">
-            <div style="font-size:16px;font-weight:700;color:#1E293B;margin-bottom:3px;">${s.name}</div>
+            <div style="font-size:14px;font-weight:800;color:#1E293B;margin-bottom:3px;">${s.name}</div>
             <div style="font-size:11px;font-weight:700;color:${s.studiedToday?'#16A34A':'#DC2626'};margin-bottom:4px;">${s.studiedToday?'Done today ✓':'Not done yet'}</div>
             <span style="background:${bg};color:${col};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${tierLabel(s.tierFull)}</span>
           </div>
-          <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-            <span style="background:#FFF7ED;color:#F97316;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">🔥 ${s.streak}</span>
-            <span style="background:#EFF6FF;color:#3B82F6;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">📚 ${s.cards}</span>
-            <span style="background:#EEF2FF;color:#6366F1;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">${s.xp} XP</span>
+          <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px;font-size:12px;font-weight:700;color:#64748B;">
+            <span>🔥 ${s.streak}</span><span>📚 ${s.cards}</span><span>${s.xp} XP</span>
           </div>
           <div style="background:#F1F5F9;border-radius:6px;height:8px;overflow:hidden;margin-bottom:5px;">
             <div style="width:${s.accuracy}%;height:100%;background:${ragColor(s.accuracy)};border-radius:6px;"></div>
           </div>
           <div style="text-align:center;font-size:13px;font-weight:900;color:${ragColor(s.accuracy)};">${s.accuracy}% accuracy</div>
           <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
-            <button onclick="event.stopPropagation();showStudentHistory('${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid #E2E8F0;background:transparent;color:#374151;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📖 History</button>
-            <button onclick="event.stopPropagation();showStudentDetail('${s.name}','${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid var(--gm-forest);background:transparent;color:var(--gm-forest);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ Settings</button>
-            ${!s.studiedToday ? `<button id="${'ping-btn-'+s.user_id.replace(/-/g,'')}" onclick="event.stopPropagation();sendTeacherPing('${s.user_id}','${s.name}')" ${(STATE._teacherPingsSent||{})[s.user_id]?'disabled':''} style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid ${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};background:transparent;color:${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${(STATE._teacherPingsSent||{})[s.user_id]?'SENT ✓':'📣 PING'}</button>` : ''}
+            <button onclick="event.stopPropagation();showStudentHistory('${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:1.5px solid #E2E8F0;background:white;color:#374151;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📖 History</button>
+            <button onclick="event.stopPropagation();showStudentDetail('${s.name}','${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:1.5px solid var(--gm-forest);background:#EEF2FF;color:var(--gm-forest);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ Settings</button>
+            ${!s.studiedToday ? `<button id="${'ping-btn-'+s.user_id.replace(/-/g,'')}" onclick="event.stopPropagation();sendTeacherPing('${s.user_id}','${s.name}')" ${(STATE._teacherPingsSent||{})[s.user_id]?'disabled':''} style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:none;background:${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${(STATE._teacherPingsSent||{})[s.user_id]?'SENT ✓':'📣 PING'}</button>` : ''}
           </div>
           <div id="${safeId}" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #F1F5F9;">
             ${topicEntries.length > 0 ? topicEntries.map(([topic,td]) =>
@@ -20119,17 +20115,19 @@ async function showTeacherDashboard(selectedClass) {
       <button onclick="showCreateClass()" style="padding:9px 14px;border-radius:10px;border:none;background:#8B5CF6;color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">+ New Class</button>
     </div>
 
-    <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:8px 10px;gap:6px;overflow-x:auto;">
-      <button id="ttab-overview" onclick="teacherTab('overview')" class="portal-tab active">Overview</button>
-      <button id="ttab-students" onclick="teacherTab('students')" class="portal-tab">Students</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" class="portal-tab">Settings</button>
+    <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
+      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
+      <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
+      <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
-    <div class="teacher-portal-container">
+    <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
       <div id="tcontent-overview">${overviewHTML}</div>
+      <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
     </div>
@@ -20435,10 +20433,13 @@ function buildSettingsHTML(code, aiAttr, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','students','settings'].forEach(t => {
+  ['overview','rag','students','settings'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
-    if (btn) btn.classList.toggle('active', t === tab);
+    if (btn) {
+      btn.style.background = t === tab ? '#F3E8FF' : 'none';
+      btn.style.color = t === tab ? 'var(--gm-forest)' : '#64748B';
+    }
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
 }
@@ -25523,7 +25524,12 @@ async function showTeacherDashboard(selectedClass) {
   const avgCards  = students.length ? Math.round(students.reduce((a,s) => a+s.cards,  0)/students.length) : 0;
   const avgAcc    = students.length ? Math.round(students.reduce((a,s) => a+s.accuracy,0)/students.length) : 0;
 
+  const topicSet = new Set();
+  students.forEach(s => Object.keys(s.topics).forEach(t => topicSet.add(t)));
+  const allTopics = [...topicSet].slice(0, 6);
+
   const ragColor = p => p >= 75 ? '#16A34A' : p >= 40 ? '#D97706' : '#DC2626';
+  const ragBg    = p => p >= 75 ? '#F0FDF4' : p >= 40 ? '#FEFCE8' : '#FEF2F2';
   const tierLabel = t => {
     if (!t) return 'Foundation';
     const lvl = t.includes('higher') ? 'Higher' : 'Foundation';
@@ -25542,12 +25548,12 @@ async function showTeacherDashboard(selectedClass) {
   const overviewHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;">
       ${[[''+students.length,'#1E293B','Students'],['🔥 '+avgStreak,'#F97316','Avg Streak'],[''+avgCards,'#3B82F6','Avg Cards'],[''+avgAcc+'%','#22C55E','Avg Accuracy']].map(([v,c,l]) =>
-        `<div style="background:white;border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;text-align:center;">
+        `<div style="background:white;border-radius:16px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
           <div style="font-size:30px;font-weight:900;color:${c};line-height:1;">${v}</div>
           <div style="font-size:11px;font-weight:800;color:#94A3B8;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px;">${l}</div>
         </div>`).join('')}
     </div>
-    ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;overflow:hidden;">
+    ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <span style="font-size:14px;font-weight:800;color:#1E293B;">All Students</span>
@@ -25584,36 +25590,67 @@ async function showTeacherDashboard(selectedClass) {
       }).join('')}
     </div>`}`;
 
+  // ── RAG GRID ──
+  const ragHTML = allTopics.length === 0 ? emptyState : `
+    <div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
+      <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
+        <div style="font-size:14px;font-weight:800;color:#1E293B;">Topic Accuracy Grid</div>
+        <div style="font-size:12px;font-weight:600;color:#94A3B8;margin-top:3px;">
+          <span style="color:#16A34A;">●</span> 75%+ &nbsp;
+          <span style="color:#D97706;">●</span> 40–74% &nbsp;
+          <span style="color:#DC2626;">●</span> Under 40% &nbsp;
+          <span style="color:#CBD5E1;">—</span> Not studied
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:480px;">
+          <thead><tr style="background:#F8FAFC;">
+            <th style="padding:11px 16px;text-align:left;font-size:12px;font-weight:800;color:#64748B;">Student</th>
+            ${allTopics.map(t => `<th style="padding:11px 10px;text-align:center;font-size:11px;font-weight:800;color:#64748B;">${t}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${students.map(s => `<tr style="border-top:1px solid #F1F5F9;">
+              <td style="padding:11px 16px;font-size:13px;font-weight:700;">${s.name}</td>
+              ${allTopics.map(t => {
+                const td = s.topics[t];
+                return td !== undefined
+                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragBg(td.pct)};color:${ragColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`
+                  : `<td style="padding:7px 10px;text-align:center;color:#CBD5E1;font-size:15px;">—</td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
   // ── STUDENTS PHOTO GRID ──
   const studentsHTML = students.length === 0 ? emptyState : `
-    <div class="teacher-student-grid">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;">
       ${students.map((s,si) => {
         const col = avatarColors[si%avatarColors.length], bg = avatarBgs[si%avatarBgs.length];
         const safeId = 'sc-' + s.user_id.replace(/-/g,'');
         const topicEntries = Object.entries(s.topics);
-        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';this.style.transform='none'">
+        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
           <div style="position:relative;width:56px;margin:0 auto 12px;">
             <div style="width:56px;height:56px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:${col};">${s.name.charAt(0).toUpperCase()}</div>
             <div style="position:absolute;bottom:1px;right:1px;width:14px;height:14px;border-radius:50%;background:${s.studiedToday?'#22C55E':'#EF4444'};border:2px solid white;"></div>
           </div>
           <div style="text-align:center;margin-bottom:12px;">
-            <div style="font-size:16px;font-weight:700;color:#1E293B;margin-bottom:3px;">${s.name}</div>
+            <div style="font-size:14px;font-weight:800;color:#1E293B;margin-bottom:3px;">${s.name}</div>
             <div style="font-size:11px;font-weight:700;color:${s.studiedToday?'#16A34A':'#DC2626'};margin-bottom:4px;">${s.studiedToday?'Done today ✓':'Not done yet'}</div>
             <span style="background:${bg};color:${col};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${tierLabel(s.tierFull)}</span>
           </div>
-          <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-            <span style="background:#FFF7ED;color:#F97316;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">🔥 ${s.streak}</span>
-            <span style="background:#EFF6FF;color:#3B82F6;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">📚 ${s.cards}</span>
-            <span style="background:#EEF2FF;color:#6366F1;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;">${s.xp} XP</span>
+          <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px;font-size:12px;font-weight:700;color:#64748B;">
+            <span>🔥 ${s.streak}</span><span>📚 ${s.cards}</span><span>${s.xp} XP</span>
           </div>
           <div style="background:#F1F5F9;border-radius:6px;height:8px;overflow:hidden;margin-bottom:5px;">
             <div style="width:${s.accuracy}%;height:100%;background:${ragColor(s.accuracy)};border-radius:6px;"></div>
           </div>
           <div style="text-align:center;font-size:13px;font-weight:900;color:${ragColor(s.accuracy)};">${s.accuracy}% accuracy</div>
           <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
-            <button onclick="event.stopPropagation();showStudentHistory('${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid #E2E8F0;background:transparent;color:#374151;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📖 History</button>
-            <button onclick="event.stopPropagation();showStudentDetail('${s.name}','${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid var(--gm-forest);background:transparent;color:var(--gm-forest);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ Settings</button>
-            ${!s.studiedToday ? `<button id="${'ping-btn-'+s.user_id.replace(/-/g,'')}" onclick="event.stopPropagation();sendTeacherPing('${s.user_id}','${s.name}')" ${(STATE._teacherPingsSent||{})[s.user_id]?'disabled':''} style="flex:1;min-width:60px;padding:8px 0;border-radius:12px;border:1.5px solid ${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};background:transparent;color:${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${(STATE._teacherPingsSent||{})[s.user_id]?'SENT ✓':'📣 PING'}</button>` : ''}
+            <button onclick="event.stopPropagation();showStudentHistory('${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:1.5px solid #E2E8F0;background:white;color:#374151;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📖 History</button>
+            <button onclick="event.stopPropagation();showStudentDetail('${s.name}','${s.user_id}')" style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:1.5px solid var(--gm-forest);background:#EEF2FF;color:var(--gm-forest);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ Settings</button>
+            ${!s.studiedToday ? `<button id="${'ping-btn-'+s.user_id.replace(/-/g,'')}" onclick="event.stopPropagation();sendTeacherPing('${s.user_id}','${s.name}')" ${(STATE._teacherPingsSent||{})[s.user_id]?'disabled':''} style="flex:1;min-width:60px;padding:8px 0;border-radius:8px;border:none;background:${(STATE._teacherPingsSent||{})[s.user_id]?'#22C55E':'#F59E0B'};color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${(STATE._teacherPingsSent||{})[s.user_id]?'SENT ✓':'📣 PING'}</button>` : ''}
           </div>
           <div id="${safeId}" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #F1F5F9;">
             ${topicEntries.length > 0 ? topicEntries.map(([topic,td]) =>
@@ -25672,17 +25709,19 @@ async function showTeacherDashboard(selectedClass) {
       <button onclick="showCreateClass()" style="padding:9px 14px;border-radius:10px;border:none;background:#8B5CF6;color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">+ New Class</button>
     </div>
 
-    <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:8px 10px;gap:6px;overflow-x:auto;">
-      <button id="ttab-overview" onclick="teacherTab('overview')" class="portal-tab active">Overview</button>
-      <button id="ttab-students" onclick="teacherTab('students')" class="portal-tab">Students</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" class="portal-tab">Settings</button>
+    <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
+      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
+      <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
+      <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
-    <div class="teacher-portal-container">
+    <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
       <div id="tcontent-overview">${overviewHTML}</div>
+      <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
     </div>
@@ -25988,10 +26027,13 @@ function buildSettingsHTML(code, aiAttr, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','students','settings'].forEach(t => {
+  ['overview','rag','students','settings'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
-    if (btn) btn.classList.toggle('active', t === tab);
+    if (btn) {
+      btn.style.background = t === tab ? '#F3E8FF' : 'none';
+      btn.style.color = t === tab ? 'var(--gm-forest)' : '#64748B';
+    }
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
 }
@@ -27120,12 +27162,12 @@ async function showParentPortal() {
         <button onclick="doLogout()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Log Out</button>
       </div>
       <div style="padding:24px;max-width:480px;margin:0 auto;">
-        <div style="background:white;border-radius:20px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F1F5F9;text-align:center;">
+        <div style="background:white;border-radius:16px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
           <div style="font-size:40px;margin-bottom:14px;">🔗</div>
           <div style="font-size:17px;font-weight:800;margin-bottom:8px;">Enter your child's Parent Code</div>
           <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:20px;line-height:1.6;">Ask your child to open GradeMastery, go to Profile, and share their Parent Code with you.</div>
-          <input id="parent-link-input" type="text" placeholder="e.g. ABCD1234" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid #E2E8F0;font-size:16px;text-align:center;letter-spacing:2px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;outline:none;" oninput="this.value=this.value.toUpperCase()">
-          <button onclick="linkParentAccount()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Link Account</button>
+          <input id="parent-link-input" type="text" placeholder="e.g. ABCD1234" style="width:100%;padding:12px;border-radius:10px;border:1.5px solid #E2E8F0;font-size:16px;text-align:center;letter-spacing:2px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;outline:none;" oninput="this.value=this.value.toUpperCase()">
+          <button onclick="linkParentAccount()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Link Account</button>
         </div>
       </div>
     </div>`;
@@ -27155,7 +27197,7 @@ async function showParentPortal() {
           <div style="font-size:12px;color:#9A3412;font-weight:600;">Send a quick reminder</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          <button onclick="showPingComposer('${safeChildUserId}','${safeChildName}')" style="background:#F97316;color:white;border:none;border-radius:12px;padding:10px 20px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,0.35);">📨 PING</button>
+          <button onclick="showPingComposer('${safeChildUserId}','${safeChildName}')" style="background:#F97316;color:white;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,0.35);">📨 PING</button>
           <button onclick="dismissParentBanner()" style="background:rgba(0,0,0,0.08);color:#9A3412;border:none;border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
         </div>
       </div>`
@@ -27170,12 +27212,12 @@ async function showParentPortal() {
 
   const pingHistoryHTML = recentPings.length === 0 ? '' : `
     <div style="margin-top:20px;">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:0.06em;margin-bottom:10px;">RECENT PINGS</div>
+      <div style="font-size:12px;font-weight:800;color:#64748B;letter-spacing:0.08em;margin-bottom:10px;">RECENT PINGS</div>
       ${recentPings.map(p => {
         const dt = new Date(p.sent_at);
         const timeStr = dt.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
         const dateStr = dt.toLocaleDateString('en-GB', {day:'numeric', month:'short'});
-        return `<div style="background:white;border-radius:20px;padding:16px 20px;margin-bottom:8px;border:1px solid #F0F4F8;box-shadow:0 2px 8px rgba(0,0,0,0.08);display:flex;align-items:center;gap:10px;">
+        return `<div style="background:white;border-radius:12px;padding:12px 16px;margin-bottom:8px;border:1px solid #F0F4F8;box-shadow:0 1px 3px rgba(0,0,0,0.04);display:flex;align-items:center;gap:10px;">
           <div style="font-size:20px;flex-shrink:0;">📨</div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:800;">${p.message}${p.deadline ? ' · by ' + p.deadline : ''}</div>
@@ -27183,21 +27225,21 @@ async function showParentPortal() {
           </div>
         </div>`;
       }).join('')}
-      <button onclick="showPingComposer('${safeChildUserId}','${safeChildName}')" style="width:100%;padding:12px;border-radius:12px;border:2px solid #F97316;background:white;color:#F97316;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-top:4px;">📨 Send Another Ping</button>
+      <button onclick="showPingComposer('${safeChildUserId}','${safeChildName}')" style="width:100%;padding:12px;border-radius:10px;border:2px solid #F97316;background:white;color:#F97316;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-top:4px;">📨 Send Another Ping</button>
     </div>`;
 
   const progressHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
       ${[['🔥 STREAK',''+child.streak,'days in a row','#F97316'],['⚡ TOTAL XP',''+child.xp,'xp earned','#6366F1'],['📚 CARDS DONE',''+cardsDone,'reviewed','#3B82F6'],['🏆 LEVEL','Lvl '+child.level,'current level','#A855F7']].map(([lbl,val,sub,col]) =>
-        `<div style="background:white;border-radius:20px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F0F4F8;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:0.06em;margin-bottom:6px;">${lbl}</div>
+        `<div style="background:white;border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
+          <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:0.08em;margin-bottom:6px;">${lbl}</div>
           <div style="font-size:32px;font-weight:900;color:${col};">${val}</div>
           <div style="font-size:12px;color:#64748B;font-weight:600;">${sub}</div>
         </div>`).join('')}
     </div>
 
-    <div style="background:white;border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F0F4F8;">
-      <div style="font-size:18px;font-weight:800;margin-bottom:10px;">📋 Study Details</div>
+    <div style="background:white;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
+      <div style="font-size:13px;font-weight:800;margin-bottom:10px;">📋 Study Details</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${child.year_group ? `<span style="background:#EEF2FF;color:var(--gm-forest);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:800;">Year ${child.year_group}</span>` : ''}
         ${child.tier ? `<span style="background:#F0FDF4;color:#16A34A;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:800;">${tierDisplay(child.tier)}</span>` : ''}
@@ -27206,26 +27248,26 @@ async function showParentPortal() {
       </div>
     </div>
 
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:0.06em;margin-bottom:10px;">TOPIC PROGRESS</div>
+    <div style="font-size:12px;font-weight:800;color:#64748B;letter-spacing:0.08em;margin-bottom:10px;">TOPIC PROGRESS</div>
     ${topics.length === 0
-      ? '<div style="background:white;border-radius:20px;padding:24px;text-align:center;color:#94A3B8;font-weight:700;border:1px solid #F0F4F8;">No study activity yet — check back after your child has done a session.</div>'
-      : topics.map(t => `<div style="background:white;border-radius:20px;padding:20px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F0F4F8;">
+      ? '<div style="background:white;border-radius:12px;padding:24px;text-align:center;color:#94A3B8;font-weight:700;border:1px solid #F0F4F8;">No study activity yet — check back after your child has done a session.</div>'
+      : topics.map(t => `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04);border:1px solid #F0F4F8;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div>
-              <div style="font-size:14px;font-weight:700;">${t.name}</div>
+              <div style="font-size:14px;font-weight:800;">${t.name}</div>
               <div style="font-size:11px;font-weight:700;color:${subCol(t.subject)};">${t.subject}</div>
             </div>
             <div style="font-size:14px;font-weight:900;color:${ragCol(t.pct)};">${t.pct}%</div>
           </div>
-          <div style="background:#F0F4F8;border-radius:3px;height:6px;overflow:hidden;">
-            <div style="width:${t.pct}%;background:${ragCol(t.pct)};height:100%;border-radius:3px;"></div>
+          <div style="background:#F0F4F8;border-radius:6px;height:8px;overflow:hidden;">
+            <div style="width:${t.pct}%;background:${ragCol(t.pct)};height:100%;border-radius:6px;"></div>
           </div>
         </div>`).join('')}
 
-    <div style="background:white;border-radius:20px;padding:20px;margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F0F4F8;">
-      <div style="font-size:18px;font-weight:800;margin-bottom:6px;">📬 Contact Teacher</div>
+    <div style="background:white;border-radius:14px;padding:16px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
+      <div style="font-size:14px;font-weight:800;margin-bottom:6px;">📬 Contact Teacher</div>
       <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;">Send a message to your child's science teacher</div>
-      <button onclick="alert('Email feature coming soon')" style="width:100%;padding:12px;border-radius:12px;border:2px solid #E2E8F0;background:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;color:#0F172A;">✉️ Email Teacher</button>
+      <button onclick="alert('Email feature coming soon')" style="width:100%;padding:12px;border-radius:10px;border:2px solid #E2E8F0;background:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;color:#0F172A;">✉️ Email Teacher</button>
     </div>
     ${pingHistoryHTML}`;
 
@@ -27238,9 +27280,9 @@ async function showParentPortal() {
         const date = h.date ? new Date(h.date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
         const sEmoji = h.subject === 'Biology' ? '🌿' : h.subject === 'Chemistry' ? '⚗️' : h.subject === 'Physics' ? '⚡' : '📚';
         const qText = h.question || h.topic || 'Flashcard';
-        return `<div style="background:white;border-radius:20px;padding:16px 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #F0F4F8;">
+        return `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
           <div style="flex:1;min-width:0;margin-right:12px;">
-            <div style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:4px;">${qText}</div>
+            <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${qText}</div>
             <div style="font-size:12px;color:#64748B;font-weight:600;">${sEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
           </div>
           <div style="text-align:right;flex-shrink:0;">
@@ -27322,13 +27364,13 @@ async function showParentPortal() {
       ${studyBannerHTML}
 
       <div style="display:flex;background:white;border-bottom:1px solid #E2E8F0;padding:8px 12px;gap:2px;overflow-x:auto;align-items:center;">
-        <button id="ptab-progress" onclick="parentTab('progress')" class="portal-tab active">📊 Progress</button>
-        <button id="ptab-history"  onclick="parentTab('history')"  class="portal-tab">📖 History</button>
-        <button id="ptab-tracker"  onclick="parentTab('tracker')"  class="portal-tab">📈 Tracker</button>
-        <button id="ptab-feed"     onclick="parentTab('feed')"     class="portal-tab">📰 Feed</button>
-        <button id="ptab-insights" onclick="parentTab('insights')" class="portal-tab">✨ Insights<span class="insight-badge" id="insight-badge-dot" style="display:none;"></span></button>
-        <button id="ptab-topics"   onclick="parentTab('topics')"   class="portal-tab">📚 Topics</button>
-        <button id="ptab-profile"  onclick="parentTab('profile')"  class="portal-tab">👤 Profile</button>
+        <button id="ptab-progress" onclick="parentTab('progress')" class="nav-tab active">📊 Progress</button>
+        <button id="ptab-history"  onclick="parentTab('history')"  class="nav-tab">📖 History</button>
+        <button id="ptab-tracker"  onclick="parentTab('tracker')"  class="nav-tab">📈 Tracker</button>
+        <button id="ptab-feed"     onclick="parentTab('feed')"     class="nav-tab">📰 Feed</button>
+        <button id="ptab-insights" onclick="parentTab('insights')" class="nav-tab">✨ Insights<span class="insight-badge" id="insight-badge-dot" style="display:none;"></span></button>
+        <button id="ptab-topics"   onclick="parentTab('topics')"   class="nav-tab">📚 Topics</button>
+        <button id="ptab-profile"  onclick="parentTab('profile')"  class="nav-tab">👤 Profile</button>
       </div>
     </div>
 
@@ -28409,7 +28451,7 @@ function showModal(content) {
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'modal-backdrop';
-  backdrop.innerHTML = `<div class="modal"><button class="modal-close-btn" onclick="closeModal()" aria-label="Close">✕</button>${content}</div>`;
+  backdrop.innerHTML = `<div class="modal">${content}</div>`;
   backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
   document.body.appendChild(backdrop);
 }
