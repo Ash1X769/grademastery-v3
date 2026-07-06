@@ -17371,7 +17371,9 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     }
   });
   let h = '';
-  h += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#1E40AF;">⚡ <strong>Revise Now</strong> — Practice any topic anytime without using your daily card limit. Complete your daily cards to keep your streak! 🔥</div>';
+  h += isParentCtx
+    ? '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#64748B;">ℹ️ Topic access is managed by your child or their teacher.</div>'
+    : '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#1E40AF;">⚡ <strong>Revise Now</strong> — Practice any topic anytime without using your daily card limit. Complete your daily cards to keep your streak! 🔥</div>';
   if (scheduleLocked) {
     h += '<div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;font-weight:700;color:#92400E;">🔒 Your teacher controls topic selection — contact them to make changes</div>';
   }
@@ -17391,7 +17393,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     // Subject header row with master toggle
     h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:#F8FAFC;">';
     h += '<div style="font-size:14px;font-weight:900;color:#0F172A;">' + subjectEmoji[subject] + ' ' + subject + '</div>';
-    if (scheduleLocked) {
+    if (scheduleLocked || isParentCtx) {
       h += '<div style="font-size:12px;font-weight:700;color:' + (allUnlocked ? '#15803D' : '#64748B') + ';">' + masterLabel + '</div>';
     } else {
       h += '<div style="display:flex;align-items:center;gap:7px;">';
@@ -17440,7 +17442,13 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       h += '<div style="display:flex;align-items:center;flex:1;min-width:0;">' + expandArrow;
       const tlBadge = isTeacherLocked ? '<span style="font-size:10px;font-weight:700;color:#DC2626;margin-left:6px;">🔒 Teacher</span>' : '';
       h += '<div style="font-size:13px;font-weight:700;color:#374151;">' + topicKey + ' — ' + displayName + tripleBadge + masteryBadge + tlBadge + '</div></div>';
-      if (scheduleLocked || isTeacherLocked) {
+      if (isParentCtx) {
+        const dotColor = topicState === 'off' ? '#94A3B8' : '#22C55E';
+        h += '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
+        h += '<span style="width:10px;height:10px;border-radius:50%;background:' + dotColor + ';display:inline-block;flex-shrink:0;"></span>';
+        if (topicState === 'off') h += '<span style="font-size:13px;">🔒</span>';
+        h += '</div>';
+      } else if (scheduleLocked || isTeacherLocked) {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
@@ -17470,9 +17478,15 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
           const rpaBadge     = isRPA
             ? '<span style="background:#EDE9FE;color:var(--gm-forest);font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;margin-left:5px;vertical-align:middle;">RPA</span>'
             : '';
-          const subReviseBtn = '<button onclick="startQuickRevisionSubtopic(\'' + sk + '\')" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;border:none;background:#818CF8;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
+          const subReviseBtn = isParentCtx ? '' : '<button onclick="startQuickRevisionSubtopic(\'' + sk + '\')" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;border:none;background:#818CF8;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
           let sToggleHTML;
-          if (scheduleLocked || isLocked) {
+          if (isParentCtx) {
+            const sDotColor = sOn ? '#22C55E' : '#94A3B8';
+            sToggleHTML = '<div style="display:flex;align-items:center;gap:6px;">'
+              + '<span style="width:9px;height:9px;border-radius:50%;background:' + sDotColor + ';display:inline-block;flex-shrink:0;"></span>'
+              + (sOn ? '' : '<span style="font-size:12px;">🔒</span>')
+              + '</div>';
+          } else if (scheduleLocked || isLocked) {
             // Parent topic locked — show inherited state, toggles disabled
             sToggleHTML = '<div style="width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.4;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.15);"></div></div>';
@@ -23008,7 +23022,9 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     }
   });
   let h = '';
-  h += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#1E40AF;">⚡ <strong>Revise Now</strong> — Practice any topic anytime without using your daily card limit. Complete your daily cards to keep your streak! 🔥</div>';
+  h += isParentCtx
+    ? '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#64748B;">ℹ️ Topic access is managed by your child or their teacher.</div>'
+    : '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#1E40AF;">⚡ <strong>Revise Now</strong> — Practice any topic anytime without using your daily card limit. Complete your daily cards to keep your streak! 🔥</div>';
   if (scheduleLocked) {
     h += '<div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;font-weight:700;color:#92400E;">🔒 Your teacher controls topic selection — contact them to make changes</div>';
   }
@@ -23028,7 +23044,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     // Subject header row with master toggle
     h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:#F8FAFC;">';
     h += '<div style="font-size:14px;font-weight:900;color:#0F172A;">' + subjectEmoji[subject] + ' ' + subject + '</div>';
-    if (scheduleLocked) {
+    if (scheduleLocked || isParentCtx) {
       h += '<div style="font-size:12px;font-weight:700;color:' + (allUnlocked ? '#15803D' : '#64748B') + ';">' + masterLabel + '</div>';
     } else {
       h += '<div style="display:flex;align-items:center;gap:7px;">';
@@ -23077,7 +23093,13 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       h += '<div style="display:flex;align-items:center;flex:1;min-width:0;">' + expandArrow;
       const tlBadge = isTeacherLocked ? '<span style="font-size:10px;font-weight:700;color:#DC2626;margin-left:6px;">🔒 Teacher</span>' : '';
       h += '<div style="font-size:13px;font-weight:700;color:#374151;">' + topicKey + ' — ' + displayName + tripleBadge + masteryBadge + tlBadge + '</div></div>';
-      if (scheduleLocked || isTeacherLocked) {
+      if (isParentCtx) {
+        const dotColor = topicState === 'off' ? '#94A3B8' : '#22C55E';
+        h += '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
+        h += '<span style="width:10px;height:10px;border-radius:50%;background:' + dotColor + ';display:inline-block;flex-shrink:0;"></span>';
+        if (topicState === 'off') h += '<span style="font-size:13px;">🔒</span>';
+        h += '</div>';
+      } else if (scheduleLocked || isTeacherLocked) {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
@@ -23107,9 +23129,15 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
           const rpaBadge     = isRPA
             ? '<span style="background:#EDE9FE;color:var(--gm-forest);font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;margin-left:5px;vertical-align:middle;">RPA</span>'
             : '';
-          const subReviseBtn = '<button onclick="startQuickRevisionSubtopic(\'' + sk + '\')" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;border:none;background:#818CF8;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
+          const subReviseBtn = isParentCtx ? '' : '<button onclick="startQuickRevisionSubtopic(\'' + sk + '\')" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;border:none;background:#818CF8;color:white;cursor:pointer;white-space:nowrap;">Revise</button>';
           let sToggleHTML;
-          if (scheduleLocked || isLocked) {
+          if (isParentCtx) {
+            const sDotColor = sOn ? '#22C55E' : '#94A3B8';
+            sToggleHTML = '<div style="display:flex;align-items:center;gap:6px;">'
+              + '<span style="width:9px;height:9px;border-radius:50%;background:' + sDotColor + ';display:inline-block;flex-shrink:0;"></span>'
+              + (sOn ? '' : '<span style="font-size:12px;">🔒</span>')
+              + '</div>';
+          } else if (scheduleLocked || isLocked) {
             // Parent topic locked — show inherited state, toggles disabled
             sToggleHTML = '<div style="width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.4;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.15);"></div></div>';
