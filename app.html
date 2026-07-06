@@ -15880,6 +15880,10 @@ window.v3SwitchBilling = function(period) {
 };
 
 async function initiateStripeCheckout(priceId, tier) {
+  if (STATE.user?.is_paid) {
+    showToast('You already have an active subscription! Manage it in your profile.');
+    return;
+  }
   const user = STATE.user;
   if (!user?.token) { showAuth(); return; }
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
@@ -21554,6 +21558,10 @@ window.v3SwitchBilling = function(period) {
 };
 
 async function initiateStripeCheckout(priceId, tier) {
+  if (STATE.user?.is_paid) {
+    showToast('You already have an active subscription! Manage it in your profile.');
+    return;
+  }
   const user = STATE.user;
   if (!user?.token) { showAuth(); return; }
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
