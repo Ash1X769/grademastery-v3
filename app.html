@@ -19164,6 +19164,19 @@ ${renderNavBar('profile')}
         </div>`
     }
 
+    ${user.class_ai_marking_locked && user.allow_self_grade === false
+      ? `<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:#216D39;">
+          🤖 <strong>AI Marking active</strong> — set by your teacher. Only AI-marked answers count toward your Mastery Tracker.
+        </div>`
+      : ''
+    }
+    ${user.class_ai_marking_locked && user.allow_self_grade === true
+      ? `<div style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:#92400E;">
+          ✏️ <strong>Self-grading allowed</strong> — your teacher has enabled this for you.
+        </div>`
+      : ''
+    }
+
     <!-- Parent Code -->
     <div class="v3-profile-section">
       <div class="v3-profile-section-lbl">PARENT CODE</div>
@@ -19863,7 +19876,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
       : 'class_code=in.(' + classCodes.map(c => encodeURIComponent(c)).join(',') + ')';
 
     const pRes = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade',
       { headers }
     );
     const profiles = pRes.ok ? await pRes.json() : [];
@@ -19912,6 +19925,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
         schedule_locked: p.schedule_locked || false,
         target_grade: p.target_grade ?? null,
         studiedToday: sh.some(function(h) { const d = h.created_at ? h.created_at.slice(0,10) : ''; return d === new Date().toISOString().slice(0,10); }),
+        allow_self_grade: p.allow_self_grade !== false,
       };
     });
   } catch(e) {
@@ -19928,8 +19942,8 @@ async function showTeacherDashboard(selectedClass) {
 
   const realClasses = await loadTeacherClasses();
   const classes = [
-    { id: 'all', name: 'All Classes', code: '' },
-    ...realClasses.map(cl => ({ id: cl.id, name: cl.name, code: cl.code }))
+    { id: 'all', name: 'All Classes', code: '', ai_marking_locked: false },
+    ...realClasses.map(cl => ({ id: cl.id, name: cl.name, code: cl.code, ai_marking_locked: cl.ai_marking_locked === true }))
   ];
   STATE.teacherSelectedClass = selectedClass;
   STATE.teacherClasses = classes;
@@ -19939,6 +19953,7 @@ async function showTeacherDashboard(selectedClass) {
   const selectedName = classes.find(c => c.id === selectedClass)?.name || 'All Classes';
   const selectedCode = classes.find(c => c.id === selectedClass)?.code || '';
   STATE.teacherSelectedClassName = selectedName;
+  const aiLocked = classes.find(c => c.id === selectedClass)?.ai_marking_locked === true;
 
   const avgStreak = students.length ? Math.round(students.reduce((a,s) => a+s.streak, 0)/students.length) : 0;
   const avgCards  = students.length ? Math.round(students.reduce((a,s) => a+s.cards,  0)/students.length) : 0;
@@ -19964,6 +19979,17 @@ async function showTeacherDashboard(selectedClass) {
     <div style="font-size:13px;color:#64748B;font-weight:600;line-height:1.6;">Share the class code <strong style="color:#8B5CF6;letter-spacing:1px;">${selectedCode || '(see Settings)'}</strong> with students so they can join at signup.</div>
   </div>`;
 
+  // ── AI MARKING STATUS SUMMARY ──
+  const aiStudents = students.filter(s => !s.allow_self_grade).length;
+  const selfStudents = students.filter(s => s.allow_self_grade).length;
+  const aiMarkingStatusText = !aiLocked
+    ? '✏️ Self-grading: All students'
+    : selfStudents > 0
+    ? '⚡ Mixed: ' + aiStudents + ' AI marking, ' + selfStudents + ' self-grading'
+    : '🤖 AI Marking: All students';
+  const aiMarkingStatusColor = !aiLocked ? '#64748B' : (selfStudents > 0 ? '#B45309' : '#216D39');
+  const aiMarkingStatusHTML = (selectedClass === 'all' || students.length === 0) ? '' : `<div style="background:white;border-radius:12px;padding:12px 16px;margin-bottom:16px;border:1px solid #F1F5F9;font-size:13px;font-weight:700;color:${aiMarkingStatusColor};">${aiMarkingStatusText}</div>`;
+
   // ── OVERVIEW ──
   const overviewHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;">
@@ -19973,6 +19999,7 @@ async function showTeacherDashboard(selectedClass) {
           <div style="font-size:11px;font-weight:800;color:#94A3B8;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px;">${l}</div>
         </div>`).join('')}
     </div>
+    ${aiMarkingStatusHTML}
     ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -20104,14 +20131,13 @@ async function showTeacherDashboard(selectedClass) {
     </div>`;
 
   // ── SETTINGS ──
-  const aiAttr = (user && user.ai_mode !== false) ? 'checked' : '';
   const settingsHTML = selectedClass === 'all'
     ? `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:14px;padding:28px;text-align:center;">
         <div style="font-size:28px;margin-bottom:10px;">ℹ️</div>
         <div style="font-size:15px;font-weight:800;color:#1E40AF;margin-bottom:6px;">Select a class to manage settings</div>
         <div style="font-size:13px;color:#3B82F6;font-weight:600;">Choose a specific class from the dropdown above.</div>
        </div>`
-    : buildSettingsHTML(selectedCode, aiAttr, selectedName);
+    : buildSettingsHTML(selectedCode, aiLocked, selectedName);
 
   const html = `<div style="min-height:100vh;background:#F8FAFC;padding-bottom:60px;">
     <div style="background:linear-gradient(135deg,#22C55E 0%,#8B5CF6 100%);padding:22px 18px 20px;color:white;position:relative;">
@@ -20406,7 +20432,7 @@ function removeStudentFromClass(studentUserId, studentName) {
 function confirmRemoveStudent(studentUserId, studentName) {
   removeStudentFromClass(studentUserId, studentName);
 }
-function buildSettingsHTML(code, aiAttr, currentName) {
+function buildSettingsHTML(code, aiLocked, currentName) {
   const escapedName = (currentName || '').replace(/"/g, '&quot;');
   return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
@@ -20425,11 +20451,16 @@ function buildSettingsHTML(code, aiAttr, currentName) {
     + '</div>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">AI Marking</label>'
+    + '<div id="ai-marking-status-label" style="font-size:13px;font-weight:600;color:' + (aiLocked ? '#216D39' : '#64748B') + ';margin-bottom:8px;">'
+    + (aiLocked ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class')
+    + '</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
     + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Require AI marking for all students</p>'
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
-    + buildAIToggle(aiAttr)
-    + '</div></div>'
+    + buildAIToggle(aiLocked)
+    + '</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '</div>'
     + buildClassScheduleSection()
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
@@ -20497,7 +20528,7 @@ function buildAIToggle(aiOn) {
   var srColor = on ? '#94a3b8' : '#6366f1';
   return '<div style="display:flex;align-items:center;gap:16px;margin-top:8px;">'
     + '<span style="font-size:0.9rem;font-weight:700;color:' + srColor + ';">Self Rating</span>'
-    + '<div onclick="toggleClassAIMode(this)" data-on="' + (on?'1':'0') + '" style="position:relative;width:64px;height:32px;background:' + bg + ';border-radius:32px;cursor:pointer;transition:0.3s;flex-shrink:0;">'
+    + '<div onclick="toggleClassAIMode(this)" data-on="' + (on?'true':'false') + '" style="position:relative;width:64px;height:32px;background:' + bg + ';border-radius:32px;cursor:pointer;transition:0.3s;flex-shrink:0;">'
     + '<div style="position:absolute;top:4px;left:' + left + ';width:24px;height:24px;background:#fff;border-radius:50%;transition:0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>'
     + '</div>'
     + '<span style="font-size:0.9rem;font-weight:700;color:' + aiColor + ';">AI Marking</span>'
@@ -20505,14 +20536,41 @@ function buildAIToggle(aiOn) {
 }
 
 function toggleClassAIMode(el) {
-  var on = el.getAttribute('data-on') !== '1';
-  el.setAttribute('data-on', on ? '1' : '0');
-  el.style.background = on ? '#6366f1' : '#cbd5e1';
-  el.children[0].style.left = on ? '36px' : '4px';
-  var spans = el.parentNode.querySelectorAll('span');
-  if (spans[0]) spans[0].style.color = on ? '#94a3b8' : '#6366f1';
-  if (spans[1]) spans[1].style.color = on ? '#6366f1' : '#94a3b8';
-  showToast((on ? 'AI Marking' : 'Self Rating') + ' enabled for class');
+  const classId = STATE.teacherSelectedClass;
+  if (!classId || classId === 'all') { showToast('Select a specific class first'); return; }
+
+  const isOn = el.getAttribute('data-on') === 'true';
+  const newVal = !isOn;
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?id=eq.' + classId, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ ai_marking_locked: newVal })
+  }).then(r => {
+    if (r.ok) {
+      el.setAttribute('data-on', newVal ? 'true' : 'false');
+      el.style.background = newVal ? '#6366f1' : '#cbd5e1';
+      el.children[0].style.left = newVal ? '36px' : '4px';
+      const spans = el.parentNode.querySelectorAll('span');
+      if (spans[0]) spans[0].style.color = newVal ? '#94a3b8' : '#6366f1';
+      if (spans[1]) spans[1].style.color = newVal ? '#6366f1' : '#94a3b8';
+      const cls = (STATE.teacherClasses || []).find(c => c.id === classId);
+      if (cls) cls.ai_marking_locked = newVal;
+      const label = document.getElementById('ai-marking-status-label');
+      if (label) {
+        label.style.color = newVal ? '#216D39' : '#64748B';
+        label.textContent = newVal ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class';
+      }
+      showToast(newVal ? 'AI Marking required for class ✓' : 'Self-grading enabled for class ✓');
+    } else {
+      showToast('Could not update — try again');
+    }
+  });
 }
 
 async function saveClassName() {
@@ -20557,15 +20615,10 @@ function deleteClassConfirm() {
   deleteClass(selectedClass, cls?.name || 'this class');
 }
 
-function toggleClassAI(el) {
-  const track = el.querySelector('.toggle-track');
-  const thumb = el.querySelector('.toggle-thumb');
-  track?.classList.toggle('on');
-  thumb?.classList.toggle('on');
-}
-
 function showStudentDetail(name, studentUserId) {
   const lockId = 'notif-lock-row-' + (studentUserId || 'unknown');
+  const _sgStudent = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  const _sgOn = _sgStudent?.allow_self_grade !== false;
   showModal(`
     <div class="modal-handle"></div>
     <div class="modal-title">👤 ${name}</div>
@@ -20643,8 +20696,8 @@ function showStudentDetail(name, studentUserId) {
         <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:10px;">Override class AI marking requirement for this student.</div>
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-size:13px;font-weight:700;">Allow self-grading</span>
-          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:#22C55E;position:relative;flex-shrink:0;" data-on="true">
-            <div style="position:absolute;top:2px;right:3px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
+          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${_sgOn ? '#22C55E' : '#E2E8F0'};position:relative;flex-shrink:0;" data-on="${_sgOn ? 'true' : 'false'}">
+            <div style="position:absolute;top:2px;${_sgOn ? 'right:3px' : 'left:3px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
           </div>
         </div>
       </div>` : ''}
@@ -24772,6 +24825,19 @@ ${renderNavBar('profile')}
         </div>`
     }
 
+    ${user.class_ai_marking_locked && user.allow_self_grade === false
+      ? `<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:#216D39;">
+          🤖 <strong>AI Marking active</strong> — set by your teacher. Only AI-marked answers count toward your Mastery Tracker.
+        </div>`
+      : ''
+    }
+    ${user.class_ai_marking_locked && user.allow_self_grade === true
+      ? `<div style="background:#FFF7ED;border:1.5px solid #FED7AA;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:#92400E;">
+          ✏️ <strong>Self-grading allowed</strong> — your teacher has enabled this for you.
+        </div>`
+      : ''
+    }
+
     <!-- Parent Code -->
     <div class="v3-profile-section">
       <div class="v3-profile-section-lbl">PARENT CODE</div>
@@ -25471,7 +25537,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
       : 'class_code=in.(' + classCodes.map(c => encodeURIComponent(c)).join(',') + ')';
 
     const pRes = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade',
       { headers }
     );
     const profiles = pRes.ok ? await pRes.json() : [];
@@ -25520,6 +25586,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
         schedule_locked: p.schedule_locked || false,
         target_grade: p.target_grade ?? null,
         studiedToday: sh.some(function(h) { const d = h.created_at ? h.created_at.slice(0,10) : ''; return d === new Date().toISOString().slice(0,10); }),
+        allow_self_grade: p.allow_self_grade !== false,
       };
     });
   } catch(e) {
@@ -25536,8 +25603,8 @@ async function showTeacherDashboard(selectedClass) {
 
   const realClasses = await loadTeacherClasses();
   const classes = [
-    { id: 'all', name: 'All Classes', code: '' },
-    ...realClasses.map(cl => ({ id: cl.id, name: cl.name, code: cl.code }))
+    { id: 'all', name: 'All Classes', code: '', ai_marking_locked: false },
+    ...realClasses.map(cl => ({ id: cl.id, name: cl.name, code: cl.code, ai_marking_locked: cl.ai_marking_locked === true }))
   ];
   STATE.teacherSelectedClass = selectedClass;
   STATE.teacherClasses = classes;
@@ -25547,6 +25614,7 @@ async function showTeacherDashboard(selectedClass) {
   const selectedName = classes.find(c => c.id === selectedClass)?.name || 'All Classes';
   const selectedCode = classes.find(c => c.id === selectedClass)?.code || '';
   STATE.teacherSelectedClassName = selectedName;
+  const aiLocked = classes.find(c => c.id === selectedClass)?.ai_marking_locked === true;
 
   const avgStreak = students.length ? Math.round(students.reduce((a,s) => a+s.streak, 0)/students.length) : 0;
   const avgCards  = students.length ? Math.round(students.reduce((a,s) => a+s.cards,  0)/students.length) : 0;
@@ -25572,6 +25640,17 @@ async function showTeacherDashboard(selectedClass) {
     <div style="font-size:13px;color:#64748B;font-weight:600;line-height:1.6;">Share the class code <strong style="color:#8B5CF6;letter-spacing:1px;">${selectedCode || '(see Settings)'}</strong> with students so they can join at signup.</div>
   </div>`;
 
+  // ── AI MARKING STATUS SUMMARY ──
+  const aiStudents = students.filter(s => !s.allow_self_grade).length;
+  const selfStudents = students.filter(s => s.allow_self_grade).length;
+  const aiMarkingStatusText = !aiLocked
+    ? '✏️ Self-grading: All students'
+    : selfStudents > 0
+    ? '⚡ Mixed: ' + aiStudents + ' AI marking, ' + selfStudents + ' self-grading'
+    : '🤖 AI Marking: All students';
+  const aiMarkingStatusColor = !aiLocked ? '#64748B' : (selfStudents > 0 ? '#B45309' : '#216D39');
+  const aiMarkingStatusHTML = (selectedClass === 'all' || students.length === 0) ? '' : `<div style="background:white;border-radius:12px;padding:12px 16px;margin-bottom:16px;border:1px solid #F1F5F9;font-size:13px;font-weight:700;color:${aiMarkingStatusColor};">${aiMarkingStatusText}</div>`;
+
   // ── OVERVIEW ──
   const overviewHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;">
@@ -25581,6 +25660,7 @@ async function showTeacherDashboard(selectedClass) {
           <div style="font-size:11px;font-weight:800;color:#94A3B8;margin-top:6px;text-transform:uppercase;letter-spacing:0.5px;">${l}</div>
         </div>`).join('')}
     </div>
+    ${aiMarkingStatusHTML}
     ${students.length === 0 ? emptyState : `<div style="background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;overflow:hidden;">
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -25712,14 +25792,13 @@ async function showTeacherDashboard(selectedClass) {
     </div>`;
 
   // ── SETTINGS ──
-  const aiAttr = (user && user.ai_mode !== false) ? 'checked' : '';
   const settingsHTML = selectedClass === 'all'
     ? `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:14px;padding:28px;text-align:center;">
         <div style="font-size:28px;margin-bottom:10px;">ℹ️</div>
         <div style="font-size:15px;font-weight:800;color:#1E40AF;margin-bottom:6px;">Select a class to manage settings</div>
         <div style="font-size:13px;color:#3B82F6;font-weight:600;">Choose a specific class from the dropdown above.</div>
        </div>`
-    : buildSettingsHTML(selectedCode, aiAttr, selectedName);
+    : buildSettingsHTML(selectedCode, aiLocked, selectedName);
 
   const html = `<div style="min-height:100vh;background:#F8FAFC;padding-bottom:60px;">
     <div style="background:linear-gradient(135deg,#22C55E 0%,#8B5CF6 100%);padding:22px 18px 20px;color:white;position:relative;">
@@ -26014,7 +26093,7 @@ function removeStudentFromClass(studentUserId, studentName) {
 function confirmRemoveStudent(studentUserId, studentName) {
   removeStudentFromClass(studentUserId, studentName);
 }
-function buildSettingsHTML(code, aiAttr, currentName) {
+function buildSettingsHTML(code, aiLocked, currentName) {
   const escapedName = (currentName || '').replace(/"/g, '&quot;');
   return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
@@ -26033,11 +26112,16 @@ function buildSettingsHTML(code, aiAttr, currentName) {
     + '</div>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">AI Marking</label>'
+    + '<div id="ai-marking-status-label" style="font-size:13px;font-weight:600;color:' + (aiLocked ? '#216D39' : '#64748B') + ';margin-bottom:8px;">'
+    + (aiLocked ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class')
+    + '</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
     + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Require AI marking for all students</p>'
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
-    + buildAIToggle(aiAttr)
-    + '</div></div>'
+    + buildAIToggle(aiLocked)
+    + '</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '</div>'
     + buildClassScheduleSection()
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
@@ -26085,7 +26169,7 @@ function buildAIToggle(aiOn) {
   var srColor = on ? '#94a3b8' : '#6366f1';
   return '<div style="display:flex;align-items:center;gap:16px;margin-top:8px;">'
     + '<span style="font-size:0.9rem;font-weight:700;color:' + srColor + ';">Self Rating</span>'
-    + '<div onclick="toggleClassAIMode(this)" data-on="' + (on?'1':'0') + '" style="position:relative;width:64px;height:32px;background:' + bg + ';border-radius:32px;cursor:pointer;transition:0.3s;flex-shrink:0;">'
+    + '<div onclick="toggleClassAIMode(this)" data-on="' + (on?'true':'false') + '" style="position:relative;width:64px;height:32px;background:' + bg + ';border-radius:32px;cursor:pointer;transition:0.3s;flex-shrink:0;">'
     + '<div style="position:absolute;top:4px;left:' + left + ';width:24px;height:24px;background:#fff;border-radius:50%;transition:0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>'
     + '</div>'
     + '<span style="font-size:0.9rem;font-weight:700;color:' + aiColor + ';">AI Marking</span>'
@@ -26093,14 +26177,41 @@ function buildAIToggle(aiOn) {
 }
 
 function toggleClassAIMode(el) {
-  var on = el.getAttribute('data-on') !== '1';
-  el.setAttribute('data-on', on ? '1' : '0');
-  el.style.background = on ? '#6366f1' : '#cbd5e1';
-  el.children[0].style.left = on ? '36px' : '4px';
-  var spans = el.parentNode.querySelectorAll('span');
-  if (spans[0]) spans[0].style.color = on ? '#94a3b8' : '#6366f1';
-  if (spans[1]) spans[1].style.color = on ? '#6366f1' : '#94a3b8';
-  showToast((on ? 'AI Marking' : 'Self Rating') + ' enabled for class');
+  const classId = STATE.teacherSelectedClass;
+  if (!classId || classId === 'all') { showToast('Select a specific class first'); return; }
+
+  const isOn = el.getAttribute('data-on') === 'true';
+  const newVal = !isOn;
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?id=eq.' + classId, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ ai_marking_locked: newVal })
+  }).then(r => {
+    if (r.ok) {
+      el.setAttribute('data-on', newVal ? 'true' : 'false');
+      el.style.background = newVal ? '#6366f1' : '#cbd5e1';
+      el.children[0].style.left = newVal ? '36px' : '4px';
+      const spans = el.parentNode.querySelectorAll('span');
+      if (spans[0]) spans[0].style.color = newVal ? '#94a3b8' : '#6366f1';
+      if (spans[1]) spans[1].style.color = newVal ? '#6366f1' : '#94a3b8';
+      const cls = (STATE.teacherClasses || []).find(c => c.id === classId);
+      if (cls) cls.ai_marking_locked = newVal;
+      const label = document.getElementById('ai-marking-status-label');
+      if (label) {
+        label.style.color = newVal ? '#216D39' : '#64748B';
+        label.textContent = newVal ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class';
+      }
+      showToast(newVal ? 'AI Marking required for class ✓' : 'Self-grading enabled for class ✓');
+    } else {
+      showToast('Could not update — try again');
+    }
+  });
 }
 
 async function saveClassName() {
@@ -26145,15 +26256,10 @@ function deleteClassConfirm() {
   deleteClass(selectedClass, cls?.name || 'this class');
 }
 
-function toggleClassAI(el) {
-  const track = el.querySelector('.toggle-track');
-  const thumb = el.querySelector('.toggle-thumb');
-  track?.classList.toggle('on');
-  thumb?.classList.toggle('on');
-}
-
 function showStudentDetail(name, studentUserId) {
   const lockId = 'notif-lock-row-' + (studentUserId || 'unknown');
+  const _sgStudent = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  const _sgOn = _sgStudent?.allow_self_grade !== false;
   showModal(`
     <div class="modal-handle"></div>
     <div class="modal-title">👤 ${name}</div>
@@ -26231,8 +26337,8 @@ function showStudentDetail(name, studentUserId) {
         <div style="font-size:12px;color:#64748B;font-weight:600;margin-bottom:10px;">Override class AI marking requirement for this student.</div>
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-size:13px;font-weight:700;">Allow self-grading</span>
-          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:#22C55E;position:relative;flex-shrink:0;" data-on="true">
-            <div style="position:absolute;top:2px;right:3px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
+          <div id="sg-toggle-${studentUserId.replace(/-/g,'')}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${_sgOn ? '#22C55E' : '#E2E8F0'};position:relative;flex-shrink:0;" data-on="${_sgOn ? 'true' : 'false'}">
+            <div style="position:absolute;top:2px;${_sgOn ? 'right:3px' : 'left:3px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>
           </div>
         </div>
       </div>` : ''}
@@ -28412,73 +28518,6 @@ function parentTab(tab) {
     const cName = STATE._parentChildProfile?.name ? STATE._parentChildProfile.name.split(' ')[0] : null;
     refreshNotifSection('parent', 'parent-notif-section', cName);
   }
-}
-
-function switchPortalTab(tab, el) {
-  document.querySelectorAll('.portal-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-
-  const content = document.getElementById('portal-content');
-
-  if (tab === 'progress') {
-    // Already rendered
-  } else if (tab === 'history') {
-    content.innerHTML = `
-      <div class="section-title">Last 80 Cards Reviewed</div>
-      ${[1,2,3,4,5].map(i => `
-        <div class="history-item">
-          <div class="history-grade history-grade-good">G</div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;">What is the function of mitochondria?</div>
-            <div style="font-size:11px;color:var(--text-secondary);font-weight:600;">Biology · Cell Biology · ${new Date(Date.now() - i*86400000).toLocaleDateString('en-GB')}</div>
-          </div>
-        </div>
-      `).join('')}
-    `;
-  } else if (tab === 'settings') {
-    content.innerHTML = `
-      <div class="card">
-        <div style="font-size:15px;font-weight:800;margin-bottom:16px;">✨ AI Mode for Your Child</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-weight:700;font-size:14px;">AI Marking enabled</div>
-            <div style="font-size:12px;color:var(--text-secondary);font-weight:600;">You can toggle this if not locked by teacher</div>
-          </div>
-          <div class="toggle-switch" onclick="toggleParentAI(this)">
-            <div class="toggle-track on"></div>
-            <div class="toggle-thumb on"></div>
-          </div>
-        </div>
-        <div style="margin-top:12px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;font-weight:700;color:#B45309;">
-          ℹ️ Teacher settings take priority. If your child's teacher has locked AI mode, your setting here will not apply.
-        </div>
-      </div>
-    `;
-  } else if (tab === 'tips') {
-    content.innerHTML = `
-      <div style="font-size:20px;font-weight:900;margin-bottom:16px;">💡 Study Tips for Parents</div>
-      ${[
-        { icon: '⏰', title: 'Little and often wins', text: 'Even 10 minutes a day is far more effective than one long session. Encourage a daily habit at a consistent time.' },
-        { icon: '🧠', title: 'The testing effect is real', text: 'Retrieving information (not re-reading) is how memory forms. GradeMastery\'s flashcard system does this automatically.' },
-        { icon: '😴', title: 'Sleep locks in learning', text: 'Memory consolidates during sleep. Studying then sleeping — even briefly — is more effective than an all-nighter.' },
-        { icon: '🔥', title: 'Streaks matter psychologically', text: 'Maintaining a streak builds identity as a learner. Encourage your child when their streak is at risk.' },
-        { icon: '🎯', title: 'Focus on what they find hard', text: 'The SRS system automatically prioritises weaker topics. Trust the algorithm — it\'s doing the hard work.' },
-      ].map(t => `
-        <div class="card" style="margin-bottom:12px;">
-          <div style="font-size:24px;margin-bottom:8px;">${t.icon}</div>
-          <div style="font-size:15px;font-weight:800;margin-bottom:4px;">${t.title}</div>
-          <div style="font-size:14px;color:var(--text-secondary);font-weight:600;line-height:1.5;">${t.text}</div>
-        </div>
-      `).join('')}
-    `;
-  }
-}
-
-function toggleParentAI(el) {
-  const track = el.querySelector('.toggle-track');
-  const thumb = el.querySelector('.toggle-thumb');
-  track?.classList.toggle('on');
-  thumb?.classList.toggle('on');
 }
 
 // ============================================================
