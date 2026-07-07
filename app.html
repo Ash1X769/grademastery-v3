@@ -30979,15 +30979,15 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       }).join('');
 
       return `<div style="border-top:1px solid #F1F5F9;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}','${tKey}')">
-          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;">
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}','${tKey}')">
             <span id="stt-caret-${safeT}" style="font-size:11px;color:#94A3B8;">▶</span>
             <div>
               <span style="font-size:14px;font-weight:800;color:#1A2E22;">${t.name}</span>
               <span style="font-size:11px;color:#94A3B8;font-weight:600;margin-left:6px;">${tKey}</span>
             </div>
           </div>
-          <span onclick="event.stopPropagation();">${renderClassTopicToggle(tKey, safeT, locked)}</span>
+          ${renderClassTopicToggle(tKey, safeT, locked)}
         </div>
         <div id="stt-subs-${safeT}" style="display:none;">${subtopicRows}</div>
       </div>`;
