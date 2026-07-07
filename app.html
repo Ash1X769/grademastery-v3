@@ -20137,7 +20137,7 @@ async function showTeacherDashboard(selectedClass) {
         <div style="font-size:15px;font-weight:800;color:#1E40AF;margin-bottom:6px;">Select a class to manage settings</div>
         <div style="font-size:13px;color:#3B82F6;font-weight:600;">Choose a specific class from the dropdown above.</div>
        </div>`
-    : buildSettingsHTML(selectedClass, students, classes);
+    : buildSettingsHTML(selectedCode, aiLocked, selectedName);
 
   const html = `<div style="min-height:100vh;background:#F8FAFC;padding-bottom:60px;">
     <div style="background:linear-gradient(135deg,#22C55E 0%,#8B5CF6 100%);padding:22px 18px 20px;color:white;position:relative;">
@@ -20159,7 +20159,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Settings</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
@@ -20432,124 +20432,49 @@ function removeStudentFromClass(studentUserId, studentName) {
 function confirmRemoveStudent(studentUserId, studentName) {
   removeStudentFromClass(studentUserId, studentName);
 }
-function buildSettingsHTML(selectedClass, students, classes) {
-
-  const currentClass = classes?.find(c => c.id === selectedClass) || classes?.[0];
-  const aiLocked = currentClass?.ai_marking_locked === true;
-  const allowStudentUnlock = currentClass?.allow_student_unlock !== false;
-  const classCode = currentClass?.code;
-  const classId = currentClass?.id;
-
-  // AI Marking status
-  const aiCount = students.filter(s => !s.allow_self_grade).length;
-  const selfCount = students.filter(s => s.allow_self_grade).length;
-  const mixedLabel = aiLocked
-    ? (selfCount > 0 ? `⚡ Mixed — ${aiCount} AI only, ${selfCount} self-grading`
-    : `🤖 AI Marking ON — all students`)
-    : `✏️ Self-grading ON — all students`;
-  const mixedColor = aiLocked ? (selfCount > 0 ? '#F59E0B' : '#216D39') : '#64748B';
-
-  // Topics grid per subject
-  function topicGrid(subject, prefix, count, emoji, color) {
-    let rows = '';
-    for (let i = 1; i <= count; i++) {
-      const key = prefix + i;
-      const isLocked = students.length > 0 && students.every(s => (s.lockedTopics || []).includes('T:' + key));
-      const dot = isLocked ? '#E2E8F0' : color;
-      const lockIcon = isLocked ? ' 🔒' : '';
-      const textColor = isLocked ? '#94A3B8' : '#1A2E22';
-      rows += `
-        <div style="display:flex;align-items:center;justify-content:space-between;background:${isLocked ? '#F8FAFC' : '#F0FDF4'};border-radius:8px;padding:7px 10px;cursor:pointer;"
-             onclick="toggleClassTopic('${key}','${classCode}')">
-          <span style="font-size:12px;font-weight:600;color:${textColor};">${key} ${lockIcon}</span>
-          <div style="width:8px;height:8px;background:${dot};border-radius:50%;"></div>
-        </div>`;
-    }
-    return `
-      <div style="margin-bottom:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:13px;font-weight:700;color:${color};">${emoji} ${subject}</div>
-          <div style="display:flex;gap:6px;">
-            <button onclick="unlockAllClassTopics('${prefix}',${count},'${classCode}')"
-              style="font-size:11px;background:#F0FDF4;color:#216D39;border:1px solid #BBF7D0;border-radius:8px;padding:3px 10px;cursor:pointer;">Unlock all</button>
-            <button onclick="lockAllClassTopics('${prefix}',${count},'${classCode}')"
-              style="font-size:11px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:8px;padding:3px 10px;cursor:pointer;">Lock all</button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${rows}</div>
-      </div>`;
-  }
-
-  return `
-    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
-
-      <!-- SECTION 1: AI MARKING -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🤖 AI Marking</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#1A2E22;">Require AI marking for whole class</div>
-            <div style="font-size:12px;color:#64748B;margin-top:2px;">Only AI-marked answers count toward Mastery Tracker</div>
-          </div>
-          ${buildAIToggle(aiLocked)}
-        </div>
-
-        <div id="ai-marking-status-label" style="background:${aiLocked ? '#F0FDF4' : '#F8FAFC'};border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:${mixedColor};margin-bottom:14px;">
-          ${mixedLabel}
-        </div>
-
-        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:8px;">Individual overrides:</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${students.map(s => `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#F8FAFC;border-radius:10px;">
-              <div style="font-size:13px;font-weight:600;color:#1A2E22;">${s.name || 'Student'}</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;color:#64748B;">Self-grade</span>
-                <div onclick="toggleStudentSelfGrade('${s.user_id}',this)"
-                  data-on="${s.allow_self_grade ? 'true' : 'false'}"
-                  style="width:36px;height:20px;background:${s.allow_self_grade ? '#216D39' : '#E2E8F0'};border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;">
-                  <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:3px;${s.allow_self_grade ? 'right:3px' : 'left:3px'};transition:left 0.2s,right 0.2s;"></div>
-                </div>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>
-
-      <!-- SECTION 2: TOPIC ACCESS -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">📚 Topic Access</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#1A2E22;">Students can unlock their own topics</div>
-            <div style="font-size:12px;color:#64748B;margin-top:2px;">When off — only you can unlock topics for students</div>
-          </div>
-          <div onclick="toggleClassAllowStudentUnlock(this)" id="allow-unlock-toggle"
-            data-on="${allowStudentUnlock ? 'true' : 'false'}"
-            style="width:44px;height:24px;background:${allowStudentUnlock ? '#216D39' : '#E2E8F0'};border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;transition:background 0.2s;">
-            <div style="width:18px;height:18px;background:white;border-radius:50%;position:absolute;top:3px;${allowStudentUnlock ? 'right:3px' : 'left:3px'};"></div>
-          </div>
-        </div>
-
-        ${topicGrid('Biology', 'B', 7, '🌿', '#216D39')}
-        ${topicGrid('Chemistry', 'C', 10, '⚗️', '#EA580C')}
-        ${topicGrid('Physics', 'P', 8, '⚡', '#0284C7')}
-
-        <div style="font-size:11px;color:#94A3B8;margin-top:4px;line-height:1.5;">
-          🔒 Teacher-locked topics cannot be unlocked by students. For subtopic-level control, go to <strong>Students tab → select a student → Topic Access</strong>.
-        </div>
-      </div>
-
-      <!-- SECTION 3: NOTE -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">🎛️ Individual Student Settings</div>
-        <div style="font-size:13px;color:#64748B;line-height:1.6;">
-          To set topic access and AI marking per individual student — including subtopic-level unlocks — go to the <strong style="color:#1A2E22;">Students tab</strong> and select a student.
-        </div>
-      </div>
-
-    </div>`;
+function buildSettingsHTML(code, aiLocked, currentName) {
+  const escapedName = (currentName || '').replace(/"/g, '&quot;');
+  return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Name</label>'
+    + '<div style="display:flex;gap:10px;">'
+    + '<input id="edit-class-name" type="text" placeholder="e.g. Year 10 Set 1" value="' + escapedName + '" style="flex:1;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;">'
+    + '<button onclick="saveClassName()" style="padding:10px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>'
+    + '</div></div>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Code</label>'
+    + '<div style="display:flex;gap:10px;align-items:center;">'
+    + '<span id="settings-class-code" style="flex:1;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;font-size:1rem;font-weight:700;color:#6366f1;letter-spacing:2px;">' + code + '</span>'
+    + '<button onclick="copySettingsCode()" style="padding:10px 18px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Copy Invite</button>'
+    + '</div>'
+    + '<p style="font-size:0.78rem;color:#475569;margin:8px 0 0;">Share this with students so they can join your class.</p>'
+    + '</div>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">AI Marking</label>'
+    + '<div id="ai-marking-status-label" style="font-size:13px;font-weight:600;color:' + (aiLocked ? '#216D39' : '#64748B') + ';margin-bottom:8px;">'
+    + (aiLocked ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class')
+    + '</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Require AI marking for all students</p>'
+    + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
+    + buildAIToggle(aiLocked)
+    + '</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '</div>'
+    + buildClassScheduleSection()
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional topics</p>'
+    + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
+    + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
+    + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
+    + '</div></div></div>'
+    + '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:20px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Danger Zone</label>'
+    + '<p style="font-size:0.85rem;color:#64748b;margin:0 0 12px;">Deleting a class cannot be undone.</p>'
+    + '<button onclick="deleteClassConfirm()" style="padding:9px 18px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Delete this class</button>'
+    + '</div>';
 }
 
 function teacherTab(tab) {
@@ -20592,87 +20517,6 @@ function toggleClassAllowStudentUnlock() {
   }).then(r => {
     if (r.ok) showToast(newVal ? 'Students can now unlock topics ✓' : 'Topic unlock restricted to teacher ✓');
     else showToast('Could not update — try again');
-  });
-}
-
-function _refreshClassSettingsTab() {
-  loadStudentsForTeacher(STATE.teacherSelectedClass, STATE.teacherClasses, STATE.user.token).then(s => {
-    STATE.teacherStudents = s;
-    const el = document.getElementById('tcontent-settings');
-    if (el) el.innerHTML = buildSettingsHTML(STATE.teacherSelectedClass, s, STATE.teacherClasses);
-  });
-}
-
-function toggleClassTopic(topicKey, classCode) {
-  if (!confirm('Toggle ' + topicKey + ' for all students in this class?')) return;
-  const tKey = 'T:' + topicKey;
-  const students = STATE.teacherStudents || [];
-  const allLocked = students.every(s => (s.lockedTopics || []).includes(tKey));
-
-  Promise.all(students.map(s => {
-    let locked = (s.lockedTopics || []).filter(t => t !== tKey);
-    if (allLocked) {
-      // unlock — remove T: prefix
-    } else {
-      // lock — add T: prefix
-      locked.push(tKey);
-    }
-    return fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + s.user_id, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': CONFIG.SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + STATE.user.token,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ locked_topics: locked })
-    });
-  })).then(() => {
-    showToast(allLocked ? topicKey + ' unlocked for class ✓' : topicKey + ' locked for class 🔒');
-    _refreshClassSettingsTab();
-  });
-}
-
-function lockAllClassTopics(prefix, count, classCode) {
-  if (!confirm('Lock all ' + prefix + ' topics for all students?')) return;
-  const students = STATE.teacherStudents || [];
-  Promise.all(students.map(s => {
-    let locked = (s.lockedTopics || []).filter(t => !t.startsWith('T:' + prefix));
-    for (let i = 1; i <= count; i++) locked.push('T:' + prefix + i);
-    return fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + s.user_id, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': CONFIG.SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + STATE.user.token,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ locked_topics: locked })
-    });
-  })).then(() => {
-    showToast('All ' + prefix + ' topics locked 🔒');
-    _refreshClassSettingsTab();
-  });
-}
-
-function unlockAllClassTopics(prefix, count, classCode) {
-  if (!confirm('Unlock all ' + prefix + ' topics for all students?')) return;
-  const students = STATE.teacherStudents || [];
-  Promise.all(students.map(s => {
-    const locked = (s.lockedTopics || []).filter(t => !t.startsWith('T:' + prefix) && !t.startsWith(prefix));
-    return fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + s.user_id, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': CONFIG.SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + STATE.user.token,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ locked_topics: locked })
-    });
-  })).then(() => {
-    showToast('All ' + prefix + ' topics unlocked ✓');
-    _refreshClassSettingsTab();
   });
 }
 
@@ -25954,7 +25798,7 @@ async function showTeacherDashboard(selectedClass) {
         <div style="font-size:15px;font-weight:800;color:#1E40AF;margin-bottom:6px;">Select a class to manage settings</div>
         <div style="font-size:13px;color:#3B82F6;font-weight:600;">Choose a specific class from the dropdown above.</div>
        </div>`
-    : buildSettingsHTML(selectedClass, students, classes);
+    : buildSettingsHTML(selectedCode, aiLocked, selectedName);
 
   const html = `<div style="min-height:100vh;background:#F8FAFC;padding-bottom:60px;">
     <div style="background:linear-gradient(135deg,#22C55E 0%,#8B5CF6 100%);padding:22px 18px 20px;color:white;position:relative;">
@@ -25976,7 +25820,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Settings</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
@@ -26249,124 +26093,49 @@ function removeStudentFromClass(studentUserId, studentName) {
 function confirmRemoveStudent(studentUserId, studentName) {
   removeStudentFromClass(studentUserId, studentName);
 }
-function buildSettingsHTML(selectedClass, students, classes) {
-
-  const currentClass = classes?.find(c => c.id === selectedClass) || classes?.[0];
-  const aiLocked = currentClass?.ai_marking_locked === true;
-  const allowStudentUnlock = currentClass?.allow_student_unlock !== false;
-  const classCode = currentClass?.code;
-  const classId = currentClass?.id;
-
-  // AI Marking status
-  const aiCount = students.filter(s => !s.allow_self_grade).length;
-  const selfCount = students.filter(s => s.allow_self_grade).length;
-  const mixedLabel = aiLocked
-    ? (selfCount > 0 ? `⚡ Mixed — ${aiCount} AI only, ${selfCount} self-grading`
-    : `🤖 AI Marking ON — all students`)
-    : `✏️ Self-grading ON — all students`;
-  const mixedColor = aiLocked ? (selfCount > 0 ? '#F59E0B' : '#216D39') : '#64748B';
-
-  // Topics grid per subject
-  function topicGrid(subject, prefix, count, emoji, color) {
-    let rows = '';
-    for (let i = 1; i <= count; i++) {
-      const key = prefix + i;
-      const isLocked = students.length > 0 && students.every(s => (s.lockedTopics || []).includes('T:' + key));
-      const dot = isLocked ? '#E2E8F0' : color;
-      const lockIcon = isLocked ? ' 🔒' : '';
-      const textColor = isLocked ? '#94A3B8' : '#1A2E22';
-      rows += `
-        <div style="display:flex;align-items:center;justify-content:space-between;background:${isLocked ? '#F8FAFC' : '#F0FDF4'};border-radius:8px;padding:7px 10px;cursor:pointer;"
-             onclick="toggleClassTopic('${key}','${classCode}')">
-          <span style="font-size:12px;font-weight:600;color:${textColor};">${key} ${lockIcon}</span>
-          <div style="width:8px;height:8px;background:${dot};border-radius:50%;"></div>
-        </div>`;
-    }
-    return `
-      <div style="margin-bottom:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:13px;font-weight:700;color:${color};">${emoji} ${subject}</div>
-          <div style="display:flex;gap:6px;">
-            <button onclick="unlockAllClassTopics('${prefix}',${count},'${classCode}')"
-              style="font-size:11px;background:#F0FDF4;color:#216D39;border:1px solid #BBF7D0;border-radius:8px;padding:3px 10px;cursor:pointer;">Unlock all</button>
-            <button onclick="lockAllClassTopics('${prefix}',${count},'${classCode}')"
-              style="font-size:11px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;border-radius:8px;padding:3px 10px;cursor:pointer;">Lock all</button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${rows}</div>
-      </div>`;
-  }
-
-  return `
-    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
-
-      <!-- SECTION 1: AI MARKING -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🤖 AI Marking</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#1A2E22;">Require AI marking for whole class</div>
-            <div style="font-size:12px;color:#64748B;margin-top:2px;">Only AI-marked answers count toward Mastery Tracker</div>
-          </div>
-          ${buildAIToggle(aiLocked)}
-        </div>
-
-        <div id="ai-marking-status-label" style="background:${aiLocked ? '#F0FDF4' : '#F8FAFC'};border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:${mixedColor};margin-bottom:14px;">
-          ${mixedLabel}
-        </div>
-
-        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:8px;">Individual overrides:</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${students.map(s => `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#F8FAFC;border-radius:10px;">
-              <div style="font-size:13px;font-weight:600;color:#1A2E22;">${s.name || 'Student'}</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;color:#64748B;">Self-grade</span>
-                <div onclick="toggleStudentSelfGrade('${s.user_id}',this)"
-                  data-on="${s.allow_self_grade ? 'true' : 'false'}"
-                  style="width:36px;height:20px;background:${s.allow_self_grade ? '#216D39' : '#E2E8F0'};border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;">
-                  <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:3px;${s.allow_self_grade ? 'right:3px' : 'left:3px'};transition:left 0.2s,right 0.2s;"></div>
-                </div>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>
-
-      <!-- SECTION 2: TOPIC ACCESS -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">📚 Topic Access</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#1A2E22;">Students can unlock their own topics</div>
-            <div style="font-size:12px;color:#64748B;margin-top:2px;">When off — only you can unlock topics for students</div>
-          </div>
-          <div onclick="toggleClassAllowStudentUnlock(this)" id="allow-unlock-toggle"
-            data-on="${allowStudentUnlock ? 'true' : 'false'}"
-            style="width:44px;height:24px;background:${allowStudentUnlock ? '#216D39' : '#E2E8F0'};border-radius:12px;position:relative;cursor:pointer;flex-shrink:0;transition:background 0.2s;">
-            <div style="width:18px;height:18px;background:white;border-radius:50%;position:absolute;top:3px;${allowStudentUnlock ? 'right:3px' : 'left:3px'};"></div>
-          </div>
-        </div>
-
-        ${topicGrid('Biology', 'B', 7, '🌿', '#216D39')}
-        ${topicGrid('Chemistry', 'C', 10, '⚗️', '#EA580C')}
-        ${topicGrid('Physics', 'P', 8, '⚡', '#0284C7')}
-
-        <div style="font-size:11px;color:#94A3B8;margin-top:4px;line-height:1.5;">
-          🔒 Teacher-locked topics cannot be unlocked by students. For subtopic-level control, go to <strong>Students tab → select a student → Topic Access</strong>.
-        </div>
-      </div>
-
-      <!-- SECTION 3: NOTE -->
-      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">🎛️ Individual Student Settings</div>
-        <div style="font-size:13px;color:#64748B;line-height:1.6;">
-          To set topic access and AI marking per individual student — including subtopic-level unlocks — go to the <strong style="color:#1A2E22;">Students tab</strong> and select a student.
-        </div>
-      </div>
-
-    </div>`;
+function buildSettingsHTML(code, aiLocked, currentName) {
+  const escapedName = (currentName || '').replace(/"/g, '&quot;');
+  return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Name</label>'
+    + '<div style="display:flex;gap:10px;">'
+    + '<input id="edit-class-name" type="text" placeholder="e.g. Year 10 Set 1" value="' + escapedName + '" style="flex:1;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.95rem;font-family:inherit;outline:none;">'
+    + '<button onclick="saveClassName()" style="padding:10px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>'
+    + '</div></div>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Code</label>'
+    + '<div style="display:flex;gap:10px;align-items:center;">'
+    + '<span id="settings-class-code" style="flex:1;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;font-size:1rem;font-weight:700;color:#6366f1;letter-spacing:2px;">' + code + '</span>'
+    + '<button onclick="copySettingsCode()" style="padding:10px 18px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Copy Invite</button>'
+    + '</div>'
+    + '<p style="font-size:0.78rem;color:#475569;margin:8px 0 0;">Share this with students so they can join your class.</p>'
+    + '</div>'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">AI Marking</label>'
+    + '<div id="ai-marking-status-label" style="font-size:13px;font-weight:600;color:' + (aiLocked ? '#216D39' : '#64748B') + ';margin-bottom:8px;">'
+    + (aiLocked ? '🤖 AI Marking: ON for this class' : '✏️ Self-grading: ON for this class')
+    + '</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Require AI marking for all students</p>'
+    + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
+    + buildAIToggle(aiLocked)
+    + '</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '</div>'
+    + buildClassScheduleSection()
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional topics</p>'
+    + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
+    + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
+    + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
+    + '</div></div></div>'
+    + '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:20px;">'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Danger Zone</label>'
+    + '<p style="font-size:0.85rem;color:#64748b;margin:0 0 12px;">Deleting a class cannot be undone.</p>'
+    + '<button onclick="deleteClassConfirm()" style="padding:9px 18px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">Delete this class</button>'
+    + '</div>';
 }
 
 function teacherTab(tab) {
