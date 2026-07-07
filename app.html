@@ -16897,7 +16897,7 @@ function renderFlashcard() {
 
     <!-- Input or reveal -->
     ${aiMode ? `<div id="ai-input-area">
-      <textarea id="student-answer" class="v3-textarea" placeholder="Write your answer from memory — marked against AQA specification criteria"></textarea>
+      <textarea id="student-answer" class="v3-textarea" placeholder="Write your answer from memory — marked against AQA specification criteria" oninput="STATE.currentStudentAnswer=this.value"></textarea>
       ${!aiLimitReached && _v3HasLimit ? `<div class="v3-ai-counter">${_v3AiToggleLabel} — ${getAIMarkingDailyCount()}/${getAIMarkingLimit()} uses today</div>` : ''}
       <button class="v3-submit-btn" onclick="submitFlashcardAI()">${_v3AiSubmitLabel}</button>
     </div>
@@ -17701,9 +17701,11 @@ function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
       topic_name: card?.topic_name || card?.topic || '',
       grade: gradeNum,
       ai_graded: !!aiGraded,
-      phase: STATE.sessionPhase || 'flashcard'
+      phase: STATE.sessionPhase || 'flashcard',
+      student_answer: STATE.currentStudentAnswer || null
     })
   }).then(r => { if (!r.ok) r.text().then(t => console.error('study_history write failed:', r.status, t)); }).catch(e => console.error('study_history write failed:', e));
+  STATE.currentStudentAnswer = null;
 }
 
 function recordGrade(cardId, grade, aiGraded) {
@@ -18207,7 +18209,7 @@ function renderEmbedCard() {
       </div>
       <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:12px;">${questionHTML}</div>
     </div>
-    <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
+    <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;" oninput="STATE.currentStudentAnswer=this.value"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
     <div id="ai-result" style="display:none;"></div>
 
     <div id="answer-sec" style="display:none;">
@@ -22695,7 +22697,7 @@ function renderFlashcard() {
 
     <!-- Input or reveal -->
     ${aiMode ? `<div id="ai-input-area">
-      <textarea id="student-answer" class="v3-textarea" placeholder="Write your answer from memory — marked against AQA specification criteria"></textarea>
+      <textarea id="student-answer" class="v3-textarea" placeholder="Write your answer from memory — marked against AQA specification criteria" oninput="STATE.currentStudentAnswer=this.value"></textarea>
       ${!aiLimitReached && _v3HasLimit ? `<div class="v3-ai-counter">${_v3AiToggleLabel} — ${getAIMarkingDailyCount()}/${getAIMarkingLimit()} uses today</div>` : ''}
       <button class="v3-submit-btn" onclick="submitFlashcardAI()">${_v3AiSubmitLabel}</button>
     </div>
@@ -23559,9 +23561,11 @@ function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
       topic_name: card?.topic_name || card?.topic || '',
       grade: gradeNum,
       ai_graded: !!aiGraded,
-      phase: STATE.sessionPhase || 'flashcard'
+      phase: STATE.sessionPhase || 'flashcard',
+      student_answer: STATE.currentStudentAnswer || null
     })
   }).then(r => { if (!r.ok) r.text().then(t => console.error('study_history write failed:', r.status, t)); }).catch(e => console.error('study_history write failed:', e));
+  STATE.currentStudentAnswer = null;
 }
 
 function recordGrade(cardId, grade, aiGraded) {
@@ -24063,7 +24067,7 @@ function renderEmbedCard() {
       </div>
       <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:12px;">${questionHTML}</div>
     </div>
-    <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
+    <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;" oninput="STATE.currentStudentAnswer=this.value"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
     <div id="ai-result" style="display:none;"></div>
 
     <div id="answer-sec" style="display:none;">
