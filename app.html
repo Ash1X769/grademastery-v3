@@ -19177,6 +19177,15 @@ ${renderNavBar('profile')}
             <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
           <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
+          <div style="margin-top:12px;">
+            <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Have a promo code?</div>
+            <div style="display:flex;gap:8px;">
+              <input id="promo-code-input" placeholder="Enter code..."
+                style="flex:1;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;text-transform:uppercase;">
+              <button onclick="redeemPromoCode()"
+                style="background:#216D39;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;">Apply</button>
+            </div>
+          </div>
         </div>`
     }
 
@@ -24863,6 +24872,15 @@ ${renderNavBar('profile')}
             <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
           <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
+          <div style="margin-top:12px;">
+            <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Have a promo code?</div>
+            <div style="display:flex;gap:8px;">
+              <input id="promo-code-input" placeholder="Enter code..."
+                style="flex:1;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;text-transform:uppercase;">
+              <button onclick="redeemPromoCode()"
+                style="background:#216D39;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;">Apply</button>
+            </div>
+          </div>
         </div>`
     }
 
@@ -30422,6 +30440,33 @@ function pingIncompleteStudents(homeworkId, topicName) {
 function startDeepDiveForTopic(topicKey) {
   const subject = topicKey.startsWith('B') ? 'Biology' : topicKey.startsWith('C') ? 'Chemistry' : 'Physics';
   showDeepDiveTopicPicker(subject, 'topic');
+}
+
+function redeemPromoCode() {
+  const code = document.getElementById('promo-code-input')?.value?.trim().toUpperCase();
+  if (!code) { showToast('Please enter a code'); return; }
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/redeem_promo_code', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token
+    },
+    body: JSON.stringify({ p_code: code })
+  })
+  .then(async r => {
+    if (!r.ok) {
+      showToast('Invalid code — please check and try again');
+      return;
+    }
+    const tier = await r.json();
+    STATE.user.is_paid = true;
+    STATE.user.subscription_tier = tier;
+    showToast('🎉 Code applied! Welcome to GradeMastery ' + tier.charAt(0).toUpperCase() + tier.slice(1) + '!');
+    setTimeout(() => showProfile(), 1000);
+  })
+  .catch(() => showToast('Could not apply code — try again'));
 }
 
 function startHomeworkDeepDive(topicKey, subtopicName) {
