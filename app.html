@@ -20545,7 +20545,7 @@ function copySettingsCode() {
 }
 
 function toggleClassAllowStudentUnlock() {
-  const classId = STATE.teacherSelectedClassId || STATE.user?.class_id;
+  const classId = STATE.teacherSelectedClass || STATE.user?.class_id;
   const toggle = document.getElementById('allow-unlock-toggle');
   if (!classId || !toggle) { showToast('No class selected'); return; }
   const currentlyOn = toggle.getAttribute('data-on') !== 'false';
