@@ -15598,6 +15598,19 @@ async function afterLogin(startScreen) {
     setTimeout(() => loadUserPaidStatus(), 3000);
   }
 
+  const hwParams = new URLSearchParams(window.location.search);
+  const hwTopic = hwParams.get('hw');
+  const hwSub = decodeURIComponent(hwParams.get('sub') || '');
+  const hwType = hwParams.get('type');
+
+  if (hwTopic && hwType === 'deepdive') {
+    window.history.replaceState({}, '', window.location.pathname);
+    const hwSubject = hwTopic.startsWith('B') ? 'Biology' : hwTopic.startsWith('C') ? 'Chemistry' : 'Physics';
+    const displayName = hwSub || hwTopic;
+    showToast('Opening your homework: Deep Dive on ' + displayName + ' 🌊');
+    setTimeout(() => startHomeworkDeepDive(hwTopic, hwSub), 1500);
+  }
+
   // Students always land on Home — never restore to a sub-screen on load
   if (startScreen === 'teacher') { showTeacherDashboard(); return; }
   if (startScreen === 'parent-insight') { showParentTipScreen(); return; }
@@ -21368,6 +21381,19 @@ async function afterLogin(startScreen) {
   if (urlParams.get('newuser') === 'true') {
     showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
     setTimeout(() => loadUserPaidStatus(), 3000);
+  }
+
+  const hwParams = new URLSearchParams(window.location.search);
+  const hwTopic = hwParams.get('hw');
+  const hwSub = decodeURIComponent(hwParams.get('sub') || '');
+  const hwType = hwParams.get('type');
+
+  if (hwTopic && hwType === 'deepdive') {
+    window.history.replaceState({}, '', window.location.pathname);
+    const hwSubject = hwTopic.startsWith('B') ? 'Biology' : hwTopic.startsWith('C') ? 'Chemistry' : 'Physics';
+    const displayName = hwSub || hwTopic;
+    showToast('Opening your homework: Deep Dive on ' + displayName + ' 🌊');
+    setTimeout(() => startHomeworkDeepDive(hwTopic, hwSub), 1500);
   }
 
   // Students always land on Home — never restore to a sub-screen on load
@@ -30279,6 +30305,25 @@ function assignHomework() {
     }
 
     showToast('Homework assigned! Students notified 📚');
+
+    const hwLink = 'https://grademastery.co.uk/app.html?hw=' + topicKey + (subtopicName ? '&sub=' + encodeURIComponent(subtopicName) : '') + '&type=deepdive';
+
+    const successCard = document.createElement('div');
+    successCard.id = 'hw-success-card';
+    successCard.style.cssText = 'background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:16px;margin:0 16px 12px;';
+    successCard.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:#216D39;margin-bottom:6px;">✅ Homework assigned! Students have been notified 📚</div>
+      <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Share this direct link with students or parents — it opens the Deep Dive automatically:</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="flex:1;background:white;border:1.5px solid #E2E8F0;border-radius:8px;padding:8px 12px;font-size:11px;color:#1A2E22;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${hwLink}</div>
+        <button onclick="navigator.clipboard.writeText('${hwLink}').then(()=>showToast('Link copied! 📋'))"
+          style="background:#216D39;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 Copy</button>
+      </div>
+    `;
+    const trackerEl = document.getElementById('hw-tracker-list');
+    if (trackerEl) trackerEl.parentElement.insertBefore(successCard, trackerEl);
+    setTimeout(() => { const s = document.getElementById('hw-success-card'); if(s) s.remove(); }, 30000);
+
     loadHomeworkTracker(classCode);
   });
 }
@@ -30373,6 +30418,18 @@ function startDeepDiveForTopic(topicKey) {
   showDeepDiveTopicPicker(subject, 'topic');
 }
 
+function startHomeworkDeepDive(topicKey, subtopicName) {
+  const subject = topicKey.startsWith('B') ? 'Biology' : topicKey.startsWith('C') ? 'Chemistry' : 'Physics';
+  if (subtopicName && subtopicName !== 'null' && subtopicName !== '') {
+    STATE.deepDiveSubtopic = subtopicName;
+    STATE.deepDiveTopic = topicKey;
+    showDeepDiveTopicPicker(subject, 'subtopic');
+  } else {
+    STATE.deepDiveTopic = topicKey;
+    showDeepDiveTopicPicker(subject, 'topic');
+  }
+}
+
 function loadStudentHomeworkWidget() {
   const classCode = STATE.user?.class_code;
   if (!classCode) return;
@@ -30389,12 +30446,13 @@ function loadStudentHomeworkWidget() {
       return `
         <div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div>
-            <div style="font-size:13px;font-weight:700;color:#1A2E22;">📚 ${hw.topic_name}${hw.subtopic_name ? ' · ' + hw.subtopic_name : ''}</div>
+            <div style="font-size:13px;font-weight:700;color:#1A2E22;">🌊 Deep Dive Homework — ${hw.topic_name}${hw.subtopic_name ? ': ' + hw.subtopic_name : ''}</div>
+            <div style="font-size:11px;color:#64748B;margin-top:2px;">Set by your teacher</div>
             <div style="font-size:11px;color:${isOverdue ? '#DC2626' : '#64748B'};margin-top:2px;">${isOverdue ? '🔴 Overdue — ' : '⏰ Due '}${dueFmt}</div>
           </div>
-          <button onclick="startDeepDiveForTopic('${hw.topic_key}')"
+          <button onclick="startHomeworkDeepDive('${hw.topic_key}','${hw.subtopic_name || ''}')"
             style="background:#216D39;color:white;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
-            Start →
+            Start Deep Dive →
           </button>
         </div>`;
     }).join('');
