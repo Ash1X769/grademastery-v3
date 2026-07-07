@@ -16653,6 +16653,8 @@ ${renderNavBar('home')}
     <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--gm-forest);">Help your AI Tutor know you better</div><div style="font-size:12px;color:var(--gm-accent);font-weight:500;">Answer a few quick questions →</div></div>
   </div>` : ''}
 
+  <div id="home-hw-section"></div>
+
   <div class="v3-section-label">TODAY'S CARDS</div>
   <div class="v3-subject-grid">${v3SubjectCards}</div>
 
@@ -16673,6 +16675,7 @@ ${renderNavBar('home')}
   render(html);
   checkStudentPings();
   loadClassLeaderboard();
+  loadStudentHomeworkWidget();
 }
 
 async function checkStudentPings() {
@@ -20159,6 +20162,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
+      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
@@ -20170,6 +20174,7 @@ async function showTeacherDashboard(selectedClass) {
       <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
+      <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
     </div>
   </div>`;
 
@@ -20478,7 +20483,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings'].forEach(t => {
+  ['overview','rag','students','settings','homework'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -20487,6 +20492,13 @@ function teacherTab(tab) {
     }
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
+  if (tab === 'homework') {
+    const hwClassCode = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass)?.code;
+    document.getElementById('tcontent-homework').innerHTML = buildHomeworkHTML(STATE.teacherStudents || [], hwClassCode);
+    const hwStart = document.getElementById('hw-start-date');
+    if (hwStart) hwStart.value = new Date().toISOString().split('T')[0];
+    loadHomeworkTracker(hwClassCode);
+  }
 }
 
 function copySettingsCode() {
@@ -22384,6 +22396,8 @@ ${renderNavBar('home')}
     <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--gm-forest);">Help your AI Tutor know you better</div><div style="font-size:12px;color:var(--gm-accent);font-weight:500;">Answer a few quick questions →</div></div>
   </div>` : ''}
 
+  <div id="home-hw-section"></div>
+
   <div class="v3-section-label">TODAY'S CARDS</div>
   <div class="v3-subject-grid">${v3SubjectCards}</div>
 
@@ -22404,6 +22418,7 @@ ${renderNavBar('home')}
   render(html);
   checkStudentPings();
   loadClassLeaderboard();
+  loadStudentHomeworkWidget();
 }
 
 async function checkStudentPings() {
@@ -25820,6 +25835,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
+      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
@@ -25831,6 +25847,7 @@ async function showTeacherDashboard(selectedClass) {
       <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
+      <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
     </div>
   </div>`;
 
@@ -26139,7 +26156,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings'].forEach(t => {
+  ['overview','rag','students','settings','homework'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -26148,6 +26165,13 @@ function teacherTab(tab) {
     }
     if (content) content.style.display = t === tab ? 'block' : 'none';
   });
+  if (tab === 'homework') {
+    const hwClassCode = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass)?.code;
+    document.getElementById('tcontent-homework').innerHTML = buildHomeworkHTML(STATE.teacherStudents || [], hwClassCode);
+    const hwStart = document.getElementById('hw-start-date');
+    if (hwStart) hwStart.value = new Date().toISOString().split('T')[0];
+    loadHomeworkTracker(hwClassCode);
+  }
 }
 
 function copySettingsCode() {
@@ -27193,7 +27217,7 @@ async function showParentPortal() {
 
   if (linkedStudentId) {
     try {
-      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade,vision_board_enabled';
+      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade,vision_board_enabled,class_code';
       console.log('[ParentPortal] fetching child profile:', cUrl);
       const cRes = await fetch(cUrl, { headers });
       const cProfiles = cRes.ok ? await cRes.json() : [];
@@ -27212,7 +27236,8 @@ async function showParentPortal() {
           user_id: cp.user_id,
           locked_topics: Array.isArray(cp.locked_topics) ? cp.locked_topics : [],
           schedule_locked: cp.schedule_locked || false,
-          vision_board_enabled: cp.vision_board_enabled !== false
+          vision_board_enabled: cp.vision_board_enabled !== false,
+          class_code: cp.class_code || null
         };
         console.log('[ParentPortal] child loaded:', child.name, 'user_id:', child.user_id);
       } else {
@@ -27398,6 +27423,8 @@ async function showParentPortal() {
           </div>
         </div>`).join('')}
 
+    <div id="parent-hw-section"></div>
+
     <div style="background:white;border-radius:14px;padding:16px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
       <div style="font-size:14px;font-weight:800;margin-bottom:6px;">📬 Contact Teacher</div>
       <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;">Send a message to your child's science teacher</div>
@@ -27530,6 +27557,7 @@ async function showParentPortal() {
 
   // Fire notification check after render so badge dot is in the DOM
   checkAndFireParentNotification(child, STATE._parentLastInsightAt, parentFirstName, insightTip);
+  loadParentHomeworkWidget(child.class_code, child.user_id);
 }
 
 // ── Shared helper: call link RPC, return {userId} or {error:'not_found'|'limit'|'network'} ──
@@ -30082,6 +30110,350 @@ function showKOTopicPicker() {
   overlay.querySelectorAll('.ko-picker-btn').forEach(btn => {
     btn.onclick = () => { overlay.remove(); showKnowledgeOrganiser(btn.dataset.topic); };
   });
+}
+
+// ══════════════════════════════════════════════════════════
+// HOMEWORK FEATURE
+// ══════════════════════════════════════════════════════════
+
+function buildHomeworkHTML(students, classCode) {
+  return `
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+
+      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">📚 Assign Deep Dive Homework</div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Subject</div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="selectHwSubject('Biology',this)" data-subject="Biology"
+              style="flex:1;background:#F0FDF4;color:#216D39;border:1.5px solid #BBF7D0;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">🌿 Biology</button>
+            <button onclick="selectHwSubject('Chemistry',this)" data-subject="Chemistry"
+              style="flex:1;background:white;color:#64748B;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">⚗️ Chemistry</button>
+            <button onclick="selectHwSubject('Physics',this)" data-subject="Physics"
+              style="flex:1;background:white;color:#64748B;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">⚡ Physics</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Topic</div>
+          <select id="hw-topic-select" style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;background:white;outline:none;color:#1A2E22;">
+            <option value="">Select subject first...</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Subtopic <span style="font-weight:400;color:#64748B;">(optional)</span></div>
+          <select id="hw-subtopic-select" style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;background:white;outline:none;color:#1A2E22;">
+            <option value="">Whole topic — all subtopics</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Start Date</div>
+            <input type="date" id="hw-start-date" style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;">
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Due Date</div>
+            <input type="date" id="hw-end-date" style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+          <button onclick="setHwDeadline(0)" style="background:white;border:1.5px solid #E2E8F0;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;">Tonight</button>
+          <button onclick="setHwDeadline(1)" style="background:white;border:1.5px solid #E2E8F0;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;">Tomorrow</button>
+          <button onclick="setHwDeadline(3)" style="background:white;border:1.5px solid #E2E8F0;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;">In 3 days</button>
+          <button onclick="setHwDeadline(7)" style="background:white;border:1.5px solid #E2E8F0;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;">Next week</button>
+        </div>
+
+        <button onclick="assignHomework()" style="width:100%;background:#216D39;color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;">
+          📚 Assign to Class
+        </button>
+      </div>
+
+      <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">📊 Homework Tracker</div>
+        <div id="hw-tracker-list">
+          <div style="text-align:center;padding:32px;color:#94A3B8;">
+            <div style="font-size:32px;margin-bottom:8px;">📚</div>
+            <div style="font-size:14px;font-weight:600;">No homework assigned yet</div>
+            <div style="font-size:12px;margin-top:4px;">Assign your first Deep Dive above</div>
+          </div>
+        </div>
+      </div>
+
+    </div>`;
+}
+
+function selectHwSubject(subject, btn) {
+  document.querySelectorAll('[data-subject]').forEach(b => {
+    b.style.background = 'white';
+    b.style.color = '#64748B';
+    b.style.borderColor = '#E2E8F0';
+  });
+  btn.style.background = subject === 'Biology' ? '#F0FDF4' : subject === 'Chemistry' ? '#FFF7ED' : '#EFF6FF';
+  btn.style.color = subject === 'Biology' ? '#216D39' : subject === 'Chemistry' ? '#EA580C' : '#0284C7';
+  btn.style.borderColor = subject === 'Biology' ? '#BBF7D0' : subject === 'Chemistry' ? '#FED7AA' : '#BFDBFE';
+
+  const topics = {
+    Biology: [['B1','Cell Biology'],['B2','Organisation'],['B3','Infection and Response'],['B4','Bioenergetics'],['B5','Homeostasis and Response'],['B6','Inheritance, Variation and Evolution'],['B7','Ecology']],
+    Chemistry: [['C1','Atomic Structure'],['C2','Bonding, Structure and Properties'],['C3','Quantitative Chemistry'],['C4','Chemical Changes'],['C5','Energy Changes'],['C6','Rate and Extent of Chemical Change'],['C7','Organic Chemistry'],['C8','Chemical Analysis'],['C9','Chemistry of the Atmosphere'],['C10','Using Resources']],
+    Physics: [['P1','Energy'],['P2','Electricity'],['P3','Particle Model of Matter'],['P4','Atomic Structure'],['P5','Forces'],['P6','Waves'],['P7','Magnetism and Electromagnetism'],['P8','Space Physics']]
+  };
+
+  const sel = document.getElementById('hw-topic-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select a topic...</option>' +
+    (topics[subject] || []).map(([key, name]) =>
+      `<option value="${key}" data-name="${name}">${key} — ${name}</option>`
+    ).join('');
+
+  sel.onchange = function() {
+    const key = this.value;
+    if (!key) return;
+    const subtopics = [...new Set(
+      SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === key && c.subtopic_name)
+        .map(c => c.subtopic_name)
+    )];
+    const sub = document.getElementById('hw-subtopic-select');
+    if (!sub) return;
+    sub.innerHTML = '<option value="">Whole topic — all subtopics</option>' +
+      subtopics.map(s => `<option value="${s}">${s}</option>`).join('');
+  };
+}
+
+function setHwDeadline(daysFromNow) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  d.setHours(20, 0, 0, 0);
+  const fmt = d.toISOString().split('T')[0];
+  const startEl = document.getElementById('hw-start-date');
+  const endEl = document.getElementById('hw-end-date');
+  if (startEl && !startEl.value) startEl.value = new Date().toISOString().split('T')[0];
+  if (endEl) endEl.value = fmt;
+}
+
+function assignHomework() {
+  const topicSel = document.getElementById('hw-topic-select');
+  const subtopicSel = document.getElementById('hw-subtopic-select');
+  const startEl = document.getElementById('hw-start-date');
+  const endEl = document.getElementById('hw-end-date');
+
+  const topicKey = topicSel?.value;
+  const topicName = topicSel?.options[topicSel.selectedIndex]?.dataset?.name || topicKey;
+  const subtopicName = subtopicSel?.value || null;
+  const startDate = startEl?.value || new Date().toISOString().split('T')[0];
+  const endDate = endEl?.value;
+  const classCode = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass)?.code;
+
+  if (!topicKey) { showToast('Please select a topic'); return; }
+  if (!endDate) { showToast('Please set a due date'); return; }
+  if (!classCode) { showToast('No class selected'); return; }
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({
+      class_code: classCode,
+      topic_key: topicKey,
+      topic_name: topicName,
+      subtopic_name: subtopicName,
+      start_date: new Date(startDate).toISOString(),
+      end_date: new Date(endDate + 'T20:00:00').toISOString(),
+      created_by: STATE.user.id
+    })
+  }).then(async r => {
+    if (!r.ok) { showToast('Could not assign homework — try again'); return; }
+
+    const students = STATE.teacherStudents || [];
+    const msg = `Deep Dive on ${topicName}${subtopicName ? ': ' + subtopicName : ''} — due ${new Date(endDate).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}`;
+
+    for (const s of students) {
+      if (s.user_id) await sendNotification(s.user_id, '📚 New Homework Set', msg);
+    }
+
+    showToast('Homework assigned! Students notified 📚');
+    loadHomeworkTracker(classCode);
+  });
+}
+
+function loadHomeworkTracker(classCode) {
+  if (!classCode) return;
+  const el = document.getElementById('hw-tracker-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8;">Loading...</div>';
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&order=created_at.desc', {
+    headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token }
+  })
+  .then(r => r.json())
+  .then(async homeworks => {
+    if (!homeworks.length) {
+      el.innerHTML = '<div style="text-align:center;padding:32px;color:#94A3B8;"><div style="font-size:32px;margin-bottom:8px;">📚</div><div style="font-size:14px;font-weight:600;">No homework assigned yet</div></div>';
+      return;
+    }
+
+    const students = STATE.teacherStudents || [];
+    let html = '';
+
+    for (const hw of homeworks) {
+      const endFmt = new Date(hw.end_date).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+      const isPast = new Date(hw.end_date) < new Date();
+      let completedCount = 0;
+      let studentRows = '';
+
+      for (const s of students) {
+        const subject = hw.topic_key.startsWith('B') ? 'Biology' : hw.topic_key.startsWith('C') ? 'Chemistry' : 'Physics';
+        const histRes = await fetch(
+          CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + s.user_id +
+          '&subject=eq.' + subject +
+          '&created_at=gte.' + hw.start_date +
+          '&created_at=lte.' + hw.end_date +
+          '&select=grade&limit=1',
+          { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token }}
+        );
+        const hist = histRes.ok ? await histRes.json() : [];
+        const done = hist.length > 0;
+        if (done) completedCount++;
+        const statusIcon = done ? '✅' : (isPast ? '🔴' : '⏳');
+
+        studentRows += `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border-radius:10px;margin-bottom:6px;">
+            <div style="font-size:13px;font-weight:600;color:#1A2E22;flex:1;">${s.name || s.display_name || 'Student'}</div>
+            <div style="flex:2;">
+              <div style="height:6px;border-radius:3px;background:#E2E8F0;">
+                <div style="height:6px;border-radius:3px;background:${done ? '#216D39' : '#DC2626'};width:${done ? 100 : 0}%;"></div>
+              </div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:${done ? '#216D39' : '#DC2626'};min-width:36px;text-align:right;">${done ? '100%' : '0%'}</div>
+            <div style="font-size:16px;">${statusIcon}</div>
+          </div>`;
+      }
+
+      html += `
+        <div style="border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:12px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#1A2E22;">${hw.topic_name}${hw.subtopic_name ? ' · ' + hw.subtopic_name : ''}</div>
+              <div style="font-size:12px;color:#64748B;margin-top:2px;">Due ${endFmt}</div>
+            </div>
+            <div style="font-size:13px;font-weight:700;color:${isPast && completedCount < students.length ? '#DC2626' : '#216D39'};">
+              ${completedCount}/${students.length} done
+            </div>
+          </div>
+          ${studentRows}
+          <button onclick="pingIncompleteStudents('${hw.id}','${hw.topic_name}')"
+            style="width:100%;background:white;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:#1A2E22;cursor:pointer;margin-top:8px;">
+            📣 Remind incomplete students + parents
+          </button>
+        </div>`;
+    }
+
+    el.innerHTML = html;
+  });
+}
+
+function pingIncompleteStudents(homeworkId, topicName) {
+  const students = STATE.teacherStudents || [];
+  students.forEach(s => {
+    if (s.user_id) sendNotification(s.user_id, '📚 Homework Reminder',
+      `Don't forget your Deep Dive on ${topicName}! Complete it in the app.`);
+  });
+  showToast('Reminder sent to students and parents 📣');
+}
+
+function startDeepDiveForTopic(topicKey) {
+  const subject = topicKey.startsWith('B') ? 'Biology' : topicKey.startsWith('C') ? 'Chemistry' : 'Physics';
+  showDeepDiveTopicPicker(subject, 'topic');
+}
+
+function loadStudentHomeworkWidget() {
+  const classCode = STATE.user?.class_code;
+  if (!classCode) return;
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&end_date=gte.' + new Date().toISOString() + '&order=end_date.asc', {
+    headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token }
+  })
+  .then(r => r.ok ? r.json() : [])
+  .then(homeworks => {
+    if (!homeworks.length) return;
+    const hwHtml = homeworks.map(hw => {
+      const due = new Date(hw.end_date);
+      const isOverdue = due < new Date();
+      const dueFmt = due.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+      return `
+        <div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1A2E22;">📚 ${hw.topic_name}${hw.subtopic_name ? ' · ' + hw.subtopic_name : ''}</div>
+            <div style="font-size:11px;color:${isOverdue ? '#DC2626' : '#64748B'};margin-top:2px;">${isOverdue ? '🔴 Overdue — ' : '⏰ Due '}${dueFmt}</div>
+          </div>
+          <button onclick="startDeepDiveForTopic('${hw.topic_key}')"
+            style="background:#216D39;color:white;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+            Start →
+          </button>
+        </div>`;
+    }).join('');
+
+    const hwSection = `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">📚 Homework</div>
+        ${hwHtml}
+      </div>`;
+
+    const container = document.getElementById('home-hw-section');
+    if (container) container.innerHTML = hwSection;
+  });
+}
+
+async function loadParentHomeworkWidget(classCode, childUserId) {
+  const container = document.getElementById('parent-hw-section');
+  if (!container || !classCode) return;
+  const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
+  try {
+    const hwRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&order=end_date.asc', { headers });
+    const homeworks = hwRes.ok ? await hwRes.json() : [];
+    if (!homeworks.length) { container.innerHTML = ''; return; }
+
+    let rows = '';
+    for (const hw of homeworks) {
+      const due = new Date(hw.end_date);
+      const isOverdue = due < new Date();
+      const dueFmt = due.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+      const subject = hw.topic_key.startsWith('B') ? 'Biology' : hw.topic_key.startsWith('C') ? 'Chemistry' : 'Physics';
+      let done = false;
+      if (childUserId) {
+        const histRes = await fetch(
+          CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + childUserId +
+          '&subject=eq.' + subject +
+          '&created_at=gte.' + hw.start_date +
+          '&created_at=lte.' + hw.end_date +
+          '&select=grade&limit=1',
+          { headers }
+        );
+        const hist = histRes.ok ? await histRes.json() : [];
+        done = hist.length > 0;
+      }
+      const statusLabel = done ? '✅ Done' : (isOverdue ? '🔴 Overdue' : '⏳ Pending');
+      const statusColor = done ? '#216D39' : (isOverdue ? '#DC2626' : '#D97706');
+
+      rows += `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04);border:1px solid #F0F4F8;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#0F172A;">${hw.topic_name}${hw.subtopic_name ? ' · ' + hw.subtopic_name : ''}</div>
+          <div style="font-size:12px;color:#64748B;font-weight:600;margin-top:2px;">Due ${dueFmt}</div>
+        </div>
+        <div style="font-size:13px;font-weight:800;color:${statusColor};white-space:nowrap;">${statusLabel}</div>
+      </div>`;
+    }
+
+    container.innerHTML = `
+      <div style="font-size:12px;font-weight:800;color:#64748B;letter-spacing:0.08em;margin-bottom:10px;">📚 HOMEWORK</div>
+      ${rows}`;
+  } catch(e) { console.error('loadParentHomeworkWidget:', e); }
 }
 
 </script>
