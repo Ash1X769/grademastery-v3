@@ -20493,6 +20493,8 @@ function confirmRemoveStudent(studentUserId, studentName) {
 }
 function buildSettingsHTML(code, aiLocked, currentName) {
   const escapedName = (currentName || '').replace(/"/g, '&quot;');
+  const students = STATE.teacherStudents || [];
+  const allowStudentUnlock = (STATE.teacherClasses || []).find(c => c.id === STATE.teacherSelectedClass)?.allow_student_unlock !== false;
   return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Name</label>'
@@ -20518,7 +20520,42 @@ function buildSettingsHTML(code, aiLocked, currentName) {
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
     + buildAIToggle(aiLocked)
     + '</div>'
-    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, use the search below.</div>'
+    + `
+      <div style="margin-top:12px;border-top:1px solid #E2E8F0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:4px;">EXCEPT these students:</div>
+        <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+          ${aiLocked ?
+            'These students can use self-grading even when AI marking is required for the rest of the class.' :
+            'These students must use AI marking even when self-grading is allowed for the rest of the class.'
+          }
+        </div>
+
+        <div style="position:relative;margin-bottom:10px;">
+          <input type="text"
+            id="ai-except-search"
+            placeholder="🔍 Search students..."
+            oninput="filterExceptStudents('ai', this.value)"
+            style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">
+          <div id="ai-except-dropdown"
+            style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid #E2E8F0;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:200px;overflow-y:auto;">
+          </div>
+        </div>
+
+        <div id="ai-except-pills" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;">
+          ${students
+            .filter(s => aiLocked ? s.allow_self_grade === true : s.allow_self_grade === false)
+            .map(s => `
+              <span id="ai-pill-${s.user_id}" style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#216D39;display:inline-flex;align-items:center;gap:6px;">
+                ${s.name || s.display_name}
+                <button onclick="removeAiException('${s.user_id}')"
+                  style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>
+              </span>
+            `).join('')}
+          ${students.filter(s => aiLocked ? s.allow_self_grade === true : s.allow_self_grade === false).length === 0 ?
+            '<span style="font-size:12px;color:#94A3B8;font-style:italic;">No exceptions set</span>' : ''}
+        </div>
+      </div>`
     + '</div>'
     + buildClassScheduleSection()
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
@@ -20528,7 +20565,43 @@ function buildSettingsHTML(code, aiLocked, currentName) {
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
     + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
     + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
-    + '</div></div></div>'
+    + '</div></div>'
+    + `
+      <div style="margin-top:12px;border-top:1px solid #E2E8F0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:4px;">EXCEPT these students:</div>
+        <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+          ${allowStudentUnlock ?
+            'These students cannot unlock their own topics — teacher controls their access only.' :
+            'These students can unlock their own topics independently — useful for your most capable learners.'
+          }
+        </div>
+
+        <div style="position:relative;margin-bottom:10px;">
+          <input type="text"
+            id="unlock-except-search"
+            placeholder="🔍 Search students..."
+            oninput="filterExceptStudents('unlock', this.value)"
+            style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">
+          <div id="unlock-except-dropdown"
+            style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid #E2E8F0;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:200px;overflow-y:auto;">
+          </div>
+        </div>
+
+        <div id="unlock-except-pills" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;">
+          ${students
+            .filter(s => allowStudentUnlock ? s.allow_student_unlock === false : s.allow_student_unlock === true)
+            .map(s => `
+              <span id="unlock-pill-${s.user_id}" style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#216D39;display:inline-flex;align-items:center;gap:6px;">
+                ${s.name || s.display_name}
+                <button onclick="removeUnlockException('${s.user_id}')"
+                  style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>
+              </span>
+            `).join('')}
+          ${students.filter(s => allowStudentUnlock ? s.allow_student_unlock === false : s.allow_student_unlock === true).length === 0 ?
+            '<span style="font-size:12px;color:#94A3B8;font-style:italic;">No exceptions set</span>' : ''}
+        </div>
+      </div>`
+    + '</div>'
     + '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:20px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Danger Zone</label>'
     + '<p style="font-size:0.85rem;color:#64748b;margin:0 0 12px;">Deleting a class cannot be undone.</p>'
@@ -26226,6 +26299,8 @@ function confirmRemoveStudent(studentUserId, studentName) {
 }
 function buildSettingsHTML(code, aiLocked, currentName) {
   const escapedName = (currentName || '').replace(/"/g, '&quot;');
+  const students = STATE.teacherStudents || [];
+  const allowStudentUnlock = (STATE.teacherClasses || []).find(c => c.id === STATE.teacherSelectedClass)?.allow_student_unlock !== false;
   return '<h3 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 20px;">Class Settings</h3>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Class Name</label>'
@@ -26251,7 +26326,42 @@ function buildSettingsHTML(code, aiLocked, currentName) {
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">Students cannot self-rate if this is on</p></div>'
     + buildAIToggle(aiLocked)
     + '</div>'
-    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, go to the Students tab → select a student.</div>'
+    + '<div style="font-size:12px;color:#64748B;margin-top:6px;line-height:1.5;">Only AI-marked answers count toward the Mastery Tracker. Self-graded answers are not tracked.<br>To override for individual students, use the search below.</div>'
+    + `
+      <div style="margin-top:12px;border-top:1px solid #E2E8F0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:4px;">EXCEPT these students:</div>
+        <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+          ${aiLocked ?
+            'These students can use self-grading even when AI marking is required for the rest of the class.' :
+            'These students must use AI marking even when self-grading is allowed for the rest of the class.'
+          }
+        </div>
+
+        <div style="position:relative;margin-bottom:10px;">
+          <input type="text"
+            id="ai-except-search"
+            placeholder="🔍 Search students..."
+            oninput="filterExceptStudents('ai', this.value)"
+            style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">
+          <div id="ai-except-dropdown"
+            style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid #E2E8F0;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:200px;overflow-y:auto;">
+          </div>
+        </div>
+
+        <div id="ai-except-pills" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;">
+          ${students
+            .filter(s => aiLocked ? s.allow_self_grade === true : s.allow_self_grade === false)
+            .map(s => `
+              <span id="ai-pill-${s.user_id}" style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#216D39;display:inline-flex;align-items:center;gap:6px;">
+                ${s.name || s.display_name}
+                <button onclick="removeAiException('${s.user_id}')"
+                  style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>
+              </span>
+            `).join('')}
+          ${students.filter(s => aiLocked ? s.allow_self_grade === true : s.allow_self_grade === false).length === 0 ?
+            '<span style="font-size:12px;color:#94A3B8;font-style:italic;">No exceptions set</span>' : ''}
+        </div>
+      </div>`
     + '</div>'
     + buildClassScheduleSection()
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
@@ -26261,7 +26371,43 @@ function buildSettingsHTML(code, aiLocked, currentName) {
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
     + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
     + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
-    + '</div></div></div>'
+    + '</div></div>'
+    + `
+      <div style="margin-top:12px;border-top:1px solid #E2E8F0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:4px;">EXCEPT these students:</div>
+        <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+          ${allowStudentUnlock ?
+            'These students cannot unlock their own topics — teacher controls their access only.' :
+            'These students can unlock their own topics independently — useful for your most capable learners.'
+          }
+        </div>
+
+        <div style="position:relative;margin-bottom:10px;">
+          <input type="text"
+            id="unlock-except-search"
+            placeholder="🔍 Search students..."
+            oninput="filterExceptStudents('unlock', this.value)"
+            style="width:100%;border:1.5px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;">
+          <div id="unlock-except-dropdown"
+            style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1.5px solid #E2E8F0;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;max-height:200px;overflow-y:auto;">
+          </div>
+        </div>
+
+        <div id="unlock-except-pills" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;">
+          ${students
+            .filter(s => allowStudentUnlock ? s.allow_student_unlock === false : s.allow_student_unlock === true)
+            .map(s => `
+              <span id="unlock-pill-${s.user_id}" style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#216D39;display:inline-flex;align-items:center;gap:6px;">
+                ${s.name || s.display_name}
+                <button onclick="removeUnlockException('${s.user_id}')"
+                  style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>
+              </span>
+            `).join('')}
+          ${students.filter(s => allowStudentUnlock ? s.allow_student_unlock === false : s.allow_student_unlock === true).length === 0 ?
+            '<span style="font-size:12px;color:#94A3B8;font-style:italic;">No exceptions set</span>' : ''}
+        </div>
+      </div>`
+    + '</div>'
     + '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:20px;">'
     + '<label style="font-size:0.75rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Danger Zone</label>'
     + '<p style="font-size:0.85rem;color:#64748b;margin:0 0 12px;">Deleting a class cannot be undone.</p>'
@@ -30237,6 +30383,141 @@ function showKOTopicPicker() {
     btn.onclick = () => { overlay.remove(); showKnowledgeOrganiser(btn.dataset.topic); };
   });
 }
+
+// ══════════════════════════════════════════════════════════
+// CLASS CONFIG — SEARCHABLE EXCEPT FILTER (AI marking / topic unlock)
+// ══════════════════════════════════════════════════════════
+
+let _exceptStudentsCache = [];
+
+function filterExceptStudents(type, query) {
+  const dropdownId = type === 'ai' ? 'ai-except-dropdown' : 'unlock-except-dropdown';
+  const dropdown = document.getElementById(dropdownId);
+  if (!dropdown) return;
+
+  const q = query.trim().toLowerCase();
+  if (!q) { dropdown.style.display = 'none'; return; }
+
+  const students = STATE.teacherStudents || [];
+  const matches = students.filter(s =>
+    (s.name || s.display_name || '').toLowerCase().includes(q)
+  );
+
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = matches.map(s => `
+    <div onclick="addException('${type}','${s.user_id}','${(s.name || s.display_name || '').replace(/'/g, "\\'")}')"
+      style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:0.5px solid #F0F0F0;"
+      onmouseover="this.style.background='#F0FDF4'"
+      onmouseout="this.style.background='white'">
+      ${s.name || s.display_name}
+    </div>
+  `).join('');
+  dropdown.style.display = 'block';
+}
+
+function addException(type, userId, name) {
+  const dropdownId = type === 'ai' ? 'ai-except-dropdown' : 'unlock-except-dropdown';
+  const searchId = type === 'ai' ? 'ai-except-search' : 'unlock-except-search';
+  const pillsId = type === 'ai' ? 'ai-except-pills' : 'unlock-except-pills';
+
+  document.getElementById(dropdownId).style.display = 'none';
+  document.getElementById(searchId).value = '';
+
+  // Already added — nothing to do
+  if (document.getElementById(type + '-pill-' + userId)) return;
+
+  const pillsEl = document.getElementById(pillsId);
+  const noExceptions = pillsEl.querySelector('span[style*="italic"]');
+  if (noExceptions) noExceptions.remove();
+
+  const pill = document.createElement('span');
+  pill.id = type + '-pill-' + userId;
+  pill.style.cssText = 'background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:#216D39;display:inline-flex;align-items:center;gap:6px;';
+  pill.innerHTML = `${name}<button onclick="${type === 'ai' ? 'removeAiException' : 'removeUnlockException'}('${userId}')" style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0;line-height:1;">✕</button>`;
+  pillsEl.appendChild(pill);
+
+  const fieldName = type === 'ai' ? 'allow_self_grade' : 'allow_student_unlock';
+  const currentClass = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass);
+  // An exception must diverge from the class-wide default, not match it.
+  const newVal = type === 'ai'
+    ? (currentClass?.ai_marking_locked === true)
+    : !(currentClass?.allow_student_unlock !== false);
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + userId, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ [fieldName]: newVal })
+  }).then(r => {
+    if (r.ok) {
+      const student = (STATE.teacherStudents || []).find(s => s.user_id === userId);
+      if (student) student[fieldName] = newVal;
+      showToast(name + ' added as exception ✓');
+    } else {
+      showToast('Could not save — try again');
+    }
+  });
+}
+
+function removeAiException(userId) {
+  document.getElementById('ai-pill-' + userId)?.remove();
+  const currentClass = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass);
+  const defaultVal = !currentClass?.ai_marking_locked;
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + userId, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ allow_self_grade: defaultVal })
+  }).then(r => {
+    if (r.ok) {
+      const student = (STATE.teacherStudents || []).find(s => s.user_id === userId);
+      if (student) student.allow_self_grade = defaultVal;
+      showToast('Exception removed ✓');
+    }
+  });
+}
+
+function removeUnlockException(userId) {
+  document.getElementById('unlock-pill-' + userId)?.remove();
+  const currentClass = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass);
+  const defaultVal = currentClass?.allow_student_unlock !== false;
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + userId, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + STATE.user.token,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ allow_student_unlock: defaultVal })
+  }).then(r => {
+    if (r.ok) {
+      const student = (STATE.teacherStudents || []).find(s => s.user_id === userId);
+      if (student) student.allow_student_unlock = defaultVal;
+      showToast('Exception removed ✓');
+    }
+  });
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#ai-except-search') && !e.target.closest('#ai-except-dropdown')) {
+    const d = document.getElementById('ai-except-dropdown');
+    if (d) d.style.display = 'none';
+  }
+  if (!e.target.closest('#unlock-except-search') && !e.target.closest('#unlock-except-dropdown')) {
+    const d = document.getElementById('unlock-except-dropdown');
+    if (d) d.style.display = 'none';
+  }
+});
 
 // ══════════════════════════════════════════════════════════
 // PERFORMANCE ANALYTICS (Overview + RAG Grid combined tab)
