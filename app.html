@@ -20197,7 +20197,6 @@ async function showTeacherDashboard(selectedClass) {
 
     <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Performance Analytics</button>
-      <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
       <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Curriculum Planner</button>
       <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Config</button>
@@ -20217,11 +20216,15 @@ async function showTeacherDashboard(selectedClass) {
             style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
             🔥 RAG Heatmap
           </button>
+          <button onclick="switchPerformanceView('students',this)" id="perf-students-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
+            👥 Students
+          </button>
         </div>
         <div id="perf-summary-content">${overviewHTML}</div>
         <div id="perf-heatmap-content" style="display:none;">${ragHTML}</div>
+        <div id="perf-students-content" style="display:none;">${studentsHTML}</div>
       </div>
-      <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
       <div id="tcontent-studenttopics" class="tcontent" style="display:none;"></div>
@@ -20534,7 +20537,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','students','settings','homework','studenttopics'].forEach(t => {
+  ['overview','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -25927,7 +25930,6 @@ async function showTeacherDashboard(selectedClass) {
 
     <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
       <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Performance Analytics</button>
-      <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
       <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Curriculum Planner</button>
       <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Config</button>
@@ -25947,11 +25949,15 @@ async function showTeacherDashboard(selectedClass) {
             style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
             🔥 RAG Heatmap
           </button>
+          <button onclick="switchPerformanceView('students',this)" id="perf-students-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
+            👥 Students
+          </button>
         </div>
         <div id="perf-summary-content">${overviewHTML}</div>
         <div id="perf-heatmap-content" style="display:none;">${ragHTML}</div>
+        <div id="perf-students-content" style="display:none;">${studentsHTML}</div>
       </div>
-      <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
       <div id="tcontent-studenttopics" class="tcontent" style="display:none;"></div>
@@ -26264,7 +26270,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','students','settings','homework','studenttopics'].forEach(t => {
+  ['overview','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -30239,6 +30245,7 @@ function showKOTopicPicker() {
 function switchPerformanceView(view, btn) {
   document.getElementById('perf-summary-content').style.display = view === 'summary' ? 'block' : 'none';
   document.getElementById('perf-heatmap-content').style.display = view === 'heatmap' ? 'block' : 'none';
+  document.getElementById('perf-students-content').style.display = view === 'students' ? 'block' : 'none';
 
   document.getElementById('perf-summary-btn').style.background = view === 'summary' ? '#216D39' : 'white';
   document.getElementById('perf-summary-btn').style.color = view === 'summary' ? 'white' : '#64748B';
@@ -30247,6 +30254,10 @@ function switchPerformanceView(view, btn) {
   document.getElementById('perf-heatmap-btn').style.background = view === 'heatmap' ? '#216D39' : 'white';
   document.getElementById('perf-heatmap-btn').style.color = view === 'heatmap' ? 'white' : '#64748B';
   document.getElementById('perf-heatmap-btn').style.border = view === 'heatmap' ? 'none' : '1.5px solid #E2E8F0';
+
+  document.getElementById('perf-students-btn').style.background = view === 'students' ? '#216D39' : 'white';
+  document.getElementById('perf-students-btn').style.color = view === 'students' ? 'white' : '#64748B';
+  document.getElementById('perf-students-btn').style.border = view === 'students' ? 'none' : '1.5px solid #E2E8F0';
 }
 
 // ══════════════════════════════════════════════════════════
