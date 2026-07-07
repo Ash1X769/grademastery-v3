@@ -20116,7 +20116,7 @@ async function showTeacherDashboard(selectedClass) {
         const col = avatarColors[si%avatarColors.length], bg = avatarBgs[si%avatarBgs.length];
         const safeId = 'sc-' + s.user_id.replace(/-/g,'');
         const topicEntries = Object.entries(s.topics);
-        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
+        return `<div onclick="openStudentPanel('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
           <div style="position:relative;width:56px;margin:0 auto 12px;">
             <div style="width:56px;height:56px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:${col};">${s.name.charAt(0).toUpperCase()}</div>
             <div style="position:absolute;bottom:1px;right:1px;width:14px;height:14px;border-radius:50%;background:${s.studiedToday?'#22C55E':'#EF4444'};border:2px solid white;"></div>
@@ -25922,7 +25922,7 @@ async function showTeacherDashboard(selectedClass) {
         const col = avatarColors[si%avatarColors.length], bg = avatarBgs[si%avatarBgs.length];
         const safeId = 'sc-' + s.user_id.replace(/-/g,'');
         const topicEntries = Object.entries(s.topics);
-        return `<div onclick="toggleStudentCard('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
+        return `<div onclick="openStudentPanel('${s.user_id}')" style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;" onmouseover="this.style.boxShadow='0 6px 22px rgba(0,0,0,0.12)';this.style.transform='translateY(-2px)'" onmouseout="this.style.boxShadow='0 2px 10px rgba(0,0,0,0.06)';this.style.transform='none'">
           <div style="position:relative;width:56px;margin:0 auto 12px;">
             <div style="width:56px;height:56px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:${col};">${s.name.charAt(0).toUpperCase()}</div>
             <div style="position:absolute;bottom:1px;right:1px;width:14px;height:14px;border-radius:50%;background:${s.studiedToday?'#22C55E':'#EF4444'};border:2px solid white;"></div>
@@ -30520,6 +30520,282 @@ document.addEventListener('click', function(e) {
 });
 
 // ══════════════════════════════════════════════════════════
+// SLIDING STUDENT PANEL (triggered from the Students card in Performance Analytics)
+// ══════════════════════════════════════════════════════════
+
+function openStudentPanel(studentUserId) {
+  const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  if (!student) { showToast('Student not found'); return; }
+
+  closeStudentPanel(true); // remove any already-open panel instantly first
+
+  const tierLabel = t => {
+    if (!t) return 'Foundation';
+    const lvl = t.includes('higher') ? 'Higher' : 'Foundation';
+    return (t.includes('triple') ? 'Triple ' : '') + lvl;
+  };
+  const safeUid = studentUserId.replace(/-/g, '');
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'student-panel-backdrop';
+  backdrop.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.3);z-index:900;opacity:0;transition:opacity 0.3s;';
+  backdrop.onclick = function() { closeStudentPanel(); };
+
+  const panel = document.createElement('div');
+  panel.id = 'student-panel';
+  panel.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);background:white;z-index:901;box-shadow:-4px 0 24px rgba(0,0,0,0.12);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);';
+
+  const tabs = [['limits','⏱️ Limits'],['topics','🔒 Topics'],['history','📜 History'],['journal','📓 Journal'],['homework','🚀 Homework']];
+
+  panel.innerHTML = `
+    <div style="background:linear-gradient(135deg,#216D39,#03A860);padding:20px;color:white;position:relative;flex-shrink:0;">
+      <button onclick="closeStudentPanel()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:white;font-size:24px;cursor:pointer;line-height:1;">✕</button>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;flex-shrink:0;">${(student.name || 'S').charAt(0).toUpperCase()}</div>
+        <div style="min-width:0;">
+          <div style="font-size:18px;font-weight:800;">${student.name || 'Student'}</div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+            <span style="background:rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${tierLabel(student.tierFull)}</span>
+            <span style="background:rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${student.allow_self_grade ? '✏️ Self-grade' : '🤖 AI Only'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;padding:12px 16px 10px;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #F1F5F9;">
+      ${tabs.map(([tab,label],i) => `
+        <button onclick="switchStudentPanelTab('${tab}',this)" id="sp-tab-${tab}" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:${i===0 ? '#216D39' : 'white'};color:${i===0 ? 'white' : '#64748B'};border:${i===0 ? 'none' : '1.5px solid #E2E8F0'};">${label}</button>
+      `).join('')}
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+      <div id="sp-content-limits">
+        ${buildStudentScheduleHTML(student)}
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #F1F5F9;">
+          <div style="font-size:11px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">AI Marking Override</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:13px;font-weight:700;">Allow self-grading</span>
+            <div id="sp-sg-toggle-${safeUid}" onclick="toggleStudentSelfGrade('${studentUserId}',this)" data-on="${student.allow_self_grade !== false ? 'true' : 'false'}" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${student.allow_self_grade !== false ? '#22C55E' : '#E2E8F0'};position:relative;flex-shrink:0;">
+              <div style="position:absolute;top:2px;${student.allow_self_grade !== false ? 'right:3px' : 'left:3px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="sp-content-topics" style="display:none;">${buildStudentPanelTopicsHTML(student)}</div>
+      <div id="sp-content-history" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
+      <div id="sp-content-journal" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
+      <div id="sp-content-homework" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
+
+  setTimeout(() => {
+    backdrop.style.opacity = '1';
+    panel.style.transform = 'translateX(0)';
+  }, 10);
+
+  loadStudentPanelHistory(studentUserId);
+  loadStudentPanelJournal(studentUserId);
+  loadStudentPanelHomework(studentUserId);
+}
+
+function closeStudentPanel(instant) {
+  const backdrop = document.getElementById('student-panel-backdrop');
+  const panel = document.getElementById('student-panel');
+  if (!backdrop && !panel) return;
+  if (instant) {
+    if (backdrop) backdrop.remove();
+    if (panel) panel.remove();
+    return;
+  }
+  if (backdrop) backdrop.style.opacity = '0';
+  if (panel) panel.style.transform = 'translateX(100%)';
+  setTimeout(() => {
+    if (backdrop) backdrop.remove();
+    if (panel) panel.remove();
+  }, 300);
+}
+
+function switchStudentPanelTab(tab, btn) {
+  ['limits','topics','history','journal','homework'].forEach(t => {
+    const content = document.getElementById('sp-content-' + t);
+    const tabBtn = document.getElementById('sp-tab-' + t);
+    if (content) content.style.display = t === tab ? 'block' : 'none';
+    if (tabBtn) {
+      tabBtn.style.background = t === tab ? '#216D39' : 'white';
+      tabBtn.style.color = t === tab ? 'white' : '#64748B';
+      tabBtn.style.border = t === tab ? 'none' : '1.5px solid #E2E8F0';
+    }
+  });
+}
+
+function buildStudentPanelTopicsHTML(student) {
+  const lockedTopics = student.lockedTopics || [];
+  const subjectDefs = [
+    { name: 'Biology',   color: '#216D39' },
+    { name: 'Chemistry', color: '#EA580C' },
+    { name: 'Physics',   color: '#0284C7' }
+  ];
+
+  return subjectDefs.map(sd => {
+    const topicNames = {};
+    const topicOrder = [];
+    SAMPLE_CARDS.forEach(c => {
+      if (c.subject !== sd.name) return;
+      const tKey = c.topic.toUpperCase();
+      if (!topicNames[tKey]) { topicNames[tKey] = c.topic_name || tKey; topicOrder.push(tKey); }
+    });
+    topicOrder.sort();
+
+    const rows = topicOrder.map(tKey => {
+      const teacherLocked = lockedTopics.includes('T:' + tKey);
+      const selfLocked = !teacherLocked && lockedTopics.includes(tKey);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid #F1F5F9;">
+        <div>
+          <span style="font-size:13px;font-weight:700;color:#1A2E22;">${topicNames[tKey]}</span>
+          <span style="font-size:11px;color:#94A3B8;margin-left:6px;">${tKey}</span>
+        </div>
+        ${teacherLocked
+          ? `<span style="font-size:11px;font-weight:700;color:#94A3B8;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:20px;padding:4px 10px;">🔒 Teacher-locked</span>`
+          : `<div onclick="toggleStudentIndividualTopicLock('${student.user_id}','${tKey}',${selfLocked})" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${selfLocked ? '#CBD5E1' : '#22C55E'};position:relative;flex-shrink:0;">
+              <div style="position:absolute;top:2px;${selfLocked ? 'left:2px' : 'right:2px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+            </div>`
+        }
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:800;color:${sd.color};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">${sd.name}</div>
+      <div style="background:white;border:1px solid #F1F5F9;border-radius:12px;overflow:hidden;">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleStudentIndividualTopicLock(studentUserId, topicKey, currentlyLocked) {
+  const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  if (!student) return;
+  const existing = student.lockedTopics || [];
+  const newLocked = currentlyLocked ? existing.filter(t => t !== topicKey) : [...existing, topicKey];
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + encodeURIComponent(studentUserId), {
+      method: 'PATCH',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ locked_topics: newLocked })
+    });
+    if (res.ok) {
+      student.lockedTopics = newLocked;
+      showToast((currentlyLocked ? '🔓 Unlocked ' : '🔒 Locked ') + topicKey);
+      const topicsEl = document.getElementById('sp-content-topics');
+      if (topicsEl) topicsEl.innerHTML = buildStudentPanelTopicsHTML(student);
+    } else {
+      showToast('Could not update — try again');
+    }
+  } catch(e) { showToast('Error updating topic lock'); }
+}
+
+async function loadStudentPanelHistory(studentUserId) {
+  const el = document.getElementById('sp-content-history');
+  if (!el) return;
+  try {
+    const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
+    const res = await fetch(
+      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(studentUserId) + '&select=question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc&limit=30',
+      { headers }
+    );
+    const rows = res.ok ? await res.json() : [];
+    if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#94A3B8;">No study history yet.</div>'; return; }
+
+    const gradeColor = { 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
+    const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
+    el.innerHTML = rows.map(h => {
+      const col = gradeColor[h.grade] ?? '#64748B';
+      const lbl = gradeLabel[h.grade] ?? h.grade;
+      const date = h.created_at ? new Date(h.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+      return `<div style="background:#F8FAFC;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:#1A2E22;">${h.question || h.topic_name || 'Flashcard'}</div>
+        ${h.student_answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.student_answer}"</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+          <span style="font-size:11px;color:#64748B;font-weight:600;">${h.subject || ''} · ${date}</span>
+          <span style="font-size:12px;font-weight:800;color:${col};">${lbl}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#DC2626;">Could not load history.</div>'; }
+}
+
+async function loadStudentPanelJournal(studentUserId) {
+  const el = document.getElementById('sp-content-journal');
+  if (!el) return;
+  const wrapOpen = `<div style="background:#FBF6EC;border-radius:14px;padding:16px;font-family:'Caveat',cursive;"><div style="font-size:16px;color:#B8A88A;margin-bottom:8px;">📓 Brain Dump Journal</div>`;
+  const wrapClose = `</div>`;
+  el.innerHTML = wrapOpen + `<div style="font-size:16px;color:#3D2B0A;">Loading…</div>` + wrapClose;
+
+  try {
+    // Note: reads by user_id (not id) — profiles.id and profiles.user_id are
+    // different columns in this schema, so the existing loadStudentBrainDumps()
+    // helper (which queries by id) never actually matches any row.
+    const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + encodeURIComponent(studentUserId) + '&select=study_notes', { headers });
+    const data = res.ok ? await res.json() : [];
+    const notes = (data && data[0]?.study_notes) || [];
+
+    if (!notes.length) {
+      el.innerHTML = wrapOpen + `<div style="font-size:16px;color:#3D2B0A;">No brain dumps yet.</div>` + wrapClose;
+      return;
+    }
+
+    const entriesHTML = notes.slice(-10).reverse().map(n => `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:14px;color:#B8A88A;margin-bottom:2px;">${n.topic_name || n.topic || ''} — ${n.date ? new Date(n.date).toLocaleDateString('en-GB') : ''}</div>
+        <div style="font-size:18px;color:#3D2B0A;line-height:1.5;">${(n.brain_dump_text || '').slice(0,300)}${(n.brain_dump_text || '').length > 300 ? '…' : ''}</div>
+        ${n.ai_feedback ? `<div style="font-size:14px;color:#8B7355;margin-top:4px;font-style:italic;">${n.ai_feedback}</div>` : ''}
+      </div>`).join('');
+    el.innerHTML = wrapOpen + entriesHTML + wrapClose;
+  } catch(e) {
+    el.innerHTML = wrapOpen + `<div style="font-size:16px;color:#3D2B0A;">Could not load journal.</div>` + wrapClose;
+  }
+}
+
+async function loadStudentPanelHomework(studentUserId) {
+  const el = document.getElementById('sp-content-homework');
+  if (!el) return;
+  const classCode = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass)?.code;
+  if (!classCode) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#94A3B8;">No class selected.</div>'; return; }
+
+  try {
+    const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&order=end_date.desc', { headers });
+    const homeworks = res.ok ? await res.json() : [];
+    if (!homeworks.length) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#94A3B8;">No homework assigned yet.</div>'; return; }
+
+    const rows = await Promise.all(homeworks.map(async hw => {
+      const subject = hw.topic_key.startsWith('B') ? 'Biology' : hw.topic_key.startsWith('C') ? 'Chemistry' : 'Physics';
+      const histRes = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(studentUserId) +
+        '&subject=eq.' + subject +
+        '&created_at=gte.' + hw.start_date +
+        '&created_at=lte.' + hw.end_date +
+        '&select=grade&limit=1',
+        { headers }
+      );
+      const hist = histRes.ok ? await histRes.json() : [];
+      const done = hist.length > 0;
+      const isPast = new Date(hw.end_date) < new Date();
+      const icon = done ? '✅' : (isPast ? '🔴' : '⏳');
+      const endFmt = new Date(hw.end_date).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+      return `<div style="display:flex;align-items:center;justify-content:space-between;background:#F8FAFC;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1A2E22;">${hw.topic_name}${hw.subtopic_name ? ' · ' + hw.subtopic_name : ''}</div>
+          <div style="font-size:11px;color:#64748B;margin-top:2px;">Due ${endFmt}</div>
+        </div>
+        <span style="font-size:18px;">${icon}</span>
+      </div>`;
+    }));
+    el.innerHTML = rows.join('');
+  } catch(e) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#DC2626;">Could not load homework.</div>'; }
+}
+
+// ══════════════════════════════════════════════════════════
 // PERFORMANCE ANALYTICS (Overview + RAG Grid combined tab)
 // ══════════════════════════════════════════════════════════
 
@@ -30661,7 +30937,8 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       const safeT = tKey.replace(/[^A-Za-z0-9]/g, '_');
 
       const subtopicRows = t.order.map(sKey => {
-        const sLocked = isKeyLockedForClass(sKey);
+        // Inherit the parent topic's lock — a locked topic implicitly locks all its subtopics
+        const sLocked = locked || isKeyLockedForClass(sKey);
         const safeS = sKey.replace(/[^A-Za-z0-9]/g, '_');
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px 8px 36px;border-top:1px solid #F1F5F9;">
           <span style="font-size:12px;font-weight:600;color:#475569;">${t.subtopics[sKey]}</span>
@@ -30670,7 +30947,7 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       }).join('');
 
       return `<div style="border-top:1px solid #F1F5F9;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}')">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}','${tKey}')">
           <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
             <span id="stt-caret-${safeT}" style="font-size:11px;color:#94A3B8;">▶</span>
             <div>
@@ -30708,11 +30985,37 @@ function renderClassTopicToggle(key, safeKey, locked) {
   </div>`;
 }
 
-function toggleSTTopicExpand(safeKey) {
+function toggleSTTopicExpand(safeKey, topicKey) {
   const el = document.getElementById('stt-subs-' + safeKey);
   const caret = document.getElementById('stt-caret-' + safeKey);
   if (!el) return;
   const open = el.style.display !== 'none';
+
+  if (!open && topicKey) {
+    // Rebuild subtopic rows from current locked_topics state (not the stale initial render)
+    const students = STATE.teacherStudents || [];
+    const isLockedForClass = key => {
+      const tKey = 'T:' + key.toUpperCase();
+      return students.length > 0 && students.every(s => (s.lockedTopics || []).includes(tKey));
+    };
+    const topicLocked = isLockedForClass(topicKey);
+    const subtopics = {};
+    const order = [];
+    SAMPLE_CARDS.forEach(c => {
+      if (c.topic.toUpperCase() !== topicKey.toUpperCase() || !c.subtopic) return;
+      const sKey = c.subtopic.toUpperCase();
+      if (!subtopics[sKey]) { subtopics[sKey] = c.subtopic_name || sKey; order.push(sKey); }
+    });
+    el.innerHTML = order.map(sKey => {
+      const sLocked = topicLocked || isLockedForClass(sKey);
+      const safeS = sKey.replace(/[^A-Za-z0-9]/g, '_');
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px 8px 36px;border-top:1px solid #F1F5F9;">
+        <span style="font-size:12px;font-weight:600;color:#475569;">${subtopics[sKey]}</span>
+        ${renderClassTopicToggle(sKey, safeS, sLocked)}
+      </div>`;
+    }).join('');
+  }
+
   el.style.display = open ? 'none' : 'block';
   if (caret) caret.textContent = open ? '▶' : '▼';
 }
