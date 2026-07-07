@@ -18474,18 +18474,18 @@ function _renderSessionEnd() {
 // BEFORE TOMORROW — end-of-session Again/Hard review prompt
 // ============================================================
 const BEFORE_TOMORROW_MSGS = [
-  "Your future self will literally thank you. Takes 5 mins. Do it.",
-  "The exam doesn't care that you were tired. These words do.",
-  "Say it out loud. Yes, out loud. No one's watching. Probably.",
-  "Write it in the air. Feel silly? Good. You'll remember it.",
-  "5 minutes now = not crying the night before the exam. Maths.",
-  "Your brain deletes stuff it hasn't seen twice. Don't let it.",
-  "The kids getting 9s are doing this right now. Just saying.",
-  "Repeat after me: partially permeable membrane. See? You've got this.",
-  "Close this and you'll forget by morning. Keep going for 4 more mins.",
-  "One day you'll be explaining this to someone else. Start now.",
-  "Boring? Yes. Worth it? Ask yourself in the exam hall.",
-  "Say the key terms out loud 3 times. Your brain is listening even if you're not.",
+  "5 minutes now saves 5 hours later.",
+  "Your brain remembers what you repeat.",
+  "Say it out loud. Your brain is listening.",
+  "The marks hide in the bold words. Find them.",
+  "Small daily improvements lead to stunning results.",
+  "The expert in anything was once a beginner.",
+  "Repetition is the mother of learning.",
+  "Say the key terms three times. That's it. Done.",
+  "Your future self will thank you for these 5 minutes.",
+  "Close your eyes. Can you picture the bold words? That's learning.",
+  "Read it. Say it. Write it in the air. You've got this.",
+  "One more minute now is worth an hour before the exam.",
 ];
 
 function _btKeyTerms(card) {
@@ -18542,43 +18542,36 @@ function _renderBeforeTomorrowScreen() {
   const selected = STATE._btSelected || [];
   const target = Math.min(3, results.length);
   const isComplete = target > 0 && selected.length >= target;
-  const gradeMeta = {
-    0: { label: 'Again 😰', color: '#DC2626', bg: '#FEF2F2' },
-    1: { label: 'Hard 😤',  color: '#D97706', bg: '#FFFBEB' },
-  };
 
   const cardsHTML = results.map(entry => {
     const card = entry.card;
-    const meta = gradeMeta[entry.grade] || gradeMeta[0];
     const isSelected = selected.includes(card.id);
-    return `<div id="bt-card-${card.id}" onclick="toggleBeforeTomorrowCard('${card.id}')" style="background:${isSelected ? '#F0FDF4' : 'white'};border:${isSelected ? '2px' : '1.5px'} solid ${isSelected ? 'var(--gm-forest)' : 'var(--gm-border)'};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color 0.15s ease,background 0.15s ease;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-        <div style="font-size:14px;font-weight:600;color:var(--gm-text);line-height:1.4;flex:1;">${_btBoldForest(card.q || card.question || '')}</div>
-        <span style="flex-shrink:0;font-size:11px;font-weight:700;color:${meta.color};background:${meta.bg};border-radius:999px;padding:3px 10px;white-space:nowrap;">${meta.label}</span>
-      </div>
+    const answerHTML = (Array.isArray(card.a) ? card.a : []).map(a => _btBoldForest(a)).join('<br>');
+    return `<div id="bt-card-${card.id}" onclick="toggleBeforeTomorrowCard('${card.id}')" style="background:${isSelected ? '#F0FDF4' : 'white'};border-radius:12px;padding:14px;margin-bottom:8px;border-left:3px solid #DC2626;box-shadow:0 1px 4px rgba(0,0,0,0.06);cursor:pointer;transition:border-color 0.15s ease,background 0.15s ease;${isSelected ? 'border:2px solid #216D39;' : ''}">
+      <div style="font-size:13px;font-weight:700;color:#1A2E22;margin-bottom:6px;">${_btBoldForest(card.q || card.question || '')}</div>
+      <div style="font-size:12px;color:#1A2E22;line-height:1.6;">${answerHTML}</div>
     </div>`;
   }).join('');
 
-  const masteredHTML = isComplete ? selected.map(id => {
-    const entry = results.find(e => e.card.id === id);
-    if (!entry) return '';
-    const terms = _btKeyTerms(entry.card);
-    const pillsHTML = terms.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${terms.map(t => `<span style="display:inline-flex;align-items:center;background:#216D39;color:white;border-radius:999px;font-size:10px;padding:3px 10px;">${t}</span>`).join('')}</div>`
-      : '';
-    return `<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:14px;margin-bottom:10px;">
-      <div style="font-size:12px;font-weight:700;color:#216D39;margin-bottom:6px;">KEY TERMS TO REMEMBER:</div>
-      ${pillsHTML}
-      <div style="font-size:13px;color:#64748B;margin-top:8px;font-style:italic;">"Say each one out loud 3 times. Write it in the air. Done."</div>
-    </div>`;
-  }).join('') : '';
+  const uniqueTerms = isComplete
+    ? [...new Set(selected.flatMap(id => {
+        const entry = results.find(e => e.card.id === id);
+        return entry ? _btKeyTerms(entry.card) : [];
+      }))]
+    : [];
+  const pillsHTML = uniqueTerms.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">${uniqueTerms.map(t => `<span style="background:#216D39;color:white;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;">${t}</span>`).join('')}</div>`
+    : '';
 
   const actionHTML = isComplete ? `
     <div style="margin-top:24px;">
       <div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Your ${selected.length} to master:</div>
-      ${masteredHTML}
-      <div style="background:#FEFCE8;border:1px solid #FDE68A;border-radius:14px;padding:12px;font-size:13px;color:#B45309;font-style:italic;text-align:center;margin:16px 0 20px;">${STATE._btMsg}</div>
-      <button class="btn btn-primary btn-full" style="height:48px;" onclick="_beforeTomorrowContinue(true)">I did it! ✓</button>
+      ${pillsHTML}
+      <div style="font-size:13px;color:#64748B;font-style:italic;margin-top:8px;text-align:center;">Say each one out loud 3 times. Write it in the air. Done. ✓</div>
+      <div style="background:#FEFCE8;border:1.5px solid #FDE68A;border-radius:10px;padding:10px 14px;text-align:center;margin-top:12px;">
+        <span style="font-size:13px;color:#B45309;font-style:italic;">"${STATE._btMsg}"</span>
+      </div>
+      <button class="btn btn-primary btn-full" style="height:48px;margin-top:16px;" onclick="_beforeTomorrowContinue(true)">I've said them out loud ✓</button>
       <button onclick="_beforeTomorrowContinue(false)" style="background:none;border:none;color:var(--gm-muted);font-size:13px;font-weight:600;padding:10px;width:100%;cursor:pointer;margin-top:4px;">Skip for now</button>
     </div>` : '';
 
@@ -18589,7 +18582,7 @@ function _renderBeforeTomorrowScreen() {
     <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Your brain is literally deleting these right now. 5 mins = sorted.</div>
   </div>
   <div style="padding:20px;max-width:520px;margin:0 auto;">
-    <div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Pick 3 to nail tomorrow</div>
+    <div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:8px;">Pick 3 of these facts. Read them out loud. Pay attention to the <span style="color:#216D39;font-weight:800;">bold words</span> — that's where the marks hide!</div>
     ${cardsHTML}
     ${actionHTML}
   </div>
@@ -20558,10 +20551,15 @@ function buildSettingsHTML(code, aiLocked, currentName) {
       </div>`
     + '</div>'
     + buildClassScheduleSection()
+    + '<div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:12px 14px;margin-bottom:12px;">'
+    + '<div style="font-size:12px;color:#0369A1;line-height:1.6;">'
+    +   '🔒 <strong>Flashcard topic locks only affect daily revision cards.</strong> Students can always access any topic freely in Deep Dive and Knowledge Organisers — no unlocking needed.'
+    + '</div>'
+    + '</div>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
-    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Flashcard Topic Control</label>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
-    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional topics</p>'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional flashcard topics</p>'
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
     + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
     + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
@@ -26364,10 +26362,15 @@ function buildSettingsHTML(code, aiLocked, currentName) {
       </div>`
     + '</div>'
     + buildClassScheduleSection()
+    + '<div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:12px 14px;margin-bottom:12px;">'
+    + '<div style="font-size:12px;color:#0369A1;line-height:1.6;">'
+    +   '🔒 <strong>Flashcard topic locks only affect daily revision cards.</strong> Students can always access any topic freely in Deep Dive and Knowledge Organisers — no unlocking needed.'
+    + '</div>'
+    + '</div>'
     + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">'
-    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Topic Unlock</label>'
+    + '<label style="font-size:0.75rem;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:12px;">Flashcard Topic Control</label>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
-    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional topics</p>'
+    + '<div><p style="margin:0;font-size:0.9rem;font-weight:600;color:#1e293b;">Allow students to unlock additional flashcard topics</p>'
     + '<p style="margin:4px 0 0;font-size:0.78rem;color:#64748b;">When off, only teacher-set topic access applies</p></div>'
     + '<div onclick="toggleClassAllowStudentUnlock()" id="allow-unlock-toggle" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:#22C55E;position:relative;flex-shrink:0;">'
     + '<div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>'
@@ -30907,10 +30910,10 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
 
   const section2 = `
     <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:12px;">
-      <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🔓 Student Topic Control</div>
+      <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🔓 Flashcard Topic Control</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <div style="font-size:14px;font-weight:700;color:#1A2E22;">Students can unlock their own topics</div>
+          <div style="font-size:14px;font-weight:700;color:#1A2E22;">Students can unlock their own flashcard topics</div>
           <div style="font-size:12px;color:#64748B;margin-top:2px;">When off — only you can unlock topics for students</div>
         </div>
         <div onclick="toggleClassAllowStudentUnlockSTT()" id="stt-allow-unlock-toggle" data-on="${allowUnlock ? 'true' : 'false'}" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:${allowUnlock ? '#22C55E' : '#E2E8F0'};position:relative;flex-shrink:0;">
