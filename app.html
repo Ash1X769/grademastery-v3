@@ -20111,6 +20111,7 @@ async function showTeacherDashboard(selectedClass) {
             <div style="font-size:14px;font-weight:800;color:#1E293B;margin-bottom:3px;">${s.name}</div>
             <div style="font-size:11px;font-weight:700;color:${s.studiedToday?'#16A34A':'#DC2626'};margin-bottom:4px;">${s.studiedToday?'Done today ✓':'Not done yet'}</div>
             <span style="background:${bg};color:${col};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${tierLabel(s.tierFull)}</span>
+            <span style="background:${s.allow_self_grade ? '#F8FAFC' : '#F0FDF4'};color:${s.allow_self_grade ? '#64748B' : '#216D39'};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;margin-left:6px;">${s.allow_self_grade ? '✏️ Self-grade' : '🤖 AI Only'}</span>
           </div>
           <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px;font-size:12px;font-weight:700;color:#64748B;">
             <span>🔥 ${s.streak}</span><span>📚 ${s.cards}</span><span>${s.xp} XP</span>
@@ -20185,6 +20186,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
       <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
+      <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
@@ -20197,6 +20199,7 @@ async function showTeacherDashboard(selectedClass) {
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
+      <div id="tcontent-studenttopics" class="tcontent" style="display:none;"></div>
     </div>
   </div>`;
 
@@ -20505,7 +20508,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings','homework'].forEach(t => {
+  ['overview','rag','students','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -20520,6 +20523,12 @@ function teacherTab(tab) {
     const hwStart = document.getElementById('hw-start-date');
     if (hwStart) hwStart.value = new Date().toISOString().split('T')[0];
     loadHomeworkTracker(hwClassCode);
+  }
+  if (tab === 'studenttopics') {
+    const stClass = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass);
+    const stStudents = STATE.teacherStudents || [];
+    document.getElementById('tcontent-studenttopics').innerHTML =
+      buildStudentTopicsHTML(stStudents, STATE.teacherClasses, STATE.teacherSelectedClass);
   }
 }
 
@@ -25806,6 +25815,7 @@ async function showTeacherDashboard(selectedClass) {
             <div style="font-size:14px;font-weight:800;color:#1E293B;margin-bottom:3px;">${s.name}</div>
             <div style="font-size:11px;font-weight:700;color:${s.studiedToday?'#16A34A':'#DC2626'};margin-bottom:4px;">${s.studiedToday?'Done today ✓':'Not done yet'}</div>
             <span style="background:${bg};color:${col};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${tierLabel(s.tierFull)}</span>
+            <span style="background:${s.allow_self_grade ? '#F8FAFC' : '#F0FDF4'};color:${s.allow_self_grade ? '#64748B' : '#216D39'};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;margin-left:6px;">${s.allow_self_grade ? '✏️ Self-grade' : '🤖 AI Only'}</span>
           </div>
           <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px;font-size:12px;font-weight:700;color:#64748B;">
             <span>🔥 ${s.streak}</span><span>📚 ${s.cards}</span><span>${s.xp} XP</span>
@@ -25880,6 +25890,7 @@ async function showTeacherDashboard(selectedClass) {
       <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
       <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
+      <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
       <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
     </div>
 
@@ -25892,6 +25903,7 @@ async function showTeacherDashboard(selectedClass) {
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
+      <div id="tcontent-studenttopics" class="tcontent" style="display:none;"></div>
     </div>
   </div>`;
 
@@ -26200,7 +26212,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings','homework'].forEach(t => {
+  ['overview','rag','students','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -26215,6 +26227,12 @@ function teacherTab(tab) {
     const hwStart = document.getElementById('hw-start-date');
     if (hwStart) hwStart.value = new Date().toISOString().split('T')[0];
     loadHomeworkTracker(hwClassCode);
+  }
+  if (tab === 'studenttopics') {
+    const stClass = STATE.teacherClasses?.find(c => c.id === STATE.teacherSelectedClass);
+    const stStudents = STATE.teacherStudents || [];
+    document.getElementById('tcontent-studenttopics').innerHTML =
+      buildStudentTopicsHTML(stStudents, STATE.teacherClasses, STATE.teacherSelectedClass);
   }
 }
 
@@ -30159,6 +30177,231 @@ function showKOTopicPicker() {
   document.getElementById('ko-picker-close').onclick = () => overlay.remove();
   overlay.querySelectorAll('.ko-picker-btn').forEach(btn => {
     btn.onclick = () => { overlay.remove(); showKnowledgeOrganiser(btn.dataset.topic); };
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// STUDENT TOPICS FEATURE
+// ══════════════════════════════════════════════════════════
+
+function buildStudentTopicsHTML(students, classes, selectedClass) {
+  if (!selectedClass || selectedClass === 'all') {
+    return `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:14px;padding:28px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:10px;">ℹ️</div>
+      <div style="font-size:15px;font-weight:800;color:#1E40AF;margin-bottom:6px;">Select a class to manage topics</div>
+      <div style="font-size:13px;color:#3B82F6;font-weight:600;">Choose a specific class from the dropdown above.</div>
+    </div>`;
+  }
+
+  const cls = (classes || []).find(c => c.id === selectedClass);
+  const aiLocked = cls?.ai_marking_locked === true;
+  const allowUnlock = cls?.allow_student_unlock !== false;
+  const studentList = students || [];
+
+  const isKeyLockedForClass = key => {
+    const tKey = 'T:' + key.toUpperCase();
+    return studentList.length > 0 && studentList.every(s => (s.lockedTopics || []).includes(tKey));
+  };
+
+  const section1 = `
+    <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🤖 AI Marking — Whole Class</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1A2E22;">Require AI marking for all students</div>
+          <div style="font-size:12px;color:#64748B;margin-top:2px;">Only AI-marked answers count toward Mastery Tracker</div>
+        </div>
+        ${buildAIToggle(aiLocked)}
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:#64748B;background:#F8FAFC;border-radius:8px;padding:10px 12px;">
+        To exempt an individual student from this setting → go to <strong>Students tab → select student</strong>
+      </div>
+    </div>`;
+
+  const section2 = `
+    <div style="background:white;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">🔓 Student Topic Control</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1A2E22;">Students can unlock their own topics</div>
+          <div style="font-size:12px;color:#64748B;margin-top:2px;">When off — only you can unlock topics for students</div>
+        </div>
+        <div onclick="toggleClassAllowStudentUnlockSTT()" id="stt-allow-unlock-toggle" data-on="${allowUnlock ? 'true' : 'false'}" style="cursor:pointer;width:52px;height:28px;border-radius:14px;background:${allowUnlock ? '#22C55E' : '#E2E8F0'};position:relative;flex-shrink:0;">
+          <div style="position:absolute;top:3px;${allowUnlock ? 'right:3px' : 'left:3px'};width:22px;height:22px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+        </div>
+      </div>
+    </div>`;
+
+  const subjectDefs = [
+    { name: 'Biology',   color: '#216D39' },
+    { name: 'Chemistry', color: '#EA580C' },
+    { name: 'Physics',   color: '#0284C7' }
+  ];
+
+  const subjectSections = subjectDefs.map(sd => {
+    const subjCards = SAMPLE_CARDS.filter(c => c.subject === sd.name);
+    const byTopic = {};
+    const topicOrder = [];
+    subjCards.forEach(c => {
+      const tKey = c.topic.toUpperCase();
+      if (!byTopic[tKey]) { byTopic[tKey] = { name: c.topic_name || tKey, subtopics: {}, order: [] }; topicOrder.push(tKey); }
+      if (c.subtopic) {
+        const sKey = c.subtopic.toUpperCase();
+        if (!byTopic[tKey].subtopics[sKey]) { byTopic[tKey].subtopics[sKey] = c.subtopic_name || sKey; byTopic[tKey].order.push(sKey); }
+      }
+    });
+    topicOrder.sort();
+
+    const topicRows = topicOrder.map(tKey => {
+      const t = byTopic[tKey];
+      const locked = isKeyLockedForClass(tKey);
+      const safeT = tKey.replace(/[^A-Za-z0-9]/g, '_');
+
+      const subtopicRows = t.order.map(sKey => {
+        const sLocked = isKeyLockedForClass(sKey);
+        const safeS = sKey.replace(/[^A-Za-z0-9]/g, '_');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px 8px 36px;border-top:1px solid #F1F5F9;">
+          <span style="font-size:12px;font-weight:600;color:#475569;">${t.subtopics[sKey]}</span>
+          ${renderClassTopicToggle(sKey, safeS, sLocked)}
+        </div>`;
+      }).join('');
+
+      return `<div style="border-top:1px solid #F1F5F9;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}')">
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+            <span id="stt-caret-${safeT}" style="font-size:11px;color:#94A3B8;">▶</span>
+            <div>
+              <span style="font-size:14px;font-weight:800;color:#1A2E22;">${t.name}</span>
+              <span style="font-size:11px;color:#94A3B8;font-weight:600;margin-left:6px;">${tKey}</span>
+            </div>
+          </div>
+          <span onclick="event.stopPropagation();">${renderClassTopicToggle(tKey, safeT, locked)}</span>
+        </div>
+        <div id="stt-subs-${safeT}" style="display:none;">${subtopicRows}</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:12px;overflow:hidden;">
+      <div style="padding:16px;background:${sd.color}0D;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:15px;font-weight:900;color:${sd.color};">${sd.name}</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="unlockAllClassTopics('${sd.name}')" style="padding:6px 12px;border-radius:8px;border:1.5px solid ${sd.color};background:white;color:${sd.color};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Unlock all ${sd.name}</button>
+          <button onclick="lockAllClassTopics('${sd.name}')" style="padding:6px 12px;border-radius:8px;border:none;background:${sd.color};color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Lock all ${sd.name}</button>
+        </div>
+      </div>
+      ${topicRows}
+    </div>`;
+  }).join('');
+
+  return section1 + section2
+    + `<div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;">📖 Topic Access — ${cls?.name || 'This Class'}</div>`
+    + subjectSections;
+}
+
+function renderClassTopicToggle(key, safeKey, locked) {
+  const on = !locked;
+  return `<div id="stt-toggle-${safeKey}" onclick="toggleClassTopicLock('${key}',${locked})" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${on ? '#22C55E' : '#CBD5E1'};position:relative;flex-shrink:0;">
+    <div style="position:absolute;top:2px;${on ? 'right:2px' : 'left:2px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+  </div>`;
+}
+
+function toggleSTTopicExpand(safeKey) {
+  const el = document.getElementById('stt-subs-' + safeKey);
+  const caret = document.getElementById('stt-caret-' + safeKey);
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (caret) caret.textContent = open ? '▶' : '▼';
+}
+
+async function toggleClassTopicLock(topicKey, currentlyLocked) {
+  const students = STATE.teacherStudents || [];
+  if (!students.length) { showToast('No students in this class'); return; }
+
+  const safeKey = topicKey.replace(/[^A-Za-z0-9]/g, '_');
+  const toggle = document.getElementById('stt-toggle-' + safeKey);
+  if (toggle) toggle.innerHTML = '<div style="position:absolute;top:1px;left:12px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">⏳</div>';
+
+  const tKey = 'T:' + topicKey.toUpperCase();
+  const token = STATE.user?.token;
+  let ok = 0;
+  for (const s of students) {
+    const existing = s.lockedTopics || [];
+    const newLocked = currentlyLocked
+      ? existing.filter(t => t !== tKey)
+      : [...existing.filter(t => t !== tKey), tKey];
+    try {
+      const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + encodeURIComponent(s.user_id), {
+        method: 'PATCH',
+        headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ locked_topics: newLocked })
+      });
+      if (res.ok) { s.lockedTopics = newLocked; ok++; }
+    } catch(e) {}
+  }
+
+  showToast((currentlyLocked ? '🔓 Unlocked' : '🔒 Locked') + ' ' + topicKey + ' for ' + ok + '/' + students.length + ' students');
+  teacherTab('studenttopics');
+}
+
+async function bulkSetClassTopicsForSubject(subjectName, lock) {
+  const students = STATE.teacherStudents || [];
+  if (!students.length) { showToast('No students in this class'); return; }
+
+  const topicKeys = [...new Set(SAMPLE_CARDS.filter(c => c.subject === subjectName).map(c => c.topic.toUpperCase()))];
+  const token = STATE.user?.token;
+  let ok = 0;
+  for (const s of students) {
+    let existing = (s.lockedTopics || []).filter(t => !(t.startsWith('T:') && topicKeys.includes(t.slice(2).toUpperCase())));
+    if (lock) existing = existing.concat(topicKeys.map(tk => 'T:' + tk));
+    try {
+      const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + encodeURIComponent(s.user_id), {
+        method: 'PATCH',
+        headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ locked_topics: existing })
+      });
+      if (res.ok) { s.lockedTopics = existing; ok++; }
+    } catch(e) {}
+  }
+
+  showToast((lock ? '🔒 Locked' : '🔓 Unlocked') + ' all ' + subjectName + ' for ' + ok + '/' + students.length + ' students');
+  teacherTab('studenttopics');
+}
+
+function lockAllClassTopics(subjectName) {
+  showToast('Locking all ' + subjectName + ' topics…');
+  bulkSetClassTopicsForSubject(subjectName, true);
+}
+
+function unlockAllClassTopics(subjectName) {
+  showToast('Unlocking all ' + subjectName + ' topics…');
+  bulkSetClassTopicsForSubject(subjectName, false);
+}
+
+function toggleClassAllowStudentUnlockSTT() {
+  const classId = STATE.teacherSelectedClass;
+  const toggle = document.getElementById('stt-allow-unlock-toggle');
+  if (!classId || classId === 'all' || !toggle) { showToast('Select a specific class first'); return; }
+
+  const currentlyOn = toggle.getAttribute('data-on') !== 'false';
+  const newVal = !currentlyOn;
+  toggle.style.background = newVal ? '#22C55E' : '#E2E8F0';
+  toggle.setAttribute('data-on', String(newVal));
+  const thumb = toggle.querySelector('div');
+  if (thumb) { thumb.style.left = newVal ? '' : '3px'; thumb.style.right = newVal ? '3px' : ''; }
+
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?id=eq.' + classId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ allow_student_unlock: newVal })
+  }).then(r => {
+    if (r.ok) {
+      const cls = (STATE.teacherClasses || []).find(c => c.id === classId);
+      if (cls) cls.allow_student_unlock = newVal;
+      showToast(newVal ? 'Students can now unlock topics ✓' : 'Topic unlock restricted to teacher ✓');
+    } else {
+      showToast('Could not update — try again');
+    }
   });
 }
 
