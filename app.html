@@ -19991,6 +19991,11 @@ async function showTeacherDashboard(selectedClass) {
 
   const ragColor = p => p >= 75 ? '#16A34A' : p >= 40 ? '#D97706' : '#DC2626';
   const ragBg    = p => p >= 75 ? '#F0FDF4' : p >= 40 ? '#FEFCE8' : '#FEF2F2';
+  // Soft pastel palette used only by the RAG Heatmap grid cells (Performance Analytics tab)
+  const ragCellColor = p => p >= 75 ? '#065F46' : p >= 40 ? '#92400E' : '#991B1B';
+  const ragCellBg    = p => p >= 75 ? '#ECFDF5' : p >= 40 ? '#FFFBEB' : '#FEF2F2';
+  const ragTopicKeyByName = {};
+  SAMPLE_CARDS.forEach(c => { if (c.topic_name && !ragTopicKeyByName[c.topic_name]) ragTopicKeyByName[c.topic_name] = c.topic.toUpperCase(); });
   const tierLabel = t => {
     if (!t) return 'Foundation';
     const lvl = t.includes('higher') ? 'Higher' : 'Foundation';
@@ -20069,9 +20074,10 @@ async function showTeacherDashboard(selectedClass) {
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="font-size:14px;font-weight:800;color:#1E293B;">Topic Accuracy Grid</div>
         <div style="font-size:12px;font-weight:600;color:#94A3B8;margin-top:3px;">
-          <span style="color:#16A34A;">●</span> 75%+ &nbsp;
-          <span style="color:#D97706;">●</span> 40–74% &nbsp;
-          <span style="color:#DC2626;">●</span> Under 40% &nbsp;
+          <span style="color:#065F46;">●</span> 75%+ &nbsp;
+          <span style="color:#92400E;">●</span> 40–74% &nbsp;
+          <span style="color:#991B1B;">●</span> Under 40% &nbsp;
+          <span style="color:#94A3B8;">🔒</span> Locked &nbsp;
           <span style="color:#CBD5E1;">—</span> Not studied
         </div>
       </div>
@@ -20086,8 +20092,13 @@ async function showTeacherDashboard(selectedClass) {
               <td style="padding:11px 16px;font-size:13px;font-weight:700;">${s.name}</td>
               ${allTopics.map(t => {
                 const td = s.topics[t];
-                return td !== undefined
-                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragBg(td.pct)};color:${ragColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`
+                if (td !== undefined) {
+                  return `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragCellBg(td.pct)};color:${ragCellColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`;
+                }
+                const topicKey = ragTopicKeyByName[t];
+                const isLockedForStudent = topicKey && (s.lockedTopics || []).some(lt => (lt.startsWith('T:') ? lt.slice(2) : lt).toUpperCase() === topicKey);
+                return isLockedForStudent
+                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:#F8FAFC;color:#94A3B8;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">🔒</div></td>`
                   : `<td style="padding:7px 10px;text-align:center;color:#CBD5E1;font-size:15px;">—</td>`;
               }).join('')}
             </tr>`).join('')}
@@ -20183,20 +20194,31 @@ async function showTeacherDashboard(selectedClass) {
     </div>
 
     <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
-      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
-      <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
+      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Performance Analytics</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
-      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
+      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Curriculum Planner</button>
       <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Config</button>
     </div>
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
-      <div id="tcontent-overview">${overviewHTML}</div>
-      <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
+      <div id="tcontent-overview">
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button onclick="switchPerformanceView('summary',this)" id="perf-summary-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:#216D39;color:white;border:none;">
+            📊 Class Summary
+          </button>
+          <button onclick="switchPerformanceView('heatmap',this)" id="perf-heatmap-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
+            🔥 RAG Heatmap
+          </button>
+        </div>
+        <div id="perf-summary-content">${overviewHTML}</div>
+        <div id="perf-heatmap-content" style="display:none;">${ragHTML}</div>
+      </div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
@@ -20282,7 +20304,7 @@ async function showStudentHistory(userId) {
     const token = STATE.user?.token;
     const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,question,subject,topic_name,grade,created_at&order=created_at.desc',
+      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc',
       { headers }
     );
     const rows = res.ok ? await res.json() : [];
@@ -20296,7 +20318,7 @@ async function showStudentHistory(userId) {
     rows.forEach(h => {
       const key = h.card_id;
       if (!byCard[key]) {
-        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1 };
+        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
       }
@@ -20316,6 +20338,7 @@ async function showStudentHistory(userId) {
             <div style="flex:1;min-width:0;margin-right:12px;">
               <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${questionText}</div>
               <div style="font-size:12px;color:#64748B;font-weight:600;">${subjectEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
+              ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:13px;font-weight:900;color:${col};">${em} ${lbl}</div>
@@ -20509,7 +20532,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings','homework','studenttopics'].forEach(t => {
+  ['overview','students','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -25696,6 +25719,11 @@ async function showTeacherDashboard(selectedClass) {
 
   const ragColor = p => p >= 75 ? '#16A34A' : p >= 40 ? '#D97706' : '#DC2626';
   const ragBg    = p => p >= 75 ? '#F0FDF4' : p >= 40 ? '#FEFCE8' : '#FEF2F2';
+  // Soft pastel palette used only by the RAG Heatmap grid cells (Performance Analytics tab)
+  const ragCellColor = p => p >= 75 ? '#065F46' : p >= 40 ? '#92400E' : '#991B1B';
+  const ragCellBg    = p => p >= 75 ? '#ECFDF5' : p >= 40 ? '#FFFBEB' : '#FEF2F2';
+  const ragTopicKeyByName = {};
+  SAMPLE_CARDS.forEach(c => { if (c.topic_name && !ragTopicKeyByName[c.topic_name]) ragTopicKeyByName[c.topic_name] = c.topic.toUpperCase(); });
   const tierLabel = t => {
     if (!t) return 'Foundation';
     const lvl = t.includes('higher') ? 'Higher' : 'Foundation';
@@ -25774,9 +25802,10 @@ async function showTeacherDashboard(selectedClass) {
       <div style="padding:15px 20px;border-bottom:1px solid #F1F5F9;">
         <div style="font-size:14px;font-weight:800;color:#1E293B;">Topic Accuracy Grid</div>
         <div style="font-size:12px;font-weight:600;color:#94A3B8;margin-top:3px;">
-          <span style="color:#16A34A;">●</span> 75%+ &nbsp;
-          <span style="color:#D97706;">●</span> 40–74% &nbsp;
-          <span style="color:#DC2626;">●</span> Under 40% &nbsp;
+          <span style="color:#065F46;">●</span> 75%+ &nbsp;
+          <span style="color:#92400E;">●</span> 40–74% &nbsp;
+          <span style="color:#991B1B;">●</span> Under 40% &nbsp;
+          <span style="color:#94A3B8;">🔒</span> Locked &nbsp;
           <span style="color:#CBD5E1;">—</span> Not studied
         </div>
       </div>
@@ -25791,8 +25820,13 @@ async function showTeacherDashboard(selectedClass) {
               <td style="padding:11px 16px;font-size:13px;font-weight:700;">${s.name}</td>
               ${allTopics.map(t => {
                 const td = s.topics[t];
-                return td !== undefined
-                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragBg(td.pct)};color:${ragColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`
+                if (td !== undefined) {
+                  return `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:${ragCellBg(td.pct)};color:${ragCellColor(td.pct)};border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">${td.pct}%</div></td>`;
+                }
+                const topicKey = ragTopicKeyByName[t];
+                const isLockedForStudent = topicKey && (s.lockedTopics || []).some(lt => (lt.startsWith('T:') ? lt.slice(2) : lt).toUpperCase() === topicKey);
+                return isLockedForStudent
+                  ? `<td style="padding:7px 10px;text-align:center;"><div style="display:inline-block;background:#F8FAFC;color:#94A3B8;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:900;">🔒</div></td>`
                   : `<td style="padding:7px 10px;text-align:center;color:#CBD5E1;font-size:15px;">—</td>`;
               }).join('')}
             </tr>`).join('')}
@@ -25888,20 +25922,31 @@ async function showTeacherDashboard(selectedClass) {
     </div>
 
     <div style="background:white;border-bottom:1px solid #E2E8F0;display:flex;padding:0 10px;gap:2px;">
-      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Overview</button>
-      <button id="ttab-rag"      onclick="teacherTab('rag')"      style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">RAG Grid</button>
+      <button id="ttab-overview" onclick="teacherTab('overview')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:#F3E8FF;font-size:13px;font-weight:700;color:var(--gm-forest);cursor:pointer;font-family:inherit;white-space:nowrap;">Performance Analytics</button>
       <button id="ttab-students" onclick="teacherTab('students')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Students</button>
-      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Homework</button>
+      <button id="ttab-homework" onclick="teacherTab('homework')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Curriculum Planner</button>
       <button class="ttab" id="ttab-studenttopics" onclick="teacherTab('studenttopics')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">📚 Student Topics</button>
-      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Settings</button>
+      <button id="ttab-settings" onclick="teacherTab('settings')" style="padding:12px 14px;border:none;border-radius:8px 8px 0 0;background:none;font-size:13px;font-weight:700;color:#64748B;cursor:pointer;font-family:inherit;white-space:nowrap;">Class Config</button>
     </div>
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
       </div>
-      <div id="tcontent-overview">${overviewHTML}</div>
-      <div id="tcontent-rag"      style="display:none;">${ragHTML}</div>
+      <div id="tcontent-overview">
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button onclick="switchPerformanceView('summary',this)" id="perf-summary-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:#216D39;color:white;border:none;">
+            📊 Class Summary
+          </button>
+          <button onclick="switchPerformanceView('heatmap',this)" id="perf-heatmap-btn"
+            style="padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#64748B;border:1.5px solid #E2E8F0;">
+            🔥 RAG Heatmap
+          </button>
+        </div>
+        <div id="perf-summary-content">${overviewHTML}</div>
+        <div id="perf-heatmap-content" style="display:none;">${ragHTML}</div>
+      </div>
       <div id="tcontent-students" style="display:none;">${studentsHTML}</div>
       <div id="tcontent-settings" style="display:none;">${settingsHTML}</div>
       <div id="tcontent-homework" class="tcontent" style="display:none;"></div>
@@ -25987,7 +26032,7 @@ async function showStudentHistory(userId) {
     const token = STATE.user?.token;
     const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,question,subject,topic_name,grade,created_at&order=created_at.desc',
+      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc',
       { headers }
     );
     const rows = res.ok ? await res.json() : [];
@@ -26001,7 +26046,7 @@ async function showStudentHistory(userId) {
     rows.forEach(h => {
       const key = h.card_id;
       if (!byCard[key]) {
-        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1 };
+        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
       }
@@ -26021,6 +26066,7 @@ async function showStudentHistory(userId) {
             <div style="flex:1;min-width:0;margin-right:12px;">
               <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${questionText}</div>
               <div style="font-size:12px;color:#64748B;font-weight:600;">${subjectEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
+              ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:13px;font-weight:900;color:${col};">${em} ${lbl}</div>
@@ -26214,7 +26260,7 @@ function buildSettingsHTML(code, aiLocked, currentName) {
 }
 
 function teacherTab(tab) {
-  ['overview','rag','students','settings','homework','studenttopics'].forEach(t => {
+  ['overview','students','settings','homework','studenttopics'].forEach(t => {
     const btn = document.getElementById('ttab-' + t);
     const content = document.getElementById('tcontent-' + t);
     if (btn) {
@@ -30180,6 +30226,23 @@ function showKOTopicPicker() {
   overlay.querySelectorAll('.ko-picker-btn').forEach(btn => {
     btn.onclick = () => { overlay.remove(); showKnowledgeOrganiser(btn.dataset.topic); };
   });
+}
+
+// ══════════════════════════════════════════════════════════
+// PERFORMANCE ANALYTICS (Overview + RAG Grid combined tab)
+// ══════════════════════════════════════════════════════════
+
+function switchPerformanceView(view, btn) {
+  document.getElementById('perf-summary-content').style.display = view === 'summary' ? 'block' : 'none';
+  document.getElementById('perf-heatmap-content').style.display = view === 'heatmap' ? 'block' : 'none';
+
+  document.getElementById('perf-summary-btn').style.background = view === 'summary' ? '#216D39' : 'white';
+  document.getElementById('perf-summary-btn').style.color = view === 'summary' ? 'white' : '#64748B';
+  document.getElementById('perf-summary-btn').style.border = view === 'summary' ? 'none' : '1.5px solid #E2E8F0';
+
+  document.getElementById('perf-heatmap-btn').style.background = view === 'heatmap' ? '#216D39' : 'white';
+  document.getElementById('perf-heatmap-btn').style.color = view === 'heatmap' ? 'white' : '#64748B';
+  document.getElementById('perf-heatmap-btn').style.border = view === 'heatmap' ? 'none' : '1.5px solid #E2E8F0';
 }
 
 // ══════════════════════════════════════════════════════════
