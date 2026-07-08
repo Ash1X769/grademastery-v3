@@ -2797,6 +2797,10 @@ h1,h2,h3,.gm-heading {
   text-align:center; padding:32px 16px; color:var(--gm-muted);
   font-size:14px; font-weight:500;
 }
+.v3-ko-highlight {
+  background:#FEF08A; color:#1A2E22; border-radius:2px; padding:0 1px;
+  /* Intentionally no user-select override — inherits user-select:none from .v3-ko-content */
+}
 @media print {
   #ko-content-wrapper { display:none !important; }
   .ko-print-block { display:block !important; }
@@ -15732,7 +15736,7 @@ async function loadUserPaidStatus() {
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
-      STATE.user.allow_self_grade       = p.allow_self_grade !== false;
+      STATE.user.allow_self_grade       = p.allow_self_grade === true;
       STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
@@ -21628,7 +21632,7 @@ async function loadUserPaidStatus() {
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
-      STATE.user.allow_self_grade       = p.allow_self_grade !== false;
+      STATE.user.allow_self_grade       = p.allow_self_grade === true;
       STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
@@ -30369,17 +30373,25 @@ function updateDDGuidance() {
 // ─── KO V3 HELPERS ──────────────────────────────────────────────
 
 function _koFilterSections(term) {
-  const t = (term || '').trim().toLowerCase();
+  const rawTerm = (term || '').trim();
+  const t = rawTerm.toLowerCase();
   const clearBtn = document.getElementById('ko-search-clear');
   if (clearBtn) clearBtn.style.display = t ? 'inline' : 'none';
   const sections = document.querySelectorAll('#ko-content-wrapper .v3-ko-section');
   let visible = 0;
   sections.forEach(sec => {
-    if (!t) { sec.style.display = ''; visible++; return; }
+    // Cache each section's pristine (un-highlighted) markup on first touch, per-element —
+    // fresh DOM elements are created every time showKnowledgeOrganiser() runs, so this
+    // can never go stale across different topics the way an external id-keyed cache could
+    // (section ids like "ko-section-0" repeat across topics).
+    if (sec.dataset.origHtml === undefined) sec.dataset.origHtml = sec.innerHTML;
+
+    if (!t) { sec.innerHTML = sec.dataset.origHtml; sec.style.display = ''; visible++; return; }
     // Prefer pre-computed data attribute (subtopic name + question + answer text, stripped of ** markers)
     // Fall back to textContent for older rendered sections
     const text = sec.dataset.searchtext || (sec.textContent || '').toLowerCase();
     const match = text.includes(t);
+    sec.innerHTML = match ? _koHighlightHTML(sec.dataset.origHtml, rawTerm) : sec.dataset.origHtml;
     sec.style.display = match ? '' : 'none';
     if (match) visible++;
   });
@@ -30387,6 +30399,47 @@ function _koFilterSections(term) {
   const noResTerm = document.getElementById('ko-nr-term');
   if (noRes) noRes.style.display = (t && visible === 0) ? '' : 'none';
   if (noResTerm) noResTerm.textContent = term;
+}
+
+// Wraps every case-insensitive occurrence of rawTerm found inside pristineHtml's TEXT
+// NODES in a <mark class="v3-ko-highlight">, without touching any existing markup or
+// attributes. Never inserts the raw search term into HTML via string concatenation —
+// it's only used for substring matching; the highlighted text itself is copied from the
+// original content via textContent (auto-escaped by the DOM), so no manual escaping is
+// needed and no injection is possible. Existing elements (<strong>, <td>, etc.) are left
+// completely untouched — only text nodes get split.
+function _koHighlightHTML(pristineHtml, rawTerm) {
+  const container = document.createElement('div');
+  container.innerHTML = pristineHtml;
+  const lowerTerm = rawTerm.toLowerCase();
+  if (!lowerTerm) return container.innerHTML;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) textNodes.push(node);
+
+  textNodes.forEach(textNode => {
+    const text = textNode.nodeValue;
+    const lowerText = text.toLowerCase();
+    if (!lowerText.includes(lowerTerm)) return;
+
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    let idx;
+    while ((idx = lowerText.indexOf(lowerTerm, lastIndex)) !== -1) {
+      if (idx > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, idx)));
+      const mark = document.createElement('mark');
+      mark.className = 'v3-ko-highlight';
+      mark.textContent = text.slice(idx, idx + rawTerm.length);
+      frag.appendChild(mark);
+      lastIndex = idx + rawTerm.length;
+    }
+    if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    textNode.parentNode.replaceChild(frag, textNode);
+  });
+
+  return container.innerHTML;
 }
 
 function showKOTopicPicker() {
@@ -30983,6 +31036,13 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       const safeT = tKey.replace(/[^A-Za-z0-9]/g, '_');
       const isExpanded = _sttExpandedTopics.has(tKey);
 
+      // Topic-level state relative to its subtopics: 'locked' = topic key itself locked for
+      // the class OR every subtopic is; 'mixed' = some (not all) subtopics locked; 'unlocked' = none
+      const lockedSubCount = t.order.filter(sk => isKeyLockedForClass(sk)).length;
+      const topicState = locked ? 'locked'
+        : (t.order.length > 0 && lockedSubCount === t.order.length) ? 'locked'
+        : lockedSubCount > 0 ? 'mixed' : 'unlocked';
+
       const subtopicRows = t.order.map(sKey => {
         // Inherit the parent topic's lock — a locked topic implicitly locks all its subtopics
         const sLocked = locked || isKeyLockedForClass(sKey);
@@ -31002,7 +31062,7 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
               <span style="font-size:11px;color:#94A3B8;font-weight:600;margin-left:6px;">${tKey}</span>
             </div>
           </div>
-          ${renderClassTopicToggle(tKey, safeT, locked)}
+          ${renderClassTopicToggle(tKey, safeT, topicState)}
         </div>
         <div id="stt-subs-${safeT}" style="${isExpanded ? '' : 'display:none;'}">${subtopicRows}</div>
       </div>`;
@@ -31025,10 +31085,19 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
     + subjectSections;
 }
 
-function renderClassTopicToggle(key, safeKey, locked) {
-  const on = !locked;
-  return `<div id="stt-toggle-${safeKey}" onclick="toggleClassTopicLock('${key}',${locked})" style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${on ? '#22C55E' : '#CBD5E1'};position:relative;flex-shrink:0;">
-    <div style="position:absolute;top:2px;${on ? 'right:2px' : 'left:2px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+function renderClassTopicToggle(key, safeKey, lockedOrState) {
+  // Accepts either a plain boolean (subtopic toggles — always 2-state) or a 3-state
+  // string 'locked'/'unlocked'/'mixed' (topic-level toggles, which can be mixed
+  // relative to their subtopics).
+  const state = lockedOrState === true ? 'locked' : lockedOrState === false ? 'unlocked' : lockedOrState;
+  const bg = state === 'unlocked' ? '#22C55E' : state === 'mixed' ? '#F59E0B' : '#CBD5E1';
+  const thumbRight = state !== 'locked';
+  // Clicking from 'mixed' resolves the ambiguity by locking everything (same as clicking
+  // from 'unlocked') — only a fully 'locked' toggle unlocks on click.
+  const clickCurrentlyLocked = state === 'locked';
+  const title = state === 'mixed' ? ' title="Mixed — some subtopics locked. Click to lock all."' : '';
+  return `<div id="stt-toggle-${safeKey}" onclick="toggleClassTopicLock('${key}',${clickCurrentlyLocked})"${title} style="cursor:pointer;width:44px;height:24px;border-radius:12px;background:${bg};position:relative;flex-shrink:0;">
+    <div style="position:absolute;top:2px;${thumbRight ? 'right:2px' : 'left:2px'};width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
   </div>`;
 }
 
