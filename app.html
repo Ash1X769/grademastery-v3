@@ -1475,34 +1475,6 @@ textarea.input { resize: vertical; min-height: 100px; }
 }
 
 /* ============================================================
-   TOAST
-============================================================ */
-.toast {
-  position: fixed;
-  top: 20px;
-  left: 16px;
-  right: 16px;
-  margin: 0 auto;
-  width: fit-content;
-  max-width: calc(100% - 32px);
-  background: var(--bg-dark);
-  color: white;
-  padding: 12px 20px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 700;
-  z-index: 9990;
-  animation: toastIn 0.25s ease;
-  white-space: nowrap;
-  text-align: center;
-}
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
    RESPONSIVE / DESKTOP WRAPPER
 ============================================================ */
 
@@ -2648,19 +2620,19 @@ h1,h2,h3,.gm-heading {
 .v3-toast {
   position:fixed; top:16px; right:16px; z-index:9998;
   max-width:280px; min-width:200px; width:auto;
-  background:var(--gm-white); color:var(--gm-text); border-radius:10px;
+  background:var(--gm-white); color:var(--gm-text); border-radius:12px;
   padding:12px 16px; font-size:13px; font-weight:500;
   box-shadow:0 4px 16px rgba(0,0,0,0.12);
   display:flex; align-items:center; gap:10px;
   border-left:3px solid var(--gm-forest);
-  animation:gmToastIn 0.25s ease forwards;
+  animation:gmToastIn 0.3s ease forwards;
 }
 .v3-toast.error { border-left-color:#DC2626; }
 .v3-toast.info  { border-left-color:var(--gm-forest); }
 @keyframes gmToastIn { from { transform:translateX(120%); opacity:0; } to { transform:translateX(0); opacity:1; } }
 @keyframes gmToastOut { from { transform:translateX(0); opacity:1; } to { transform:translateX(120%); opacity:0; } }
 @media (max-width:767px) {
-  .v3-toast { top:16px; right:8px; left:8px; max-width:calc(100% - 16px); }
+  .v3-toast { top:12px; right:12px; max-width:calc(100vw - 24px); }
 }
 
 @keyframes gmShake {
@@ -15072,6 +15044,37 @@ const LS = {
   del: (k) => localStorage.removeItem('ss_' + k),
 };
 
+// Local (not UTC) calendar date string — nextReview is stored via toISOString(), which is UTC and
+// can roll back to "today" for users in positive-UTC-offset timezones studying just after local midnight.
+function _localDateStr(dateInput) {
+  const d = new Date(dateInput);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Persist STATE.todayDone across page reloads / relaunches so completed cards don't reappear as due
+function _todayDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function _saveTodayDone() {
+  try {
+    const plain = {};
+    Object.keys(STATE.todayDone || {}).forEach(subj => { plain[subj] = [...(STATE.todayDone[subj] || [])]; });
+    localStorage.setItem('gm_today_done', JSON.stringify({ date: _todayDateStr(), done: plain }));
+  } catch(e) {}
+}
+function _loadTodayDone() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gm_today_done') || 'null');
+    if (!saved) return;
+    if (saved.date !== _todayDateStr()) { localStorage.removeItem('gm_today_done'); return; } // new day — discard stale data
+    Object.keys(saved.done || {}).forEach(subj => {
+      if (!STATE.todayDone[subj]) STATE.todayDone[subj] = new Set();
+      (saved.done[subj] || []).forEach(id => STATE.todayDone[subj].add(id));
+    });
+  } catch(e) {}
+}
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -15088,7 +15091,7 @@ function showToast(msg, duration=3000) {
   t.className = 'v3-toast' + (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('could not') ? ' error' : '');
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.animation = 'gmToastOut 0.25s ease forwards'; setTimeout(() => t.remove(), 250); }, duration);
+  setTimeout(() => { t.style.animation = 'gmToastOut 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, duration);
 }
 
 function formatTime(secs) {
@@ -15187,9 +15190,11 @@ function getDueCards(user) {
       !(c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase()))
     );
 
-    // Due reviews: date-only comparison (timezone fix), oldest-overdue first
+    // Due reviews: date-only comparison using LOCAL calendar date (nextReview is stored as a UTC
+    // ISO string, so slicing it directly can roll back to "today" just after local midnight in
+    // positive-UTC-offset timezones — always compare local-date-to-local-date), oldest-overdue first
     const due = subjectCards
-      .filter(c => progress[c.id] && (progress[c.id].nextReview || '').slice(0, 10) <= todayStr)
+      .filter(c => progress[c.id]?.nextReview && _localDateStr(progress[c.id].nextReview) <= todayStr)
       .sort((a, b) => (progress[a.id].nextReview || '').localeCompare(progress[b.id].nextReview || ''));
 
     // New cards: no progress entry and not already introduced today
@@ -16470,6 +16475,7 @@ ${renderNavBar('dashboard')}
 
 function showHome() {
   STATE.screen = 'home';
+  _loadTodayDone();
   const user = STATE.user;
   const progress = LS.get('card_progress') || {};
   const history = LS.get('card_history') || [];
@@ -16494,7 +16500,7 @@ function showHome() {
     const due = cards.filter(c => {
       if (STATE.todayDone[c.subject]?.has(c.id)) return false;
       if (!progress[c.id]) return true;
-      return (progress[c.id].nextReview || '').slice(0, 10) <= _dueTodayStr;
+      return progress[c.id].nextReview ? _localDateStr(progress[c.id].nextReview) <= _dueTodayStr : true;
     });
     // Cap due count at this subject's independent daily remaining allowance
     return { subj, cards: cards.length, due: Math.min(due.length, getRemainingCards(subj)), color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
@@ -17107,6 +17113,7 @@ function recordAndAdvance(cardId, grade) {
     if (wasNew && card?.subject) {
       if (!STATE.todayDone[card.subject]) STATE.todayDone[card.subject] = new Set();
       STATE.todayDone[card.subject].add(cardId);
+      _saveTodayDone();
     }
     incrementCardCount();
   } else {
@@ -17150,12 +17157,7 @@ function recordAndAdvance(cardId, grade) {
           } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
             showTransition('cards-to-exam');
           } else {
-            const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
-            if (againHard.length > 0) {
-              showBeforeTomorrowScreen(againHard, endSession);
-            } else {
-              endSession();
-            }
+            showSessionEnd();
           }
         } else {
           if (STATE.sessionPhase === 'embed') {
@@ -17731,6 +17733,7 @@ function recordGrade(cardId, grade, aiGraded) {
     if (wasNew && card?.subject) {
       if (!STATE.todayDone[card.subject]) STATE.todayDone[card.subject] = new Set();
       STATE.todayDone[card.subject].add(cardId);
+      _saveTodayDone();
     }
     incrementCardCount();
   } else if (isQR) {
@@ -17763,12 +17766,7 @@ function nextCard() {
     } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
       showTransition('cards-to-exam');
     } else {
-      const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
-      if (againHard.length > 0) {
-        showBeforeTomorrowScreen(againHard, showSessionEnd);
-      } else {
-        showSessionEnd();
-      }
+      showSessionEnd();
     }
   } else {
     if (STATE.sessionPhase === 'embed') {
@@ -18430,6 +18428,11 @@ function _renderSessionEnd() {
   ];
   const msg = messages.find(m => accuracy >= m.min) || messages[messages.length-1];
 
+  const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+  const endButtonHTML = againHard.length > 0
+    ? '<button class="btn btn-primary btn-full btn-lg" onclick="_continueToBeforeTomorrow()">Continue →</button>'
+    : '<button class="btn btn-primary btn-full btn-lg" onclick="showHome()">Back to Home 🏠</button>';
+
   const html = `
 <div class="screen">
   <div style="flex:1;overflow-y:auto;padding:24px 20px 100px;">
@@ -18463,7 +18466,7 @@ function _renderSessionEnd() {
       <p style="font-size:14px;color:var(--text-secondary);font-weight:600;line-height:1.5;">Come back tomorrow to review your cards. Your streak resets if you miss a day — don't break the chain!</p>
     </div>
 
-    <button class="btn btn-primary btn-full btn-lg" onclick="showHome()">Back to Home 🏠</button>
+    ${endButtonHTML}
   </div>
 </div>`;
 
@@ -18503,6 +18506,12 @@ function showBeforeTomorrowScreen(againHardCards, onContinue) {
   STATE._btOnContinue = onContinue;
   STATE._btMsg = BEFORE_TOMORROW_MSGS[Math.floor(Math.random() * BEFORE_TOMORROW_MSGS.length)];
   _renderBeforeTomorrowScreen();
+}
+
+// Called from the celebration screen's "Continue →" button
+function _continueToBeforeTomorrow() {
+  const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+  showBeforeTomorrowScreen(againHard, showHome);
 }
 
 function toggleBeforeTomorrowCard(cardId) {
@@ -18579,7 +18588,7 @@ function _renderBeforeTomorrowScreen() {
 <div class="screen" style="background:#FAFAFA;min-height:100vh;">
   <div style="background:var(--gm-forest);padding:20px;">
     <div style="font-family:'Plus Jakarta Sans','Nunito',sans-serif;font-size:20px;font-weight:800;color:white;">Before Tomorrow 🧠</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Your brain is literally deleting these right now. 5 mins = sorted.</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Great effort! 💪 Lock these in before tomorrow.</div>
   </div>
   <div style="padding:20px;max-width:520px;margin:0 auto;">
     <div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:8px;">Pick 3 of these facts. Read them out loud. Pay attention to the <span style="color:#216D39;font-weight:800;">bold words</span> — that's where the marks hide!</div>
@@ -20996,7 +21005,7 @@ function showToast(msg, duration=3000) {
   t.className = 'v3-toast' + (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('could not') ? ' error' : '');
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.animation = 'gmToastOut 0.25s ease forwards'; setTimeout(() => t.remove(), 250); }, duration);
+  setTimeout(() => { t.style.animation = 'gmToastOut 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, duration);
 }
 
 function formatTime(secs) {
@@ -21095,9 +21104,11 @@ function getDueCards(user) {
       !(c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase()))
     );
 
-    // Due reviews: date-only comparison (timezone fix), oldest-overdue first
+    // Due reviews: date-only comparison using LOCAL calendar date (nextReview is stored as a UTC
+    // ISO string, so slicing it directly can roll back to "today" just after local midnight in
+    // positive-UTC-offset timezones — always compare local-date-to-local-date), oldest-overdue first
     const due = subjectCards
-      .filter(c => progress[c.id] && (progress[c.id].nextReview || '').slice(0, 10) <= todayStr)
+      .filter(c => progress[c.id]?.nextReview && _localDateStr(progress[c.id].nextReview) <= todayStr)
       .sort((a, b) => (progress[a.id].nextReview || '').localeCompare(progress[b.id].nextReview || ''));
 
     // New cards: no progress entry and not already introduced today
@@ -22344,6 +22355,7 @@ ${renderNavBar('dashboard')}
 
 function showHome() {
   STATE.screen = 'home';
+  _loadTodayDone();
   const user = STATE.user;
   const progress = LS.get('card_progress') || {};
   const history = LS.get('card_history') || [];
@@ -22368,7 +22380,7 @@ function showHome() {
     const due = cards.filter(c => {
       if (STATE.todayDone[c.subject]?.has(c.id)) return false;
       if (!progress[c.id]) return true;
-      return (progress[c.id].nextReview || '').slice(0, 10) <= _dueTodayStr;
+      return progress[c.id].nextReview ? _localDateStr(progress[c.id].nextReview) <= _dueTodayStr : true;
     });
     // Cap due count at this subject's independent daily remaining allowance
     return { subj, cards: cards.length, due: Math.min(due.length, getRemainingCards(subj)), color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
@@ -22954,6 +22966,7 @@ function recordAndAdvance(cardId, grade) {
     if (wasNew && card?.subject) {
       if (!STATE.todayDone[card.subject]) STATE.todayDone[card.subject] = new Set();
       STATE.todayDone[card.subject].add(cardId);
+      _saveTodayDone();
     }
     incrementCardCount();
   } else {
@@ -22997,12 +23010,7 @@ function recordAndAdvance(cardId, grade) {
           } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
             showTransition('cards-to-exam');
           } else {
-            const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
-            if (againHard.length > 0) {
-              showBeforeTomorrowScreen(againHard, endSession);
-            } else {
-              endSession();
-            }
+            showSessionEnd();
           }
         } else {
           if (STATE.sessionPhase === 'embed') {
@@ -23665,6 +23673,7 @@ function recordGrade(cardId, grade, aiGraded) {
     if (wasNew && card?.subject) {
       if (!STATE.todayDone[card.subject]) STATE.todayDone[card.subject] = new Set();
       STATE.todayDone[card.subject].add(cardId);
+      _saveTodayDone();
     }
     incrementCardCount();
   } else if (isQR) {
@@ -23697,12 +23706,7 @@ function nextCard() {
     } else if (STATE.sessionPhase === 'deepDive' && STATE.deepDiveCurrentPhase === 'cards') {
       showTransition('cards-to-exam');
     } else {
-      const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
-      if (againHard.length > 0) {
-        showBeforeTomorrowScreen(againHard, showSessionEnd);
-      } else {
-        showSessionEnd();
-      }
+      showSessionEnd();
     }
   } else {
     if (STATE.sessionPhase === 'embed') {
@@ -24362,6 +24366,11 @@ function _renderSessionEnd() {
   ];
   const msg = messages.find(m => accuracy >= m.min) || messages[messages.length-1];
 
+  const againHard = (STATE.sessionResults || []).filter(r => r.grade === 0 || r.grade === 1);
+  const endButtonHTML = againHard.length > 0
+    ? '<button class="btn btn-primary btn-full btn-lg" onclick="_continueToBeforeTomorrow()">Continue →</button>'
+    : '<button class="btn btn-primary btn-full btn-lg" onclick="showHome()">Back to Home 🏠</button>';
+
   const html = `
 <div class="screen">
   <div style="flex:1;overflow-y:auto;padding:24px 20px 100px;">
@@ -24395,7 +24404,7 @@ function _renderSessionEnd() {
       <p style="font-size:14px;color:var(--text-secondary);font-weight:600;line-height:1.5;">Come back tomorrow to review your cards. Your streak resets if you miss a day — don't break the chain!</p>
     </div>
 
-    <button class="btn btn-primary btn-full btn-lg" onclick="showHome()">Back to Home 🏠</button>
+    ${endButtonHTML}
   </div>
 </div>`;
 
