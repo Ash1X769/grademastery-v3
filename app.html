@@ -15849,9 +15849,9 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
@@ -18819,17 +18819,16 @@ function sendTutorFromInput() {
 }
 
 async function sendTutorMessage(message) {
-  if (!STATE.user?.is_paid) {
-    const daily = getAITutorDailyCount();
-    const weekly = getAITutorWeeklyCount();
-    if (daily >= getAITutorDailyLimit()) {
-      showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`);
-      return;
-    }
-    if (weekly >= getAITutorWeeklyLimit()) {
-      showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
-      return;
-    }
+  const daily = getAITutorDailyCount();
+  if (daily >= getAITutorDailyLimit()) {
+    showAILimitModal(!STATE.user?.is_paid
+      ? `You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`
+      : `You've used today's AI Tutor limit for your plan. Upgrade for more messages, or grab a top-up.`);
+    return;
+  }
+  if (!STATE.user?.is_paid && getAITutorWeeklyCount() >= getAITutorWeeklyLimit()) {
+    showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
+    return;
   }
   STATE.tutorHistory.push({ role: 'user', content: message });
   showAITutor();
@@ -21745,9 +21744,9 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Unlimited flashcards','✨ AI Marking','Progress tracking'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic','✨ Smart Marking AI (40/day)','AI Tutor (10/day)'], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard','Smart Marking AI unlimited','AI Tutor (20/day)'], cta:'Upgrade', trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
@@ -24632,17 +24631,16 @@ function sendTutorFromInput() {
 }
 
 async function sendTutorMessage(message) {
-  if (!STATE.user?.is_paid) {
-    const daily = getAITutorDailyCount();
-    const weekly = getAITutorWeeklyCount();
-    if (daily >= getAITutorDailyLimit()) {
-      showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`);
-      return;
-    }
-    if (weekly >= getAITutorWeeklyLimit()) {
-      showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
-      return;
-    }
+  const daily = getAITutorDailyCount();
+  if (daily >= getAITutorDailyLimit()) {
+    showAILimitModal(!STATE.user?.is_paid
+      ? `You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`
+      : `You've used today's AI Tutor limit for your plan. Upgrade for more messages, or grab a top-up.`);
+    return;
+  }
+  if (!STATE.user?.is_paid && getAITutorWeeklyCount() >= getAITutorWeeklyLimit()) {
+    showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
+    return;
   }
   STATE.tutorHistory.push({ role: 'user', content: message });
   showAITutor();
@@ -29284,8 +29282,9 @@ function getAIMarkingLimit() {
   if (!user) return 0;
   if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (!user.is_paid) return CONFIG.FREE_AI_MARKING_DAILY;
-  if (user.tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_MARKING_DAILY;
-  if (user.tier === 'premium') return CONFIG.PREMIUM_AI_MARKING_DAILY;
+  if (user.subscription_tier === 'basic') return 0;
+  if (user.subscription_tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_MARKING_DAILY;
+  if (user.subscription_tier === 'premium') return CONFIG.PREMIUM_AI_MARKING_DAILY;
   return CONFIG.STANDARD_AI_MARKING_DAILY;
 }
 function getAITutorDailyLimit() {
@@ -29293,8 +29292,9 @@ function getAITutorDailyLimit() {
   if (!user) return 0;
   if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (!user.is_paid) return CONFIG.FREE_AI_TUTOR_DAILY;
-  if (user.tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_TUTOR_DAILY;
-  if (user.tier === 'premium') return CONFIG.PREMIUM_AI_TUTOR_DAILY;
+  if (user.subscription_tier === 'basic') return 0;
+  if (user.subscription_tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_TUTOR_DAILY;
+  if (user.subscription_tier === 'premium') return CONFIG.PREMIUM_AI_TUTOR_DAILY;
   return CONFIG.STANDARD_AI_TUTOR_DAILY;
 }
 function getAITutorWeeklyLimit() {
