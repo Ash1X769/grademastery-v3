@@ -2903,6 +2903,7 @@ let STATE = {
 };
 
 const _expandedTopics = new Set(); // tracks which topic rows have their subtopics panel open
+const _sttExpandedTopics = new Set(); // same, for the teacher's Student Topics tab (buildStudentTopicsHTML) — survives the full re-render that toggleClassTopicLock triggers
 
 // ============================================================
 // SAMPLE CARDS DATA (AQA GCSE Science)
@@ -15693,7 +15694,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -15732,6 +15733,7 @@ async function loadUserPaidStatus() {
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade !== false;
+      STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
@@ -17365,7 +17367,9 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
   const locked = lockedTopics || [];
   const teacherLockedKeys = locked.filter(t => String(t).startsWith('T:')).map(t => String(t).slice(2));
   const effectiveLocked = locked.map(t => { const s = String(t); return s.startsWith('T:') ? s.slice(2) : s; });
-  const canStudentToggle = saveFn !== 'saveStudentTopicLock' || STATE.user?.class_allow_student_unlock !== false;
+  const canStudentToggle = saveFn !== 'saveStudentTopicLock'
+    || STATE.user?.class_allow_student_unlock !== false
+    || STATE.user?.allow_student_unlock === true;
   const subjectEmoji = { Biology: '🌿', Chemistry: '⚗️', Physics: '⚡' };
   const subjectFn = saveFn === 'saveStudentTopicLock' ? 'saveStudentSubjectLock' : 'saveParentChildSubjectLock';
   const subtopicFn = saveFn === 'saveStudentTopicLock' ? 'saveStudentSubtopicLock' : 'saveParentChildSubtopicLock';
@@ -17471,11 +17475,6 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
         h += '</div></div>';
-      } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
-        h += '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
-        h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
-        h += '</div></div>';
       } else {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div onclick="' + topicOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
@@ -17508,6 +17507,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
             // Parent topic locked — show inherited state, toggles disabled
             sToggleHTML = '<div style="width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.4;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.15);"></div></div>';
+          } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
+            // Teacher has restricted this student from changing their own topic/subtopic locks
+            sToggleHTML = '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
+            sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else {
             const sOnclick = childUserId
               ? subtopicFn + "('" + sk + "'," + sDirectLocked + ",'" + childUserId + "')"
@@ -21587,7 +21590,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -21626,6 +21629,7 @@ async function loadUserPaidStatus() {
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade !== false;
+      STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
@@ -23218,7 +23222,9 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
   const locked = lockedTopics || [];
   const teacherLockedKeys = locked.filter(t => String(t).startsWith('T:')).map(t => String(t).slice(2));
   const effectiveLocked = locked.map(t => { const s = String(t); return s.startsWith('T:') ? s.slice(2) : s; });
-  const canStudentToggle = saveFn !== 'saveStudentTopicLock' || STATE.user?.class_allow_student_unlock !== false;
+  const canStudentToggle = saveFn !== 'saveStudentTopicLock'
+    || STATE.user?.class_allow_student_unlock !== false
+    || STATE.user?.allow_student_unlock === true;
   const subjectEmoji = { Biology: '🌿', Chemistry: '⚗️', Physics: '⚡' };
   const subjectFn = saveFn === 'saveStudentTopicLock' ? 'saveStudentSubjectLock' : 'saveParentChildSubjectLock';
   const subtopicFn = saveFn === 'saveStudentTopicLock' ? 'saveStudentSubtopicLock' : 'saveParentChildSubtopicLock';
@@ -23324,11 +23330,6 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
         h += '</div></div>';
-      } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
-        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
-        h += '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
-        h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
-        h += '</div></div>';
       } else {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div onclick="' + topicOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
@@ -23361,6 +23362,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
             // Parent topic locked — show inherited state, toggles disabled
             sToggleHTML = '<div style="width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.4;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.15);"></div></div>';
+          } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
+            // Teacher has restricted this student from changing their own topic/subtopic locks
+            sToggleHTML = '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
+            sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else {
             const sOnclick = childUserId
               ? subtopicFn + "('" + sk + "'," + sDirectLocked + ",'" + childUserId + "')"
@@ -30976,6 +30981,7 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       const t = byTopic[tKey];
       const locked = isKeyLockedForClass(tKey);
       const safeT = tKey.replace(/[^A-Za-z0-9]/g, '_');
+      const isExpanded = _sttExpandedTopics.has(tKey);
 
       const subtopicRows = t.order.map(sKey => {
         // Inherit the parent topic's lock — a locked topic implicitly locks all its subtopics
@@ -30990,7 +30996,7 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
       return `<div style="border-top:1px solid #F1F5F9;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;">
           <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer;" onclick="toggleSTTopicExpand('${safeT}','${tKey}')">
-            <span id="stt-caret-${safeT}" style="font-size:11px;color:#94A3B8;">▶</span>
+            <span id="stt-caret-${safeT}" style="font-size:11px;color:#94A3B8;">${isExpanded ? '▼' : '▶'}</span>
             <div>
               <span style="font-size:14px;font-weight:800;color:#1A2E22;">${t.name}</span>
               <span style="font-size:11px;color:#94A3B8;font-weight:600;margin-left:6px;">${tKey}</span>
@@ -30998,7 +31004,7 @@ function buildStudentTopicsHTML(students, classes, selectedClass) {
           </div>
           ${renderClassTopicToggle(tKey, safeT, locked)}
         </div>
-        <div id="stt-subs-${safeT}" style="display:none;">${subtopicRows}</div>
+        <div id="stt-subs-${safeT}" style="${isExpanded ? '' : 'display:none;'}">${subtopicRows}</div>
       </div>`;
     }).join('');
 
@@ -31031,6 +31037,11 @@ function toggleSTTopicExpand(safeKey, topicKey) {
   const caret = document.getElementById('stt-caret-' + safeKey);
   if (!el) return;
   const open = el.style.display !== 'none';
+
+  if (topicKey) {
+    if (open) _sttExpandedTopics.delete(topicKey);
+    else _sttExpandedTopics.add(topicKey);
+  }
 
   if (!open && topicKey) {
     // Rebuild subtopic rows from current locked_topics state (not the stale initial render)
