@@ -16816,7 +16816,7 @@ function showHome() {
     return '<div style="width:32px;height:32px;border-radius:50%;background:' + (done || isToday ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)') + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:' + (done || isToday ? '#E8720C' : 'rgba(255,255,255,0.7)') + ';">' + d + '</div>';
   }).join('');
   const todayStr = new Date().toISOString().slice(0, 10);
-  const studiedToday = history.some(h => h.date && h.date.startsWith(todayStr));
+  const studiedToday = STATE.user?.last_study_date === _todayDateStr();
 
   const badges = [
     { icon: '🌱', label: 'First Steps', earned: history.length > 0 },
@@ -22763,7 +22763,7 @@ function showHome() {
     return '<div style="width:32px;height:32px;border-radius:50%;background:' + (done || isToday ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)') + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:' + (done || isToday ? '#E8720C' : 'rgba(255,255,255,0.7)') + ';">' + d + '</div>';
   }).join('');
   const todayStr = new Date().toISOString().slice(0, 10);
-  const studiedToday = history.some(h => h.date && h.date.startsWith(todayStr));
+  const studiedToday = STATE.user?.last_study_date === _todayDateStr();
 
   const badges = [
     { icon: '🌱', label: 'First Steps', earned: history.length > 0 },
