@@ -29344,16 +29344,19 @@ async function init() {
   const _urlScreen = new URLSearchParams(window.location.search).get('screen') || null;
 
   if (saved && saved.id && saved.refresh_token) {
-    // Restore session immediately so there's no blank screen
+    // Restore session so we have a user to work with, then refresh the token
+    // BEFORE calling afterLogin() — screens like the teacher dashboard fetch data
+    // immediately on afterLogin(), and a stale/expired cached token makes those
+    // fetches silently return no data instead of erroring.
     STATE.user = saved;
     STATE.role = saved.role || 'student';
-    afterLogin(_urlScreen);
-    // Validate token in background — redirect to auth silently if expired
-    fetch(CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
-      body: JSON.stringify({ refresh_token: saved.refresh_token })
-    }).then(r => r.json()).then(data => {
+    render('<div class="loading-spinner">Loading...</div>');
+    try {
+      const data = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+        body: JSON.stringify({ refresh_token: saved.refresh_token })
+      }).then(r => r.json());
       if (data.access_token) {
         STATE.user = { ...STATE.user, token: data.access_token, refresh_token: data.refresh_token };
         LS.set('demo_user', STATE.user);
@@ -29362,10 +29365,12 @@ async function init() {
         _clearAllStorage();
         STATE.user = null; STATE.role = null;
         showAuth();
+        return;
       }
-    }).catch(() => {
-      // Network error — keep showing app (user may be offline)
-    });
+    } catch(e) {
+      // Network error — proceed with the cached (possibly stale) session; user may be offline
+    }
+    afterLogin(_urlScreen);
     return;
   }
 
@@ -29391,6 +29396,31 @@ async function init() {
           ai_mode: meta.ai_mode !== false,
         };
         STATE.role = STATE.user?.role || 'student';
+        // Same staleness gap as the demo_user branch above: this access_token was
+        // whatever Supabase last wrote to its own storage key, which may be expired.
+        // Refresh it BEFORE afterLogin() so screens like the teacher dashboard don't
+        // fetch with a dead token and silently render empty.
+        if (STATE.user.refresh_token) {
+          render('<div class="loading-spinner">Loading...</div>');
+          try {
+            const data = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+              body: JSON.stringify({ refresh_token: STATE.user.refresh_token })
+            }).then(r => r.json());
+            if (data.access_token) {
+              STATE.user = { ...STATE.user, token: data.access_token, refresh_token: data.refresh_token };
+            } else {
+              // Token rejected by server — log out cleanly
+              _clearAllStorage();
+              STATE.user = null; STATE.role = null;
+              showAuth();
+              return;
+            }
+          } catch(e) {
+            // Network error — proceed with the cached (possibly stale) session; user may be offline
+          }
+        }
         LS.set('demo_user', STATE.user);
         afterLogin(_urlScreen);
         return;
