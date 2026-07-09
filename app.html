@@ -17549,7 +17549,7 @@ function selfGrade(cardId, grade) {
 function syncCardProgress(cardId, prog) {
   const user = STATE.user;
   if (!user?.id || !user?.token) return;
-  fetch(CONFIG.SUPABASE_URL + '/rest/v1/card_progress', {
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/card_progress?on_conflict=user_id,card_id', {
     method: 'POST',
     headers: {
       'apikey': CONFIG.SUPABASE_ANON_KEY,
@@ -17567,7 +17567,7 @@ function syncCardProgress(cardId, prog) {
       last_grade: prog.lastGrade ?? null,
       last_reviewed: new Date().toISOString()
     })
-  }).catch(() => {});
+  }).then(r => { if (!r.ok) r.text().then(t => console.error('card_progress write failed:', r.status, t)); }).catch(e => console.error('card_progress write failed:', e));
 }
 
 async function restoreCardProgressFromSupabase(user) {
@@ -23470,7 +23470,7 @@ function selfGrade(cardId, grade) {
 function syncCardProgress(cardId, prog) {
   const user = STATE.user;
   if (!user?.id || !user?.token) return;
-  fetch(CONFIG.SUPABASE_URL + '/rest/v1/card_progress', {
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/card_progress?on_conflict=user_id,card_id', {
     method: 'POST',
     headers: {
       'apikey': CONFIG.SUPABASE_ANON_KEY,
@@ -23488,7 +23488,7 @@ function syncCardProgress(cardId, prog) {
       last_grade: prog.lastGrade ?? null,
       last_reviewed: new Date().toISOString()
     })
-  }).catch(() => {});
+  }).then(r => { if (!r.ok) r.text().then(t => console.error('card_progress write failed:', r.status, t)); }).catch(e => console.error('card_progress write failed:', e));
 }
 
 async function restoreCardProgressFromSupabase(user) {
