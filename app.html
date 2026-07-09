@@ -2849,19 +2849,23 @@ const CONFIG = {
   VAPID_PUBLIC_KEY: 'BH7MZHLzPeQLlBlgzePbsFLrdDnvU-pEbJh4CpoAsyRy_63vbLauvsnxZltk-sJR7iei8FJu_5FDGhdwHYykjXM',
   STRIPE_PK: 'pk_test_51Tj1Hd0ZgKdgW0uhukdhCtYtkWuilKof5f5tnUKQuETCsRgmhqhm3Oo5bTMpscnoWQurLoDFZRZTcqKgFbg3Flch00hThqLdl5',
   STRIPE_PUBLISHABLE_KEY: 'pk_test_51ToibMBeyG4M2T8lVF3BhHOaLzlCR5iJBtRZfmMWH36x6QxYIPLTu9mShLbK2vqDciNPH4K2Bq1Iz4ylfJkk01lO00ljCewpnO',
-  FREE_CARDS_PER_WEEK: 15,
-  FREE_AI_PER_DAY: 2,
+  FREE_CARDS_DAILY: 4,
+  FREE_CARDS_PER_WEEK: 28,
   FREE_AI_TUTOR_DAILY: 5,
-  FREE_AI_TUTOR_WEEKLY: 35,
-  FREE_AI_MARKING_DAILY: 10,
+  FREE_AI_TUTOR_WEEKLY: 5,
+  FREE_AI_MARKING_DAILY: 2,       // Smart-AI Marking ✨ (real-AI), was 10 — keyword AI Marking is now the separate weekly cap below
+  FREE_AI_MARKING_WEEKLY: 10,     // AI Marking (keyword-based) — new cap, was unlimited
   STANDARD_AI_MARKING_DAILY: 30,
   STANDARD_AI_TUTOR_DAILY: 20,
   STANDARD_BRAIN_DUMP_WEEKLY: 2,
   BASIC_CARDS_DAILY: 30,
+  BASIC_AI_MARKING_DAILY: 2,      // Smart-AI Marking ✨ — new, was 0
+  BASIC_AI_TUTOR_WEEKLY: 10,      // new, was 0
   PREMIUM_AI_TUTOR_DAILY: 40,
   PREMIUM_AI_MARKING_DAILY: 50,
   PREMIUM_PLUS_AI_TUTOR_DAILY: 80,
   PREMIUM_PLUS_AI_MARKING_DAILY: 100,
+  STREAK_UNLOCK_THRESHOLD: 21,
   CLAUDE_API_KEY: '', // Handled securely by Netlify function
   CLAUDE_MODEL: 'claude-sonnet-4-5',
   XP_PER_SESSION: 50,
@@ -2930,10 +2934,53 @@ function triggerHardWallNudge(msg) {
 function notifyAIMarkingLimitReached() {
   const tier = getEffectiveSubscriptionTier();
   if (tier === 'premium' || tier === 'premium_plus') {
-    triggerHardWallNudge("You've used today's AI Marking for your plan. Upgrade to Premium Plus for more, or grab a top-up.");
+    triggerHardWallNudge("You've used today's Smart-AI Marking ✨ for your plan. Upgrade to Premium Plus for more, or grab a top-up.");
   } else {
-    triggerThrottledNudge('ai_marking_limit', "You've used today's AI Marking — upgrade to Standard or Premium for more.");
+    triggerThrottledNudge('ai_marking_limit', "You've used today's Smart-AI Marking ✨ — upgrade to Standard or Premium for more.");
   }
+}
+
+// Free tier only — AI Marking (keyword-based) now has its own weekly cap; Basic and all
+// paid tiers keep the keyword fallback unrestricted (Basic: getAIMarkingLimit() is already
+// 0 there, so this path is its only marking route and must stay open).
+function keywordMarkingAvailable() {
+  if (getEffectiveSubscriptionTier() !== 'free') return true;
+  return getAIMarkingWeeklyCount() < CONFIG.FREE_AI_MARKING_WEEKLY;
+}
+
+// Shared AI Tutor limit gate — used by every chat surface (the main Tutor screen, the
+// floating widget, and the mobile nav "Tutor" tab) so they all draw from one counter
+// instead of each enforcing (or not enforcing) their own. Shows the appropriate modal
+// and returns true if the message should be blocked.
+function checkAITutorLimitAndBlock() {
+  const dailyLimit = getAITutorDailyLimit();
+  if (getAITutorDailyCount() >= dailyLimit) {
+    showAILimitModal(!STATE.user?.is_paid
+      ? `You've used your ${dailyLimit} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`
+      : `You've used today's AI Tutor limit for your plan. Upgrade for more messages, or grab a top-up.`);
+    return true;
+  }
+  const weeklyLimit = getAITutorWeeklyLimit();
+  if (weeklyLimit !== Infinity && getAITutorWeeklyCount() >= weeklyLimit) {
+    showAILimitModal(!STATE.user?.is_paid
+      ? `You've used your ${weeklyLimit} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`
+      : `You've used your ${weeklyLimit} AI Tutor messages for this week. Upgrade for more, or grab a top-up.`);
+    return true;
+  }
+  return false;
+}
+
+// Free tier's flashcard access: their primary subject's topic 1 (B1/C1/P1) plus their
+// earned streak_bonus_subtopic, if any. Shared by getDueCards() (session content) and
+// buildTopicsTabHTML()/startQuickRevision() (the "My Topics" toggles and Revise button),
+// so there's one rule instead of three copies of it drifting apart.
+const _FREE_TOPIC1 = { Biology: 'B1', Chemistry: 'C1', Physics: 'P1' };
+function isFreeTierTopicAccessible(subject, topicKey, subtopicKey) {
+  if (getEffectiveSubscriptionTier() !== 'free') return true;
+  if (subject !== (STATE.user?.primary_subject || 'Biology')) return false;
+  if (topicKey && topicKey.toUpperCase() === _FREE_TOPIC1[subject]) return true;
+  const bonus = (STATE.user?.streak_bonus_subtopic || '').toUpperCase();
+  return !!(subtopicKey && bonus && subtopicKey.toUpperCase() === bonus);
 }
 
 // Category 2 — soft/passive limits: throttled to once per NUDGE_THROTTLE_DAYS per nudge type,
@@ -2974,6 +3021,87 @@ function enforceWithThrottledNudge(nudgeType, quietMsg, fullNudgeMsg) {
     recordNudgeShown(nudgeType);
   } else {
     showToast(quietMsg);
+  }
+}
+
+// ── Streak system (fixed) ────────────────────────────────────────────────
+// Replaces the old per-session STATE.user.streak increment (no date-check, never
+// persisted server-side) with a real, server-synced, calendar-day-gated counter.
+// Global for all tiers — the 21-day bonus-unlock reward built on top is Free-only.
+function _isConsecutiveDay(lastDateStr, todayStr) {
+  if (!lastDateStr) return false;
+  const last = new Date(lastDateStr + 'T00:00:00');
+  const today = new Date(todayStr + 'T00:00:00');
+  return Math.round((today - last) / 86400000) === 1;
+}
+
+async function updateStreakOnStudy() {
+  const user = STATE.user;
+  if (!user?.id) return;
+  const today = _todayDateStr();
+  if (user.last_study_date === today) return; // already counted today, no-op
+  user.streak_current = _isConsecutiveDay(user.last_study_date, today) ? (user.streak_current || 0) + 1 : 1;
+  user.last_study_date = today;
+  if (user.token) {
+    fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id, {
+      method: 'PATCH',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ streak_current: user.streak_current, last_study_date: user.last_study_date })
+    }).catch(() => {});
+  }
+  _checkStreakBonusUnlock();
+}
+
+// Free tier only — Basic/paid tiers get plain streak tracking, no reward attached.
+function _checkStreakBonusUnlock() {
+  const user = STATE.user;
+  if (!user || user.is_paid) return;
+  if ((user.streak_current || 0) >= CONFIG.STREAK_UNLOCK_THRESHOLD && !user.streak_bonus_subtopic) {
+    showStreakBonusUnlockPrompt();
+  }
+}
+
+function showStreakBonusUnlockPrompt() {
+  const user = STATE.user;
+  const subject = user?.primary_subject || 'Biology';
+  const topic1 = _FREE_TOPIC1[subject] || 'B1';
+  const seen = new Set();
+  const options = [];
+  SAMPLE_CARDS.forEach(c => {
+    if (c.subject !== subject || c.topic === topic1 || !c.subtopic) return;
+    if (seen.has(c.subtopic)) return;
+    seen.add(c.subtopic);
+    options.push({ subtopic: c.subtopic, subtopic_name: c.subtopic_name || c.subtopic, topic_name: c.topic_name || c.topic });
+  });
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 0;">
+      <div style="font-size:44px;margin-bottom:10px;">🔥</div>
+      <div class="modal-title" style="font-size:19px;">21-day streak — pick your bonus subtopic!</div>
+      <p style="color:#64748B;font-weight:600;font-size:14px;line-height:1.6;margin:10px 0 16px;">Choose one extra subtopic to unlock. Keep your streak going to keep it — if you miss a day, it re-locks until you build back up to 21.</p>
+    </div>
+    <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+      ${options.slice(0, 30).map(o => `
+        <button class="btn btn-outline btn-full" style="text-align:left;" onclick="_chooseStreakBonusSubtopic('${o.subtopic.replace(/'/g,"\\'")}')">
+          <div style="font-weight:800;">${o.subtopic_name}</div>
+          <div style="font-size:12px;color:#64748B;font-weight:600;">${o.topic_name} · ${o.subtopic}</div>
+        </button>`).join('')}
+    </div>
+  `);
+}
+
+function _chooseStreakBonusSubtopic(subtopicKey) {
+  const user = STATE.user;
+  if (!user) return;
+  user.streak_bonus_subtopic = subtopicKey;
+  closeModal();
+  showToast(`🎉 ${subtopicKey} unlocked — as long as your streak stays at 21+ days!`);
+  if (user.id && user.token) {
+    fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id, {
+      method: 'PATCH',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ streak_bonus_subtopic: subtopicKey })
+    }).catch(() => {});
   }
 }
 
@@ -15328,10 +15456,11 @@ function getDueCards(user) {
     LS.set('session_state', { date: today, cardsStudied: 0 });
   }
 
-  // Free tier: only primary subject; paid: all three
-  const subjects = user.is_paid
-    ? ['Biology', 'Chemistry', 'Physics']
-    : [user.primary_subject || 'Biology'];
+  // Free tier: only primary subject; paid (or trial, which counts as Standard-equivalent): all three
+  const isFreeTier = getEffectiveSubscriptionTier() === 'free';
+  const subjects = isFreeTier
+    ? [user.primary_subject || 'Biology']
+    : ['Biology', 'Chemistry', 'Physics'];
 
   const combined = [];
 
@@ -15346,11 +15475,13 @@ function getDueCards(user) {
       return u.startsWith('T:') ? u.slice(2) : u;
     });
     // todayDone NOT applied to base filter — reviews self-exclude via nextReview after grading
-    const subjectCards = allCards.filter(c =>
-      c.subject === subject &&
-      !lockedTopics.includes(c.topic.toUpperCase()) &&
-      !(c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase()))
-    );
+    const subjectCards = allCards.filter(c => {
+      if (c.subject !== subject) return false;
+      if (lockedTopics.includes(c.topic.toUpperCase())) return false;
+      if (c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase())) return false;
+      if (isFreeTier && !isFreeTierTopicAccessible(subject, c.topic, c.subtopic)) return false;
+      return true;
+    });
 
     // Due reviews: date-only comparison using LOCAL calendar date (nextReview is stored as a UTC
     // ISO string, so slicing it directly can roll back to "today" just after local midnight in
@@ -15855,7 +15986,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -15892,7 +16023,12 @@ async function loadUserPaidStatus() {
       STATE.user.ai_tutor_daily_count   = p.ai_tutor_daily_count   || 0;
       STATE.user.ai_tutor_weekly_count  = p.ai_tutor_weekly_count  || 0;
       STATE.user.ai_marking_daily_count = p.ai_marking_daily_count || 0;
+      STATE.user.ai_marking_weekly_count = p.ai_marking_weekly_count || 0;
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
+      STATE.user.ai_week_start          = p.ai_week_start          || null;
+      STATE.user.streak_current         = p.streak_current         || 0;
+      STATE.user.last_study_date        = p.last_study_date        || null;
+      STATE.user.streak_bonus_subtopic  = p.streak_bonus_subtopic  || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade === true;
@@ -15924,18 +16060,6 @@ function getWeeklyCardCount() {
   return history.filter(h => h.date && new Date(h.date) >= monday).length;
 }
 
-function getAIDailyCount() {
-  const today = new Date().toISOString().slice(0, 10);
-  const daily = LS.get('ai_daily') || { date: '', count: 0 };
-  return daily.date === today ? daily.count : 0;
-}
-
-function incrementAIDailyCount() {
-  const today = new Date().toISOString().slice(0, 10);
-  const daily = LS.get('ai_daily') || { date: today, count: 0 };
-  LS.set('ai_daily', { date: today, count: (daily.date === today ? daily.count : 0) + 1 });
-}
-
 // ── AI usage limit helpers ────────────────────────────────────────────────────
 function _aiToday() {
   const d = new Date();
@@ -15953,7 +16077,7 @@ async function _patchAICounts(user) {
     await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id, {
       method: 'PATCH',
       headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ ai_tutor_daily_count: user.ai_tutor_daily_count || 0, ai_tutor_weekly_count: user.ai_tutor_weekly_count || 0, ai_marking_daily_count: user.ai_marking_daily_count || 0, ai_last_reset_date: user.ai_last_reset_date })
+      body: JSON.stringify({ ai_tutor_daily_count: user.ai_tutor_daily_count || 0, ai_tutor_weekly_count: user.ai_tutor_weekly_count || 0, ai_marking_daily_count: user.ai_marking_daily_count || 0, ai_marking_weekly_count: user.ai_marking_weekly_count || 0, ai_last_reset_date: user.ai_last_reset_date, ai_week_start: user.ai_week_start })
     });
   } catch(e) {}
 }
@@ -15971,6 +16095,7 @@ function _resetAICountsIfNeeded() {
   }
   if (!user.ai_week_start || user.ai_week_start !== weekStart) {
     user.ai_tutor_weekly_count = 0;
+    user.ai_marking_weekly_count = 0;
     user.ai_week_start = weekStart;
     needsPatch = true;
   }
@@ -15979,6 +16104,7 @@ function _resetAICountsIfNeeded() {
 function getAITutorDailyCount()  { _resetAICountsIfNeeded(); return STATE.user?.ai_tutor_daily_count  || 0; }
 function getAITutorWeeklyCount() { _resetAICountsIfNeeded(); return STATE.user?.ai_tutor_weekly_count || 0; }
 function getAIMarkingDailyCount(){ _resetAICountsIfNeeded(); return STATE.user?.ai_marking_daily_count|| 0; }
+function getAIMarkingWeeklyCount(){ _resetAICountsIfNeeded(); return STATE.user?.ai_marking_weekly_count || 0; }
 async function incrementAITutorCount() {
   const user = STATE.user; if (!user) return;
   user.ai_tutor_daily_count  = (user.ai_tutor_daily_count  || 0) + 1;
@@ -15988,6 +16114,11 @@ async function incrementAITutorCount() {
 async function incrementAIMarkingCount() {
   const user = STATE.user; if (!user) return;
   user.ai_marking_daily_count = (user.ai_marking_daily_count || 0) + 1;
+  await _patchAICounts(user);
+}
+async function incrementAIMarkingWeeklyCount() {
+  const user = STATE.user; if (!user) return;
+  user.ai_marking_weekly_count = (user.ai_marking_weekly_count || 0) + 1;
   await _patchAICounts(user);
 }
 function showAILimitModal(message) {
@@ -16008,9 +16139,9 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£449.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
@@ -16214,7 +16345,7 @@ async function fireStudentCompletionNotification() {
   recordNotifSent('completion');
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   const name = (STATE.user?.display_name || STATE.user?.name || '').split(' ')[0] || 'there';
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification('Daily cards complete! 🎉', {
@@ -16321,7 +16452,7 @@ async function fireStreakWarningNotification() {
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   if (getTotalRemainingCards() <= 0) return;
   const name = (STATE.user?.display_name || STATE.user?.name || '').split(' ')[0] || 'there';
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   const remaining = getTotalRemainingCards();
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -16343,7 +16474,7 @@ async function fireLastChanceNotification() {
   recordNotifSent('last-chance');
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   if (getTotalRemainingCards() <= 0) return;
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification('🚨 Last chance!', {
@@ -16528,7 +16659,7 @@ function showDashboard() {
   
   const xp = user.xp || 0;
   const level = Math.floor(xp / 200) + 1;
-  const streak = user.streak || 0;
+  const streak = user.streak_current || 0;
   const totalDone = history.length;
   const correct = history.filter(h => h.grade === 'good' || h.grade === 'easy' || h.grade === 2 || h.grade === 3).length;
   const accuracy = totalDone > 0 ? Math.round((correct / totalDone) * 100) : 0;
@@ -16647,7 +16778,7 @@ function showHome() {
   const xp = user.xp || 0;
   const level = Math.floor(xp / 200) + 1;
   const xpInLevel = xp % 200;
-  const streak = user.streak || 0;
+  const streak = user.streak_current || 0;
   const firstName = user.display_name?.split(' ')[0] || 'there';
 
   const allCards = getCardsForUser(user);
@@ -16900,7 +17031,7 @@ async function dismissStudentPing(pingId) {
 }
 
 function renderNavBar(active) {
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   const xp     = STATE.user?.xp    || 0;
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
@@ -16965,6 +17096,16 @@ function startFlashcards() {
       );
       return;
     }
+  }
+
+  // Free tier: daily card limit, all subjects combined — nudge toward Basic/Standard, throttled (Category 2)
+  if (!user.is_paid && getTodaysCardCount() >= CONFIG.FREE_CARDS_DAILY) {
+    enforceWithThrottledNudge(
+      'free_card_daily_limit',
+      `Daily card limit reached (${CONFIG.FREE_CARDS_DAILY}/day) — come back tomorrow!`,
+      `You've used your ${CONFIG.FREE_CARDS_DAILY} cards for today. Upgrade to Basic or Standard for more daily revision.`
+    );
+    return;
   }
 
   // Basic tier: 30 cards/day hard cap, all subjects combined — nudge toward Standard, throttled (Category 2)
@@ -17040,8 +17181,8 @@ function renderFlashcard() {
   const tierLabel = (card.tier === 'H') ? 'Higher' : 'Foundation';
   const tierClass = (card.tier === 'H') ? 'h' : 'f';
 
-  const _v3AiToggleLabel = !aiMode ? 'Self Marking' : aiLimitReached ? '✨ AI Marking' : '✨ Smart Marking AI';
-  const _v3AiSubmitLabel = !aiMode ? '' : aiLimitReached ? '✨ AI Marking — Submit' : '✨ Smart Marking AI — Submit';
+  const _v3AiToggleLabel = !aiMode ? 'Self Marking' : aiLimitReached ? 'AI Marking' : 'Smart-AI Marking ✨';
+  const _v3AiSubmitLabel = !aiMode ? '' : aiLimitReached ? 'AI Marking — Submit' : 'Smart-AI Marking ✨ — Submit';
   const _v3HasLimit = getAIMarkingLimit() > 0;
 
   const html = `
@@ -17061,7 +17202,7 @@ function renderFlashcard() {
     <div class="v3-ai-toggle-card">
       <div class="v3-ai-toggle-info">
         <div class="v3-ai-toggle-name">${_v3AiToggleLabel}</div>
-        <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? '✨ AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
+        <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? 'AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
       </div>
       <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
     </div>
@@ -17175,7 +17316,12 @@ async function submitFlashcardAI() {
   const blankPhrases = ['', 'i dont know', "i don't know", 'idk', 'no idea', 'not sure', 'dont know', 'dunno'];
   if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); recordAndAdvance(card.id, 'again'); return; }
   if (!aiMarkingAvailable()) {
+    if (!keywordMarkingAvailable()) {
+      showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Switch to Self Marking to keep going, or upgrade for more — resets Monday.");
+      return;
+    }
     notifyAIMarkingLimitReached();
+    incrementAIMarkingWeeklyCount();
     const smResult = runSmartMarkCard(card, studentAnswer);
     STATE.currentAutoGrade = smResult.grade;
     showSmartMarkCardResult(smResult);
@@ -17588,6 +17734,11 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     const masterOnclick = childUserId
       ? subjectFn + "('" + subject + "'," + allUnlocked + "," + topicKeysStr + ",'" + childUserId + "')"
       : subjectFn + "('" + subject + "'," + allUnlocked + "," + topicKeysStr + ")";
+    // Free tier never has every topic in any subject fully accessible (even their primary
+    // subject is capped at topic 1 + earned bonus), so the master toggle always upsells
+    // rather than silently flipping a switch that can't actually unlock everything.
+    const masterFreeUpsell = !isParentCtx && getEffectiveSubscriptionTier() === 'free';
+    const masterUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
 
     h += '<div style="margin-bottom:12px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">';
     // Subject header row with master toggle
@@ -17598,7 +17749,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     } else {
       h += '<div style="display:flex;align-items:center;gap:7px;">';
       h += '<span style="font-size:11px;font-weight:700;color:#64748B;">' + masterLabel + '</span>';
-      h += '<div onclick="' + masterOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + masterBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
+      h += '<div onclick="' + (masterFreeUpsell ? masterUpsellOnclick : masterOnclick) + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + masterBg + ';position:relative;transition:background 0.2s;flex-shrink:0;' + (masterFreeUpsell ? 'opacity:0.5;' : '') + '">';
       h += '<div style="position:absolute;top:3px;' + masterThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>';
       h += '</div></div>';
     }
@@ -17619,6 +17770,8 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       const topicOnclick = childUserId
         ? saveFn + "('" + topicKey + "'," + isLocked + ",'" + childUserId + "')"
         : saveFn + "('" + topicKey + "'," + isLocked + ")";
+      const topicFreeAccessible = isParentCtx || isFreeTierTopicAccessible(subject, topicKey);
+      const topicUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
       const displayName = topicName.replace(' (Triple)', '');
       const tripleBadge = (showTriple && isTripleTopic(topicKey))
         ? '<span style="background:#E0E7FF;color:var(--gm-forest);font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;">Triple</span>'
@@ -17651,6 +17804,11 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       } else if (scheduleLocked || isTeacherLocked) {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
+        h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
+        h += '</div></div>';
+      } else if (!topicFreeAccessible) {
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
+        h += '<div onclick="' + topicUpsellOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.5;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
         h += '</div></div>';
       } else {
@@ -17688,6 +17846,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
           } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
             // Teacher has restricted this student from changing their own topic/subtopic locks
             sToggleHTML = '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
+            sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
+          } else if (!isFreeTierTopicAccessible(subject, topicKey, sk)) {
+            const sUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
+            sToggleHTML = '<div onclick="' + sUpsellOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.5;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else {
             const sOnclick = childUserId
@@ -17868,6 +18030,7 @@ async function saveParentChildSubtopicLock(subtopicKey, currentlyLocked, childUs
 function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
   const user = STATE.user;
   if (!user?.id || !user?.token) return;
+  updateStreakOnStudy();
   fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history', {
     method: 'POST',
     headers: {
@@ -18521,6 +18684,11 @@ async function submitApplyAnswer() {
   const answer = document.getElementById('apply-answer')?.value?.trim();
   if (!answer) { showToast('Please write your answer'); return; }
 
+  if (!aiMarkingAvailable() && !keywordMarkingAvailable()) {
+    showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Switch to Self Marking to keep going, or upgrade for more — resets Monday.");
+    return;
+  }
+
   const btn = document.querySelector('#apply-input-area .btn');
   if (btn) { btn.textContent = 'Marking...'; btn.disabled = true; }
 
@@ -18530,6 +18698,7 @@ async function submitApplyAnswer() {
 
   const result = await markExamAnswer(examQ, ms, answer, marks);
   if (!result) { if (btn) { btn.textContent = 'Mark Answer'; btn.disabled = false; } return; }
+  if (result.isSmartMark) { notifyAIMarkingLimitReached(); incrementAIMarkingWeeklyCount(); }
 
   document.getElementById('apply-input-area')?.classList.add('hidden');
   const resultDiv = document.getElementById('apply-result');
@@ -18583,7 +18752,6 @@ function showSessionEnd() {
     const oldLevel = Math.floor((STATE.user.xp || 0) / CONFIG.XP_PER_LEVEL) + 1;
     STATE.user.xp = (STATE.user.xp || 0) + xpEarned;
     const newLevel = Math.floor(STATE.user.xp / CONFIG.XP_PER_LEVEL) + 1;
-    STATE.user.streak = (STATE.user.streak || 0) + 1;
     LS.set('demo_user', STATE.user);
     if (newLevel > oldLevel) { showLevelUpCelebration(newLevel, _renderSessionEnd); return; }
   }
@@ -18633,7 +18801,7 @@ function _renderSessionEnd() {
         <div class="stat-label">Cards Done</div>
       </div>
       <div class="stat-card">
-        <div class="stat-number" style="color:var(--ss-orange);">${STATE.user?.streak || 1}</div>
+        <div class="stat-number" style="color:var(--ss-orange);">${STATE.user?.streak_current || 1}</div>
         <div class="stat-label">Day Streak 🔥</div>
       </div>
       <div class="stat-card">
@@ -18993,17 +19161,7 @@ function sendTutorFromInput() {
 }
 
 async function sendTutorMessage(message) {
-  const daily = getAITutorDailyCount();
-  if (daily >= getAITutorDailyLimit()) {
-    showAILimitModal(!STATE.user?.is_paid
-      ? `You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`
-      : `You've used today's AI Tutor limit for your plan. Upgrade for more messages, or grab a top-up.`);
-    return;
-  }
-  if (!STATE.user?.is_paid && getAITutorWeeklyCount() >= getAITutorWeeklyLimit()) {
-    showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
-    return;
-  }
+  if (checkAITutorLimitAndBlock()) return;
   STATE.tutorHistory.push({ role: 'user', content: message });
   showAITutor();
 
@@ -19037,7 +19195,7 @@ async function sendTutorMessage(message) {
 
     document.getElementById('tutor-loading')?.remove();
     STATE.tutorHistory.push({ role: 'ai', content: reply });
-    if (!STATE.user?.is_paid) await incrementAITutorCount();
+    await incrementAITutorCount();
     showAITutor();
   } catch (e) {
     document.getElementById('tutor-loading')?.remove();
@@ -19114,7 +19272,8 @@ function showKnowledgeOrganiser(topicKey) {
   if (!_user) return;
   const _tk = (topicKey || '').toUpperCase();
   const _FREE_KO = ['B1','C1','P1'];
-  if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
+  const _koTier = getEffectiveSubscriptionTier();
+  if ((_koTier === 'free' || _koTier === 'basic') && !_FREE_KO.includes(_tk)) {
     showUpgradeModal(`Unlock all Knowledge Organisers with Standard — from ${getStandardMonthlyPriceLabel()}/month`);
     return;
   }
@@ -19292,17 +19451,17 @@ function showProfile() {
 
   const subTier = STATE.user.subscription_tier || 'free';
   const tierDisplay = {
-    'free': { name: 'Free Plan', desc: '6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day' },
-    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · Quick Revision · No AI features' },
-    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · 30 AI Marking/day · Deep Dive sessions' },
-    'premium': { name: 'Premium', desc: '40 AI Tutor/day · 50 AI Marking/day · Parent portal · Unlimited Deep Dive' },
-    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · 100 AI Marking/day · AI Learning Coach · Unlimited everything' }
+    'free': { name: 'Free Plan', desc: '4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week' },
+    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · 30 cards/day · Smart-AI Marking ✨ 2/day · AI Marking unlimited · AI Tutor 10/week · Parent portal' },
+    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · Smart-AI Marking ✨ 30/day · Deep Dive sessions · Parent portal' },
+    'premium': { name: 'Premium', desc: '40 AI Tutor/day · Smart-AI Marking ✨ 50/day · Parent portal · Unlimited Deep Dive' },
+    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · Smart-AI Marking ✨ 100/day · AI Learning Coach · Parent portal · Unlimited everything' }
   };
   const display = tierDisplay[subTier] || tierDisplay['free'];
 
   const badges = [
-    { icon: '🔥', label: 'First Streak', earned: (user.streak||0) >= 1 },
-    { icon: '⚡', label: '5-Day Streak', earned: (user.streak||0) >= 5 },
+    { icon: '🔥', label: 'First Streak', earned: (user.streak_current||0) >= 1 },
+    { icon: '⚡', label: '5-Day Streak', earned: (user.streak_current||0) >= 5 },
     { icon: '🏆', label: '100 Cards', earned: Object.keys(LS.get('card_progress')||{}).length >= 100 },
     { icon: '🌟', label: 'Level 5', earned: (user.level||1) >= 5 },
     { icon: '🎯', label: 'Perfect Session', earned: false },
@@ -19324,7 +19483,7 @@ ${renderNavBar('profile')}
       <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
     </div>
     <div class="v3-profile-stats">
-      <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
+      <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak_current||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${Object.keys(LS.get('card_progress')||{}).length}</span><span class="v3-stat-lbl">Cards Done</span></div>
     </div>
@@ -19356,7 +19515,7 @@ ${renderNavBar('profile')}
         </div>`
       : `<div class="v3-profile-section" style="margin-bottom:12px;background:#FFF7ED;border:1.5px solid #FED7AA;">
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
-          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day<br>Upgrade for everything unlimited.</div>
+          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week<br>Upgrade for everything unlimited.</div>
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
             <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
@@ -20104,7 +20263,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
       : 'class_code=in.(' + classCodes.map(c => encodeURIComponent(c)).join(',') + ')';
 
     const pRes = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade,allow_student_unlock',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak_current,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade,allow_student_unlock',
       { headers }
     );
     const profiles = pRes.ok ? await pRes.json() : [];
@@ -20138,7 +20297,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
         user_id: p.user_id,
         tier: (p.tier || '').includes('higher') ? 'Higher' : 'Foundation',
         tierFull: p.tier || '',
-        streak: p.streak || 0,
+        streak: p.streak_current || 0,
         xp: p.xp || 0,
         cards,
         accuracy,
@@ -21279,10 +21438,11 @@ function getDueCards(user) {
     LS.set('session_state', { date: today, cardsStudied: 0 });
   }
 
-  // Free tier: only primary subject; paid: all three
-  const subjects = user.is_paid
-    ? ['Biology', 'Chemistry', 'Physics']
-    : [user.primary_subject || 'Biology'];
+  // Free tier: only primary subject; paid (or trial, which counts as Standard-equivalent): all three
+  const isFreeTier = getEffectiveSubscriptionTier() === 'free';
+  const subjects = isFreeTier
+    ? [user.primary_subject || 'Biology']
+    : ['Biology', 'Chemistry', 'Physics'];
 
   const combined = [];
 
@@ -21297,11 +21457,13 @@ function getDueCards(user) {
       return u.startsWith('T:') ? u.slice(2) : u;
     });
     // todayDone NOT applied to base filter — reviews self-exclude via nextReview after grading
-    const subjectCards = allCards.filter(c =>
-      c.subject === subject &&
-      !lockedTopics.includes(c.topic.toUpperCase()) &&
-      !(c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase()))
-    );
+    const subjectCards = allCards.filter(c => {
+      if (c.subject !== subject) return false;
+      if (lockedTopics.includes(c.topic.toUpperCase())) return false;
+      if (c.subtopic && lockedTopics.includes(c.subtopic.toUpperCase())) return false;
+      if (isFreeTier && !isFreeTierTopicAccessible(subject, c.topic, c.subtopic)) return false;
+      return true;
+    });
 
     // Due reviews: date-only comparison using LOCAL calendar date (nextReview is stored as a UTC
     // ISO string, so slicing it directly can roll back to "today" just after local midnight in
@@ -21786,7 +21948,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -21823,7 +21985,12 @@ async function loadUserPaidStatus() {
       STATE.user.ai_tutor_daily_count   = p.ai_tutor_daily_count   || 0;
       STATE.user.ai_tutor_weekly_count  = p.ai_tutor_weekly_count  || 0;
       STATE.user.ai_marking_daily_count = p.ai_marking_daily_count || 0;
+      STATE.user.ai_marking_weekly_count = p.ai_marking_weekly_count || 0;
       STATE.user.ai_last_reset_date     = p.ai_last_reset_date     || null;
+      STATE.user.ai_week_start          = p.ai_week_start          || null;
+      STATE.user.streak_current         = p.streak_current         || 0;
+      STATE.user.last_study_date        = p.last_study_date        || null;
+      STATE.user.streak_bonus_subtopic  = p.streak_bonus_subtopic  || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade === true;
@@ -21855,18 +22022,6 @@ function getWeeklyCardCount() {
   return history.filter(h => h.date && new Date(h.date) >= monday).length;
 }
 
-function getAIDailyCount() {
-  const today = new Date().toISOString().slice(0, 10);
-  const daily = LS.get('ai_daily') || { date: '', count: 0 };
-  return daily.date === today ? daily.count : 0;
-}
-
-function incrementAIDailyCount() {
-  const today = new Date().toISOString().slice(0, 10);
-  const daily = LS.get('ai_daily') || { date: today, count: 0 };
-  LS.set('ai_daily', { date: today, count: (daily.date === today ? daily.count : 0) + 1 });
-}
-
 // ── AI usage limit helpers ────────────────────────────────────────────────────
 function _aiToday() {
   const d = new Date();
@@ -21884,7 +22039,7 @@ async function _patchAICounts(user) {
     await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id, {
       method: 'PATCH',
       headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ ai_tutor_daily_count: user.ai_tutor_daily_count || 0, ai_tutor_weekly_count: user.ai_tutor_weekly_count || 0, ai_marking_daily_count: user.ai_marking_daily_count || 0, ai_last_reset_date: user.ai_last_reset_date })
+      body: JSON.stringify({ ai_tutor_daily_count: user.ai_tutor_daily_count || 0, ai_tutor_weekly_count: user.ai_tutor_weekly_count || 0, ai_marking_daily_count: user.ai_marking_daily_count || 0, ai_marking_weekly_count: user.ai_marking_weekly_count || 0, ai_last_reset_date: user.ai_last_reset_date, ai_week_start: user.ai_week_start })
     });
   } catch(e) {}
 }
@@ -21902,6 +22057,7 @@ function _resetAICountsIfNeeded() {
   }
   if (!user.ai_week_start || user.ai_week_start !== weekStart) {
     user.ai_tutor_weekly_count = 0;
+    user.ai_marking_weekly_count = 0;
     user.ai_week_start = weekStart;
     needsPatch = true;
   }
@@ -21910,6 +22066,7 @@ function _resetAICountsIfNeeded() {
 function getAITutorDailyCount()  { _resetAICountsIfNeeded(); return STATE.user?.ai_tutor_daily_count  || 0; }
 function getAITutorWeeklyCount() { _resetAICountsIfNeeded(); return STATE.user?.ai_tutor_weekly_count || 0; }
 function getAIMarkingDailyCount(){ _resetAICountsIfNeeded(); return STATE.user?.ai_marking_daily_count|| 0; }
+function getAIMarkingWeeklyCount(){ _resetAICountsIfNeeded(); return STATE.user?.ai_marking_weekly_count || 0; }
 async function incrementAITutorCount() {
   const user = STATE.user; if (!user) return;
   user.ai_tutor_daily_count  = (user.ai_tutor_daily_count  || 0) + 1;
@@ -21919,6 +22076,11 @@ async function incrementAITutorCount() {
 async function incrementAIMarkingCount() {
   const user = STATE.user; if (!user) return;
   user.ai_marking_daily_count = (user.ai_marking_daily_count || 0) + 1;
+  await _patchAICounts(user);
+}
+async function incrementAIMarkingWeeklyCount() {
+  const user = STATE.user; if (!user) return;
+  user.ai_marking_weekly_count = (user.ai_marking_weekly_count || 0) + 1;
   await _patchAICounts(user);
 }
 function showAILimitModal(message) {
@@ -21939,9 +22101,9 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£449.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
@@ -22131,7 +22293,7 @@ async function fireStudentCompletionNotification() {
   recordNotifSent('completion');
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   const name = (STATE.user?.display_name || STATE.user?.name || '').split(' ')[0] || 'there';
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification('Daily cards complete! 🎉', {
@@ -22238,7 +22400,7 @@ async function fireStreakWarningNotification() {
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   if (getTotalRemainingCards() <= 0) return;
   const name = (STATE.user?.display_name || STATE.user?.name || '').split(' ')[0] || 'there';
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   const remaining = getTotalRemainingCards();
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -22260,7 +22422,7 @@ async function fireLastChanceNotification() {
   recordNotifSent('last-chance');
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
   if (getTotalRemainingCards() <= 0) return;
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification('🚨 Last chance!', {
@@ -22445,7 +22607,7 @@ function showDashboard() {
   
   const xp = user.xp || 0;
   const level = Math.floor(xp / 200) + 1;
-  const streak = user.streak || 0;
+  const streak = user.streak_current || 0;
   const totalDone = history.length;
   const correct = history.filter(h => h.grade === 'good' || h.grade === 'easy' || h.grade === 2 || h.grade === 3).length;
   const accuracy = totalDone > 0 ? Math.round((correct / totalDone) * 100) : 0;
@@ -22564,7 +22726,7 @@ function showHome() {
   const xp = user.xp || 0;
   const level = Math.floor(xp / 200) + 1;
   const xpInLevel = xp % 200;
-  const streak = user.streak || 0;
+  const streak = user.streak_current || 0;
   const firstName = user.display_name?.split(' ')[0] || 'there';
 
   const allCards = getCardsForUser(user);
@@ -22817,7 +22979,7 @@ async function dismissStudentPing(pingId) {
 }
 
 function renderNavBar(active) {
-  const streak = STATE.user?.streak || 0;
+  const streak = STATE.user?.streak_current || 0;
   const xp     = STATE.user?.xp    || 0;
   const name   = STATE.user?.display_name || '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || '?';
@@ -22882,6 +23044,16 @@ function startFlashcards() {
       );
       return;
     }
+  }
+
+  // Free tier: daily card limit, all subjects combined — nudge toward Basic/Standard, throttled (Category 2)
+  if (!user.is_paid && getTodaysCardCount() >= CONFIG.FREE_CARDS_DAILY) {
+    enforceWithThrottledNudge(
+      'free_card_daily_limit',
+      `Daily card limit reached (${CONFIG.FREE_CARDS_DAILY}/day) — come back tomorrow!`,
+      `You've used your ${CONFIG.FREE_CARDS_DAILY} cards for today. Upgrade to Basic or Standard for more daily revision.`
+    );
+    return;
   }
 
   // Basic tier: 30 cards/day hard cap, all subjects combined — nudge toward Standard, throttled (Category 2)
@@ -22957,8 +23129,8 @@ function renderFlashcard() {
   const tierLabel = (card.tier === 'H') ? 'Higher' : 'Foundation';
   const tierClass = (card.tier === 'H') ? 'h' : 'f';
 
-  const _v3AiToggleLabel = !aiMode ? 'Self Marking' : aiLimitReached ? '✨ AI Marking' : '✨ Smart Marking AI';
-  const _v3AiSubmitLabel = !aiMode ? '' : aiLimitReached ? '✨ AI Marking — Submit' : '✨ Smart Marking AI — Submit';
+  const _v3AiToggleLabel = !aiMode ? 'Self Marking' : aiLimitReached ? 'AI Marking' : 'Smart-AI Marking ✨';
+  const _v3AiSubmitLabel = !aiMode ? '' : aiLimitReached ? 'AI Marking — Submit' : 'Smart-AI Marking ✨ — Submit';
   const _v3HasLimit = getAIMarkingLimit() > 0;
 
   const html = `
@@ -22978,7 +23150,7 @@ function renderFlashcard() {
     <div class="v3-ai-toggle-card">
       <div class="v3-ai-toggle-info">
         <div class="v3-ai-toggle-name">${_v3AiToggleLabel}</div>
-        <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? '✨ AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
+        <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? 'AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
       </div>
       <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
     </div>
@@ -23092,7 +23264,12 @@ async function submitFlashcardAI() {
   const blankPhrases = ['', 'i dont know', "i don't know", 'idk', 'no idea', 'not sure', 'dont know', 'dunno'];
   if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); recordAndAdvance(card.id, 'again'); return; }
   if (!aiMarkingAvailable()) {
+    if (!keywordMarkingAvailable()) {
+      showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Switch to Self Marking to keep going, or upgrade for more — resets Monday.");
+      return;
+    }
     notifyAIMarkingLimitReached();
+    incrementAIMarkingWeeklyCount();
     const smResult = runSmartMarkCard(card, studentAnswer);
     STATE.currentAutoGrade = smResult.grade;
     showSmartMarkCardResult(smResult);
@@ -23478,6 +23655,11 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     const masterOnclick = childUserId
       ? subjectFn + "('" + subject + "'," + allUnlocked + "," + topicKeysStr + ",'" + childUserId + "')"
       : subjectFn + "('" + subject + "'," + allUnlocked + "," + topicKeysStr + ")";
+    // Free tier never has every topic in any subject fully accessible (even their primary
+    // subject is capped at topic 1 + earned bonus), so the master toggle always upsells
+    // rather than silently flipping a switch that can't actually unlock everything.
+    const masterFreeUpsell = !isParentCtx && getEffectiveSubscriptionTier() === 'free';
+    const masterUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
 
     h += '<div style="margin-bottom:12px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">';
     // Subject header row with master toggle
@@ -23488,7 +23670,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     } else {
       h += '<div style="display:flex;align-items:center;gap:7px;">';
       h += '<span style="font-size:11px;font-weight:700;color:#64748B;">' + masterLabel + '</span>';
-      h += '<div onclick="' + masterOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + masterBg + ';position:relative;transition:background 0.2s;flex-shrink:0;">';
+      h += '<div onclick="' + (masterFreeUpsell ? masterUpsellOnclick : masterOnclick) + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + masterBg + ';position:relative;transition:background 0.2s;flex-shrink:0;' + (masterFreeUpsell ? 'opacity:0.5;' : '') + '">';
       h += '<div style="position:absolute;top:3px;' + masterThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);transition:all 0.2s;"></div>';
       h += '</div></div>';
     }
@@ -23509,6 +23691,8 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       const topicOnclick = childUserId
         ? saveFn + "('" + topicKey + "'," + isLocked + ",'" + childUserId + "')"
         : saveFn + "('" + topicKey + "'," + isLocked + ")";
+      const topicFreeAccessible = isParentCtx || isFreeTierTopicAccessible(subject, topicKey);
+      const topicUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
       const displayName = topicName.replace(' (Triple)', '');
       const tripleBadge = (showTriple && isTripleTopic(topicKey))
         ? '<span style="background:#E0E7FF;color:var(--gm-forest);font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;">Triple</span>'
@@ -23541,6 +23725,11 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
       } else if (scheduleLocked || isTeacherLocked) {
         h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
         h += '<div style="cursor:default;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.45;flex-shrink:0;">';
+        h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
+        h += '</div></div>';
+      } else if (!topicFreeAccessible) {
+        h += '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + reviseBtn + koBtn;
+        h += '<div onclick="' + topicUpsellOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + topicBg + ';position:relative;opacity:0.5;flex-shrink:0;">';
         h += '<div style="position:absolute;top:3px;' + thumbPos + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>';
         h += '</div></div>';
       } else {
@@ -23578,6 +23767,10 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
           } else if (!canStudentToggle && saveFn === 'saveStudentTopicLock') {
             // Teacher has restricted this student from changing their own topic/subtopic locks
             sToggleHTML = '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
+            sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
+          } else if (!isFreeTierTopicAccessible(subject, topicKey, sk)) {
+            const sUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
+            sToggleHTML = '<div onclick="' + sUpsellOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.5;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else {
             const sOnclick = childUserId
@@ -23638,6 +23831,10 @@ function startQuickRevision(topicKey) {
   const key = topicKey.toUpperCase();
   const topicCards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === key);
   if (topicCards.length === 0) { showToast('No cards found for this topic'); return; }
+  if (!isFreeTierTopicAccessible(topicCards[0].subject, key)) {
+    triggerHardWallNudge('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month');
+    return;
+  }
   const shuffled = [...topicCards].sort(() => Math.random() - 0.5);
   STATE.cardQueue = shuffled;
   STATE.currentCardIndex = 0;
@@ -23653,6 +23850,10 @@ function startQuickRevisionSubtopic(subtopicKey) {
   const key = subtopicKey.toUpperCase();
   const subtopicCards = SAMPLE_CARDS.filter(c => c.subtopic && c.subtopic.toUpperCase() === key);
   if (subtopicCards.length === 0) { showToast('No cards found for this subtopic'); return; }
+  if (!isFreeTierTopicAccessible(subtopicCards[0].subject, subtopicCards[0].topic, key)) {
+    triggerHardWallNudge('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month');
+    return;
+  }
   const shuffled = [...subtopicCards].sort(() => Math.random() - 0.5);
   STATE.cardQueue = shuffled;
   STATE.currentCardIndex = 0;
@@ -23845,6 +24046,7 @@ async function saveParentChildSubtopicLock(subtopicKey, currentlyLocked, childUs
 function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
   const user = STATE.user;
   if (!user?.id || !user?.token) return;
+  updateStreakOnStudy();
   fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history', {
     method: 'POST',
     headers: {
@@ -24496,6 +24698,11 @@ async function submitApplyAnswer() {
   const answer = document.getElementById('apply-answer')?.value?.trim();
   if (!answer) { showToast('Please write your answer'); return; }
 
+  if (!aiMarkingAvailable() && !keywordMarkingAvailable()) {
+    showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Switch to Self Marking to keep going, or upgrade for more — resets Monday.");
+    return;
+  }
+
   const btn = document.querySelector('#apply-input-area .btn');
   if (btn) { btn.textContent = 'Marking...'; btn.disabled = true; }
 
@@ -24505,6 +24712,7 @@ async function submitApplyAnswer() {
 
   const result = await markExamAnswer(examQ, ms, answer, marks);
   if (!result) { if (btn) { btn.textContent = 'Mark Answer'; btn.disabled = false; } return; }
+  if (result.isSmartMark) { notifyAIMarkingLimitReached(); incrementAIMarkingWeeklyCount(); }
 
   document.getElementById('apply-input-area')?.classList.add('hidden');
   const resultDiv = document.getElementById('apply-result');
@@ -24558,7 +24766,6 @@ function showSessionEnd() {
     const oldLevel = Math.floor((STATE.user.xp || 0) / CONFIG.XP_PER_LEVEL) + 1;
     STATE.user.xp = (STATE.user.xp || 0) + xpEarned;
     const newLevel = Math.floor(STATE.user.xp / CONFIG.XP_PER_LEVEL) + 1;
-    STATE.user.streak = (STATE.user.streak || 0) + 1;
     LS.set('demo_user', STATE.user);
     if (newLevel > oldLevel) { showLevelUpCelebration(newLevel, _renderSessionEnd); return; }
   }
@@ -24608,7 +24815,7 @@ function _renderSessionEnd() {
         <div class="stat-label">Cards Done</div>
       </div>
       <div class="stat-card">
-        <div class="stat-number" style="color:var(--ss-orange);">${STATE.user?.streak || 1}</div>
+        <div class="stat-number" style="color:var(--ss-orange);">${STATE.user?.streak_current || 1}</div>
         <div class="stat-label">Day Streak 🔥</div>
       </div>
       <div class="stat-card">
@@ -24841,17 +25048,7 @@ function sendTutorFromInput() {
 }
 
 async function sendTutorMessage(message) {
-  const daily = getAITutorDailyCount();
-  if (daily >= getAITutorDailyLimit()) {
-    showAILimitModal(!STATE.user?.is_paid
-      ? `You've used your ${CONFIG.FREE_AI_TUTOR_DAILY} free AI Tutor messages for today. Come back tomorrow or upgrade for unlimited access!`
-      : `You've used today's AI Tutor limit for your plan. Upgrade for more messages, or grab a top-up.`);
-    return;
-  }
-  if (!STATE.user?.is_paid && getAITutorWeeklyCount() >= getAITutorWeeklyLimit()) {
-    showAILimitModal(`You've used your ${CONFIG.FREE_AI_TUTOR_WEEKLY} free AI Tutor messages for this week. Your limit resets Monday, or upgrade for unlimited access!`);
-    return;
-  }
+  if (checkAITutorLimitAndBlock()) return;
   STATE.tutorHistory.push({ role: 'user', content: message });
   showAITutor();
 
@@ -24885,7 +25082,7 @@ async function sendTutorMessage(message) {
 
     document.getElementById('tutor-loading')?.remove();
     STATE.tutorHistory.push({ role: 'ai', content: reply });
-    if (!STATE.user?.is_paid) await incrementAITutorCount();
+    await incrementAITutorCount();
     showAITutor();
   } catch (e) {
     document.getElementById('tutor-loading')?.remove();
@@ -24962,7 +25159,8 @@ function showKnowledgeOrganiser(topicKey) {
   if (!_user) return;
   const _tk = (topicKey || '').toUpperCase();
   const _FREE_KO = ['B1','C1','P1'];
-  if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
+  const _koTier = getEffectiveSubscriptionTier();
+  if ((_koTier === 'free' || _koTier === 'basic') && !_FREE_KO.includes(_tk)) {
     showUpgradeModal(`Unlock all Knowledge Organisers with Standard — from ${getStandardMonthlyPriceLabel()}/month`);
     return;
   }
@@ -25140,17 +25338,17 @@ function showProfile() {
 
   const subTier = STATE.user.subscription_tier || 'free';
   const tierDisplay = {
-    'free': { name: 'Free Plan', desc: '6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day' },
-    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · Quick Revision · No AI features' },
-    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · 30 AI Marking/day · Deep Dive sessions' },
-    'premium': { name: 'Premium', desc: '40 AI Tutor/day · 50 AI Marking/day · Parent portal · Unlimited Deep Dive' },
-    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · 100 AI Marking/day · AI Learning Coach · Unlimited everything' }
+    'free': { name: 'Free Plan', desc: '4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week' },
+    'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · 30 cards/day · Smart-AI Marking ✨ 2/day · AI Marking unlimited · AI Tutor 10/week · Parent portal' },
+    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · Smart-AI Marking ✨ 30/day · Deep Dive sessions · Parent portal' },
+    'premium': { name: 'Premium', desc: '40 AI Tutor/day · Smart-AI Marking ✨ 50/day · Parent portal · Unlimited Deep Dive' },
+    'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · Smart-AI Marking ✨ 100/day · AI Learning Coach · Parent portal · Unlimited everything' }
   };
   const display = tierDisplay[subTier] || tierDisplay['free'];
 
   const badges = [
-    { icon: '🔥', label: 'First Streak', earned: (user.streak||0) >= 1 },
-    { icon: '⚡', label: '5-Day Streak', earned: (user.streak||0) >= 5 },
+    { icon: '🔥', label: 'First Streak', earned: (user.streak_current||0) >= 1 },
+    { icon: '⚡', label: '5-Day Streak', earned: (user.streak_current||0) >= 5 },
     { icon: '🏆', label: '100 Cards', earned: Object.keys(LS.get('card_progress')||{}).length >= 100 },
     { icon: '🌟', label: 'Level 5', earned: (user.level||1) >= 5 },
     { icon: '🎯', label: 'Perfect Session', earned: false },
@@ -25172,7 +25370,7 @@ ${renderNavBar('profile')}
       <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
     </div>
     <div class="v3-profile-stats">
-      <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
+      <div class="v3-profile-stat"><span class="v3-stat-num">${user.streak_current||0}</span><span class="v3-stat-lbl">Day Streak</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${user.xp||0}</span><span class="v3-stat-lbl">Total XP</span></div>
       <div class="v3-profile-stat"><span class="v3-stat-num">${Object.keys(LS.get('card_progress')||{}).length}</span><span class="v3-stat-lbl">Cards Done</span></div>
     </div>
@@ -25204,7 +25402,7 @@ ${renderNavBar('profile')}
         </div>`
       : `<div class="v3-profile-section" style="margin-bottom:12px;background:#FFF7ED;border:1.5px solid #FED7AA;">
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
-          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">6 cards/day · B1/C1/P1 only · 5 AI Tutor messages/day · 10 AI Marking/day<br>Upgrade for everything unlimited.</div>
+          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week<br>Upgrade for everything unlimited.</div>
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
             <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
           </div>
@@ -25952,7 +26150,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
       : 'class_code=in.(' + classCodes.map(c => encodeURIComponent(c)).join(',') + ')';
 
     const pRes = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade,allow_student_unlock',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?' + codeParam + '&role=eq.student&select=user_id,display_name,tier,streak_current,xp,locked_topics,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,target_grade,allow_self_grade,allow_student_unlock',
       { headers }
     );
     const profiles = pRes.ok ? await pRes.json() : [];
@@ -25986,7 +26184,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
         user_id: p.user_id,
         tier: (p.tier || '').includes('higher') ? 'Higher' : 'Foundation',
         tierFull: p.tier || '',
-        streak: p.streak || 0,
+        streak: p.streak_current || 0,
         xp: p.xp || 0,
         cards,
         accuracy,
@@ -27757,7 +27955,7 @@ async function showParentPortal() {
 
   if (linkedStudentId) {
     try {
-      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade,vision_board_enabled,class_code';
+      const cUrl = CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + linkedStudentId + '&select=user_id,display_name,streak_current,xp,level,tier,year_group,exam_board,parent_code,locked_topics,schedule_locked,target_grade,vision_board_enabled,class_code';
       console.log('[ParentPortal] fetching child profile:', cUrl);
       const cRes = await fetch(cUrl, { headers });
       const cProfiles = cRes.ok ? await cRes.json() : [];
@@ -27766,7 +27964,7 @@ async function showParentPortal() {
         const cp = cProfiles[0];
         child = {
           name: cp.display_name || 'Your Child',
-          streak: cp.streak || 0,
+          streak: cp.streak_current || 0,
           target_grade: cp.target_grade ?? null,
           xp: cp.xp || 0,
           level: cp.level || Math.floor((cp.xp || 0) / 200) + 1,
@@ -29344,14 +29542,7 @@ function renderMarkdown(text) {
 }
 
 async function sendAIChat() {
-  if (!STATE.user?.is_paid) {
-    const count = getAIDailyCount();
-    if (count >= CONFIG.FREE_AI_PER_DAY) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £24.99/month`);
-      return;
-    }
-    incrementAIDailyCount();
-  }
+  if (checkAITutorLimitAndBlock()) return;
   const input = document.getElementById('ai-chat-input');
   const msgs = document.getElementById('ai-chat-messages');
   const message = input.value.trim();
@@ -29386,6 +29577,7 @@ async function sendAIChat() {
     });
     const data = await res.json();
     aiDiv.innerHTML = renderMarkdown(data.content?.[0]?.text || 'Sorry, try again!');
+    await incrementAITutorCount();
   } catch(e) {
     aiDiv.textContent = 'Something went wrong. Please try again.';
   }
@@ -29393,15 +29585,7 @@ async function sendAIChat() {
 }
 
 async function sendAITabChat() {
-  if (!STATE.user?.is_paid) {
-    const count = getAIDailyCount();
-    if (count >= CONFIG.FREE_AI_PER_DAY) {
-      closeModal();
-      showUpgradeModal(`You've used your ${CONFIG.FREE_AI_PER_DAY} free AI Tutor messages today ✨ Upgrade to Premium for unlimited AI tutoring — £24.99/month`);
-      return;
-    }
-    incrementAIDailyCount();
-  }
+  if (checkAITutorLimitAndBlock()) return;
   const input = document.getElementById('ai-tab-input');
   const msgs = document.getElementById('ai-tab-messages');
   if (!input || !msgs) return;
@@ -29437,6 +29621,7 @@ async function sendAITabChat() {
     });
     const data = await res.json();
     aiDiv.innerHTML = renderMarkdown(data.content?.[0]?.text || 'Sorry, try again!');
+    await incrementAITutorCount();
   } catch(e) {
     aiDiv.textContent = 'Something went wrong. Please try again.';
   }
@@ -29510,8 +29695,9 @@ function getAIMarkingLimit() {
   const user = STATE.user;
   if (!user) return 0;
   if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  if (isTrialActive()) return CONFIG.STANDARD_AI_MARKING_DAILY;
   if (!user.is_paid) return CONFIG.FREE_AI_MARKING_DAILY;
-  if (user.subscription_tier === 'basic') return 0;
+  if (user.subscription_tier === 'basic') return CONFIG.BASIC_AI_MARKING_DAILY;
   if (user.subscription_tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_MARKING_DAILY;
   if (user.subscription_tier === 'premium') return CONFIG.PREMIUM_AI_MARKING_DAILY;
   return CONFIG.STANDARD_AI_MARKING_DAILY;
@@ -29520,8 +29706,9 @@ function getAITutorDailyLimit() {
   const user = STATE.user;
   if (!user) return 0;
   if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
+  if (isTrialActive()) return CONFIG.STANDARD_AI_TUTOR_DAILY;
   if (!user.is_paid) return CONFIG.FREE_AI_TUTOR_DAILY;
-  if (user.subscription_tier === 'basic') return 0;
+  if (user.subscription_tier === 'basic') return CONFIG.BASIC_AI_TUTOR_WEEKLY; // non-binding ceiling — weekly cap is the real constraint
   if (user.subscription_tier === 'premium_plus') return CONFIG.PREMIUM_PLUS_AI_TUTOR_DAILY;
   if (user.subscription_tier === 'premium') return CONFIG.PREMIUM_AI_TUTOR_DAILY;
   return CONFIG.STANDARD_AI_TUTOR_DAILY;
@@ -29529,7 +29716,10 @@ function getAITutorDailyLimit() {
 function getAITutorWeeklyLimit() {
   // DEV TESTING: unlimited for test account — remove before launch
   if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
-  return STATE.user?.is_paid ? Infinity : CONFIG.FREE_AI_TUTOR_WEEKLY;
+  if (isTrialActive()) return Infinity; // Standard-equivalent — Standard itself has no weekly Tutor cap
+  if (!STATE.user?.is_paid) return CONFIG.FREE_AI_TUTOR_WEEKLY;
+  if (STATE.user?.subscription_tier === 'basic') return CONFIG.BASIC_AI_TUTOR_WEEKLY;
+  return Infinity;
 }
 function getBrainDumpLimit() {
   // DEV TESTING: unlimited for test account — remove before launch
@@ -30250,6 +30440,13 @@ async function submitBrainDump() {
   if (btn) { btn.textContent = 'Marking...'; btn.disabled = true; }
 
   if (!aiMarkingAvailable()) {
+    if (!keywordMarkingAvailable()) {
+      if (btn) { btn.textContent = 'Analyse Brain Dump'; btn.disabled = false; }
+      showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Upgrade for more — resets Monday.");
+      return;
+    }
+    notifyAIMarkingLimitReached();
+    incrementAIMarkingWeeklyCount();
     const smBD = runSmartMarkBrainDump(STATE.cardQueue, text);
     const smPct = Math.round(smBD.pct * 100);
     if (btn) { btn.textContent = 'Analyse Brain Dump'; btn.disabled = false; }
