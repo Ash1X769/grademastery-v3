@@ -2663,7 +2663,6 @@ h1,h2,h3,.gm-heading {
   cursor:pointer; transition:all var(--gm-transition);
 }
 .v3-billing-opt.active { border-color:var(--gm-forest); color:var(--gm-forest); background:rgba(33,109,57,0.07); }
-.v3-save-badge { background:var(--gm-orange); color:#fff; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:700; }
 .v3-tier-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px; }
 @media (min-width:540px) { .v3-tier-grid { grid-template-columns:repeat(4,1fr); } }
 .v3-tier-card { border:1.5px solid var(--gm-border); border-radius:var(--gm-r-card); padding:14px 10px; position:relative; transition:all var(--gm-transition); }
@@ -2858,6 +2857,7 @@ const CONFIG = {
   STANDARD_AI_MARKING_DAILY: 30,
   STANDARD_AI_TUTOR_DAILY: 20,
   STANDARD_BRAIN_DUMP_WEEKLY: 2,
+  BASIC_CARDS_DAILY: 30,
   PREMIUM_AI_TUTOR_DAILY: 40,
   PREMIUM_AI_MARKING_DAILY: 50,
   PREMIUM_PLUS_AI_TUTOR_DAILY: 80,
@@ -2872,16 +2872,173 @@ const CONFIG = {
   MASTERY_THRESHOLD: 0.8,
 };
 
+// ============================================================
+// TIER-RANK GATING SYSTEM (shared — do not duplicate this logic per feature)
+// ============================================================
+const TIER_RANK = { free: 0, basic: 1, standard: 2, premium: 3, premium_plus: 4 };
+
+// 3-day (72h), no-card trial — granted server-side on signup (handle_new_user trigger).
+// Never touches is_paid; purely a computed check against trial_ends_at.
+function isTrialActive() {
+  const u = STATE.user;
+  return !!u?.trial_ends_at && new Date(u.trial_ends_at) > new Date() && !u?.is_paid;
+}
+
+function getEffectiveSubscriptionTier() {
+  if (isTrialActive()) return 'standard';
+  if (!STATE.user?.is_paid) return 'free';
+  return STATE.user?.subscription_tier || 'standard';
+}
+
+function hasTier(minTier) {
+  return TIER_RANK[getEffectiveSubscriptionTier()] >= TIER_RANK[minTier];
+}
+
+// Wraps a feature: returns null if the user is entitled (caller renders the real thing),
+// or an inert dimmed preview (pointer-events:none — no nested click handler can ever fire)
+// with a single click target that triggers the upgrade nudge, if not.
+function gatedFeature({ minTier, sampleHTML, lockMessage }) {
+  if (hasTier(minTier)) return null;
+  const safeMsg = String(lockMessage || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return `
+    <div style="position:relative;cursor:pointer;" onclick="_triggerUpgradeNudge('${safeMsg}')">
+      <div style="pointer-events:none;filter:grayscale(40%);opacity:0.55;">${sampleHTML}</div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:white;border-radius:12px;padding:16px 20px;box-shadow:0 4px 16px rgba(0,0,0,0.15);text-align:center;max-width:280px;">
+          <div style="font-size:28px;">🔒</div>
+          <div style="font-weight:800;margin-top:6px;font-size:14px;color:var(--gm-text,#1A2E22);">${lockMessage}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// The one shared "how to show an upsell" — toast + full tier-grid modal
+function _triggerUpgradeNudge(msg) {
+  showToast(msg);
+  showUpgradeModal(msg);
+}
+
+// Category 1 — hard walls: always show, no throttling
+function triggerHardWallNudge(msg) {
+  _triggerUpgradeNudge(msg);
+}
+
+// AI Marking cap reached: Premium/Premium Plus hitting their OWN limit is a Category 1 hard-wall
+// nudge (every time, toward Premium Plus/top-ups); Free/Basic/Standard is Category 2 (throttled,
+// toward Standard/Premium). Marking itself always still completes via the smart-mark fallback
+// either way, so silence-when-throttled is fine here (nothing is actually blocked).
+function notifyAIMarkingLimitReached() {
+  const tier = getEffectiveSubscriptionTier();
+  if (tier === 'premium' || tier === 'premium_plus') {
+    triggerHardWallNudge("You've used today's AI Marking for your plan. Upgrade to Premium Plus for more, or grab a top-up.");
+  } else {
+    triggerThrottledNudge('ai_marking_limit', "You've used today's AI Marking — upgrade to Standard or Premium for more.");
+  }
+}
+
+// Category 2 — soft/passive limits: throttled to once per NUDGE_THROTTLE_DAYS per nudge type,
+// persisted in profiles.nudge_last_shown (jsonb: { [nudgeType]: isoTimestamp }) so it survives sessions.
+const NUDGE_THROTTLE_DAYS = 21;
+
+function shouldShowNudge(nudgeType) {
+  const lastShown = STATE.user?.nudge_last_shown?.[nudgeType];
+  if (!lastShown) return true;
+  const daysSince = (Date.now() - new Date(lastShown).getTime()) / 86400000;
+  return daysSince > NUDGE_THROTTLE_DAYS;
+}
+
+function recordNudgeShown(nudgeType) {
+  if (!STATE.user?.id || !STATE.user?.token) return;
+  const current = STATE.user.nudge_last_shown || {};
+  current[nudgeType] = new Date().toISOString();
+  STATE.user.nudge_last_shown = current;
+  fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id, {
+    method: 'PATCH',
+    headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ nudge_last_shown: current })
+  }).catch(() => {});
+}
+
+function triggerThrottledNudge(nudgeType, msg) {
+  if (!shouldShowNudge(nudgeType)) return;
+  _triggerUpgradeNudge(msg);
+  recordNudgeShown(nudgeType);
+}
+
+// For HARD functional blocks (session literally can't start) where the user needs some
+// feedback every time, even on days the full upgrade pitch is throttled out — a quiet
+// status toast substitutes for the nudge rather than leaving the click looking dead.
+function enforceWithThrottledNudge(nudgeType, quietMsg, fullNudgeMsg) {
+  if (shouldShowNudge(nudgeType)) {
+    _triggerUpgradeNudge(fullNudgeMsg);
+    recordNudgeShown(nudgeType);
+  } else {
+    showToast(quietMsg);
+  }
+}
+
+// Fixed placeholder sample data for the Mastery Tracker's locked preview (Basic/Free) —
+// never the user's real progress.
+function _buildMasteryTrackerSampleHTML() {
+  const SAMPLE_SUBJECTS = [
+    { name: 'Biology',   emoji: '🌿', pct: 72 },
+    { name: 'Chemistry', emoji: '⚗️', pct: 45 },
+    { name: 'Physics',   emoji: '⚡', pct: 30 },
+  ];
+  return `
+    <div class="pt-wrap">
+      <div class="pt-legend">
+        <span>Tap to expand</span>
+        <span class="pt-pip" style="background:#64D870;color:#14532D;">✓ Memorised (easy ≥1)</span>
+        <span class="pt-pip" style="background:#007D0C;color:#fff;">★ Mastered (easy ≥3)</span>
+        <span class="pt-pip" style="background:#F1F5F9;color:#475569;">○ Not yet studied</span>
+      </div>
+      ${SAMPLE_SUBJECTS.map(s => `
+        <div class="pt-entry">
+          <div class="pt-row pt-subject-row">
+            <span class="pt-chevron">▶</span>
+            <span>${s.emoji} ${s.name}</span>
+            <div class="pt-counts">
+              <span class="pt-badge pt-badge-m">✓ ${s.pct}% Memorised</span>
+              <span class="pt-badge pt-badge-s">★ ${Math.round(s.pct * 0.4)}% Mastered</span>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
 const STRIPE_PRICES = {
   basic_monthly: 'price_1TpbzOBeyG4M2T8lSxHgOlPM',
   basic_annual: 'price_1Tpc50BeyG4M2T8ldkBPg1O5',
-  standard_monthly: 'price_1Tpc0fBeyG4M2T8lAM06cuGZ',
-  standard_annual: 'price_1Tpc5OBeyG4M2T8lK3ua1FcH',
+  standard_monthly: 'price_1Tpc0fBeyG4M2T8lAM06cuGZ',          // Summer Offer price — permanent, do not edit
+  standard_monthly_regular: 'price_1Tr4RhBeyG4M2T8lFHLD4dj5',  // post-offer price (from 1 Sept 2026)
+  standard_annual: 'price_1Tr4WYBeyG4M2T8lrnT3U0KN',           // Summer Offer annual price
+  standard_annual_regular: 'price_1Tr4Z6BeyG4M2T8lD3J6EfSH',   // post-offer annual price
   premium_monthly: 'price_1Tpc1oBeyG4M2T8lTcMKYkVx',
   premium_annual: 'price_1Tpc5tBeyG4M2T8l5ew9RA1j',
   premium_plus_monthly: 'price_1Tpc2eBeyG4M2T8lY6cdAme5',
   premium_plus_annual: 'price_1Tpc6OBeyG4M2T8lcB8pjIYd'
 };
+
+// Standard "Summer Offer" — £14.99/mo (£149.99/yr) until the cutoff, £19.99/mo (£199.99/yr)
+// after. The Worker resolves the actual charged price server-side off its own clock; this
+// client-side check only controls what's *displayed*.
+function isSummerOfferActive() {
+  return Date.now() < Date.parse('2026-08-31T23:00:00Z');
+}
+function getStandardPriceDisplay(period) { // period: 'm' | 'a'
+  if (period === 'm') {
+    return isSummerOfferActive()
+      ? '<span style="text-decoration:line-through;opacity:0.5;font-size:0.7em;margin-right:4px;">£19.99</span>£14.99'
+      : '£19.99';
+  }
+  return isSummerOfferActive()
+    ? '<span style="text-decoration:line-through;opacity:0.5;font-size:0.7em;margin-right:4px;">£199.99</span>£149.99'
+    : '£199.99';
+}
+function getStandardMonthlyPriceLabel() {
+  return isSummerOfferActive() ? '£14.99' : '£19.99';
+}
 
 // ============================================================
 // STATE
@@ -15698,7 +15855,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -15707,6 +15864,8 @@ async function loadUserPaidStatus() {
       const p = profiles[0];
       STATE.user.subscription_tier = p.subscription_tier || 'free';
       STATE.user.trial_ends_at = p.trial_ends_at || null;
+      STATE.user.trial_start_date = p.trial_start_date || null;
+      STATE.user.nudge_last_shown = (p.nudge_last_shown && typeof p.nudge_last_shown === 'object') ? p.nudge_last_shown : {};
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
       STATE.user.bio_cards_per_day  = p.bio_cards_per_day  || 10;
@@ -15849,10 +16008,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
-    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£449.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -15865,7 +16024,7 @@ function showUpgradeModal(reason) {
       ${reason ? `<p style="font-size:0.88rem;color:var(--gm-muted);margin-bottom:16px;line-height:1.6;">${reason}</p>` : ''}
       <div class="v3-upgrade-billing-toggle">
         <button class="v3-billing-opt active" id="v3-bill-m" onclick="v3SwitchBilling('m')">Monthly</button>
-        <button class="v3-billing-opt" id="v3-bill-a" onclick="v3SwitchBilling('a')">Annual <span class="v3-save-badge">Save ~30%</span></button>
+        <button class="v3-billing-opt" id="v3-bill-a" onclick="v3SwitchBilling('a')">Annual</button>
       </div>
       <div class="v3-tier-grid" id="v3-tier-grid">
         ${TIERS.map(t => `
@@ -15886,11 +16045,11 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£3.99',a:'£34.99'},standard:{m:'£14.99',a:'£119.99'},premium:{m:'£24.99',a:'£199.99'},premium_plus:{m:'£44.99',a:'£349.99'}};
+  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£24.99',a:'£249.99'},premium_plus:{m:'£44.99',a:'£449.99'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
-    if (el) el.textContent = p[period];
+    if (el) el.innerHTML = p[period];
     const periodEl = document.getElementById('v3-period-'+id);
     if (periodEl) periodEl.textContent = period === 'a' ? '/yr' : '/mo';
   });
@@ -16795,13 +16954,27 @@ function renderNavBar(active) {
 function startFlashcards() {
   const user = STATE.user;
 
-  // Free tier: weekly card limit
+  // Free tier: weekly card limit — nudge toward Basic/Standard, throttled (Category 2)
   if (!user.is_paid) {
     const weekCount = getWeeklyCardCount();
     if (weekCount >= CONFIG.FREE_CARDS_PER_WEEK) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £24.99/month`);
+      enforceWithThrottledNudge(
+        'flashcard_weekly_limit',
+        `Weekly card limit reached (${CONFIG.FREE_CARDS_PER_WEEK}/week) — resets Monday, or upgrade anytime!`,
+        `You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade for unlimited revision.`
+      );
       return;
     }
+  }
+
+  // Basic tier: 30 cards/day hard cap, all subjects combined — nudge toward Standard, throttled (Category 2)
+  if (getEffectiveSubscriptionTier() === 'basic' && getTodaysCardCount() >= CONFIG.BASIC_CARDS_DAILY) {
+    enforceWithThrottledNudge(
+      'basic_card_daily_limit',
+      `Daily card limit reached (${CONFIG.BASIC_CARDS_DAILY}/day) — come back tomorrow!`,
+      `You've used your ${CONFIG.BASIC_CARDS_DAILY} cards for today. Upgrade to Standard for more daily revision.`
+    );
+    return;
   }
 
   STATE.cardQueue = getDueCards(user);
@@ -17002,6 +17175,7 @@ async function submitFlashcardAI() {
   const blankPhrases = ['', 'i dont know', "i don't know", 'idk', 'no idea', 'not sure', 'dont know', 'dunno'];
   if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); recordAndAdvance(card.id, 'again'); return; }
   if (!aiMarkingAvailable()) {
+    notifyAIMarkingLimitReached();
     const smResult = runSmartMarkCard(card, studentAnswer);
     STATE.currentAutoGrade = smResult.grade;
     showSmartMarkCardResult(smResult);
@@ -17791,7 +17965,7 @@ function nextCard() {
 // ============================================================
 function startFullSession() {
   if (!STATE.user?.is_paid) {
-    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
+    triggerHardWallNudge('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
     return;
   }
   showDeepDivePicker();
@@ -18941,7 +19115,7 @@ function showKnowledgeOrganiser(topicKey) {
   const _tk = (topicKey || '').toUpperCase();
   const _FREE_KO = ['B1','C1','P1'];
   if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
-    showUpgradeModal('Unlock all Knowledge Organisers with Standard — from £14.99/month');
+    showUpgradeModal(`Unlock all Knowledge Organisers with Standard — from ${getStandardMonthlyPriceLabel()}/month`);
     return;
   }
   const _cards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === _tk);
@@ -19398,6 +19572,25 @@ function ptToggle(id) {
 
 async function showProgressTracker() {
   STATE.screen = 'progress-tracker';
+
+  if (!hasTier('standard')) {
+    render(`
+      ${renderNavBar('mastery')}
+      <div class="v3-screen" id="screen-progress-tracker">
+        <div class="top-bar">
+          <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
+          <div class="top-bar-title">My Mastery Tracker</div>
+          <div></div>
+        </div>
+        ${gatedFeature({
+          minTier: 'standard',
+          sampleHTML: _buildMasteryTrackerSampleHTML(),
+          lockMessage: 'Unlock full mastery tracking with Standard'
+        })}
+      </div>
+    `);
+    return;
+  }
 
   // Show loading immediately
   render(`
@@ -21593,7 +21786,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_last_reset_date,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -21602,6 +21795,8 @@ async function loadUserPaidStatus() {
       const p = profiles[0];
       STATE.user.subscription_tier = p.subscription_tier || 'free';
       STATE.user.trial_ends_at = p.trial_ends_at || null;
+      STATE.user.trial_start_date = p.trial_start_date || null;
+      STATE.user.nudge_last_shown = (p.nudge_last_shown && typeof p.nudge_last_shown === 'object') ? p.nudge_last_shown : {};
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
       STATE.user.bio_cards_per_day  = p.bio_cards_per_day  || 10;
@@ -21744,10 +21939,10 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£3.99',a:'£34.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:'£14.99',a:'£119.99'},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£199.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
-    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£349.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','Quick Revision mode'],      cta:'Upgrade', trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`✨ Smart Marking AI (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart Marking AI (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£449.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -21760,7 +21955,7 @@ function showUpgradeModal(reason) {
       ${reason ? `<p style="font-size:0.88rem;color:var(--gm-muted);margin-bottom:16px;line-height:1.6;">${reason}</p>` : ''}
       <div class="v3-upgrade-billing-toggle">
         <button class="v3-billing-opt active" id="v3-bill-m" onclick="v3SwitchBilling('m')">Monthly</button>
-        <button class="v3-billing-opt" id="v3-bill-a" onclick="v3SwitchBilling('a')">Annual <span class="v3-save-badge">Save ~30%</span></button>
+        <button class="v3-billing-opt" id="v3-bill-a" onclick="v3SwitchBilling('a')">Annual</button>
       </div>
       <div class="v3-tier-grid" id="v3-tier-grid">
         ${TIERS.map(t => `
@@ -21781,11 +21976,11 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£3.99',a:'£34.99'},standard:{m:'£14.99',a:'£119.99'},premium:{m:'£24.99',a:'£199.99'},premium_plus:{m:'£44.99',a:'£349.99'}};
+  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£24.99',a:'£249.99'},premium_plus:{m:'£44.99',a:'£449.99'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
-    if (el) el.textContent = p[period];
+    if (el) el.innerHTML = p[period];
     const periodEl = document.getElementById('v3-period-'+id);
     if (periodEl) periodEl.textContent = period === 'a' ? '/yr' : '/mo';
   });
@@ -22676,13 +22871,27 @@ function renderNavBar(active) {
 function startFlashcards() {
   const user = STATE.user;
 
-  // Free tier: weekly card limit
+  // Free tier: weekly card limit — nudge toward Basic/Standard, throttled (Category 2)
   if (!user.is_paid) {
     const weekCount = getWeeklyCardCount();
     if (weekCount >= CONFIG.FREE_CARDS_PER_WEEK) {
-      showUpgradeModal(`You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade to GradeMastery Premium for unlimited revision — £24.99/month`);
+      enforceWithThrottledNudge(
+        'flashcard_weekly_limit',
+        `Weekly card limit reached (${CONFIG.FREE_CARDS_PER_WEEK}/week) — resets Monday, or upgrade anytime!`,
+        `You've used your ${CONFIG.FREE_CARDS_PER_WEEK} cards this week 🎉 Upgrade for unlimited revision.`
+      );
       return;
     }
+  }
+
+  // Basic tier: 30 cards/day hard cap, all subjects combined — nudge toward Standard, throttled (Category 2)
+  if (getEffectiveSubscriptionTier() === 'basic' && getTodaysCardCount() >= CONFIG.BASIC_CARDS_DAILY) {
+    enforceWithThrottledNudge(
+      'basic_card_daily_limit',
+      `Daily card limit reached (${CONFIG.BASIC_CARDS_DAILY}/day) — come back tomorrow!`,
+      `You've used your ${CONFIG.BASIC_CARDS_DAILY} cards for today. Upgrade to Standard for more daily revision.`
+    );
+    return;
   }
 
   STATE.cardQueue = getDueCards(user);
@@ -22883,6 +23092,7 @@ async function submitFlashcardAI() {
   const blankPhrases = ['', 'i dont know', "i don't know", 'idk', 'no idea', 'not sure', 'dont know', 'dunno'];
   if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); recordAndAdvance(card.id, 'again'); return; }
   if (!aiMarkingAvailable()) {
+    notifyAIMarkingLimitReached();
     const smResult = runSmartMarkCard(card, studentAnswer);
     STATE.currentAutoGrade = smResult.grade;
     showSmartMarkCardResult(smResult);
@@ -23732,7 +23942,7 @@ function nextCard() {
 // ============================================================
 function startFullSession() {
   if (!STATE.user?.is_paid) {
-    showUpgradeModal('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
+    triggerHardWallNudge('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
     return;
   }
   showDeepDivePicker();
@@ -24753,7 +24963,7 @@ function showKnowledgeOrganiser(topicKey) {
   const _tk = (topicKey || '').toUpperCase();
   const _FREE_KO = ['B1','C1','P1'];
   if (!_user.is_paid && !_FREE_KO.includes(_tk)) {
-    showUpgradeModal('Unlock all Knowledge Organisers with Standard — from £14.99/month');
+    showUpgradeModal(`Unlock all Knowledge Organisers with Standard — from ${getStandardMonthlyPriceLabel()}/month`);
     return;
   }
   const _cards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === _tk);
@@ -25210,6 +25420,25 @@ function ptToggle(id) {
 
 async function showProgressTracker() {
   STATE.screen = 'progress-tracker';
+
+  if (!hasTier('standard')) {
+    render(`
+      ${renderNavBar('mastery')}
+      <div class="v3-screen" id="screen-progress-tracker">
+        <div class="top-bar">
+          <button class="btn btn-ghost btn-sm" onclick="showProfile()">← Back</button>
+          <div class="top-bar-title">My Mastery Tracker</div>
+          <div></div>
+        </div>
+        ${gatedFeature({
+          minTier: 'standard',
+          sampleHTML: _buildMasteryTrackerSampleHTML(),
+          lockMessage: 'Unlock full mastery tracking with Standard'
+        })}
+      </div>
+    `);
+    return;
+  }
 
   // Show loading immediately
   render(`
