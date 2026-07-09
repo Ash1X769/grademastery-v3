@@ -16790,6 +16790,7 @@ function showHome() {
   const _dueLd = now;
   const _dueTodayStr = `${_dueLd.getFullYear()}-${String(_dueLd.getMonth()+1).padStart(2,'0')}-${String(_dueLd.getDate()).padStart(2,'0')}`;
   const _homeLocked = (STATE.user?.locked_topics || []).map(t => { const u = String(t).toUpperCase(); return u.startsWith('T:') ? u.slice(2) : u; });
+  const _actualDueCards = getDueCards(user);
   const subjects = ['Biology', 'Chemistry', 'Physics'];
   const subjectData = subjects.map(subj => {
     const cards = allCards.filter(c =>
@@ -16797,13 +16798,11 @@ function showHome() {
       !_homeLocked.includes(c.topic.toUpperCase()) &&
       !(c.subtopic && _homeLocked.includes(c.subtopic.toUpperCase()))
     );
-    const due = cards.filter(c => {
-      if (STATE.todayDone[c.subject]?.has(c.id)) return false;
-      if (!progress[c.id]) return true;
-      return progress[c.id].nextReview ? _localDateStr(progress[c.id].nextReview) <= _dueTodayStr : true;
-    });
-    // Cap due count at this subject's independent daily remaining allowance
-    return { subj, cards: cards.length, due: Math.min(due.length, getRemainingCards(subj)), color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
+    // Real remaining-due count: what getDueCards() would actually still serve for this
+    // subject right now, not a todayDone-vs-limit tally (reviews don't count toward
+    // todayDone, so that comparison alone can't tell if a subject is truly finished).
+    const due = _actualDueCards.filter(c => c.subject === subj).length;
+    return { subj, cards: cards.length, due, color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
   });
 
   const totalDue = subjectData.reduce((a, s) => a + s.due, 0);
@@ -16833,7 +16832,7 @@ function showHome() {
   const subjectCards = subjectData.map(s => {
     const isPrimary = s.subj === primary.subj;
     const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
-    const dailyLocked  = !premiumLocked && isSubjectLockedToday(s.subj);
+    const dailyLocked  = !premiumLocked && s.due === 0;
     const doneCount    = STATE.todayDone[s.subj]?.size || 0;
     const partiallyDone = !dailyLocked && !premiumLocked && doneCount > 0;
 
@@ -16856,7 +16855,7 @@ function showHome() {
     } else {
       badge       = '<div style="position:absolute;top:10px;right:10px;background:#EF4444;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;box-shadow:0 2px 6px rgba(239,68,68,0.4);">' + s.due + '</div>';
       statusLine  = partiallyDone
-        ? '<div style="font-size:12px;color:#D97706;font-weight:700;margin-top:3px;">' + getRemainingCards(s.subj) + ' cards remaining</div>'
+        ? '<div style="font-size:12px;color:#D97706;font-weight:700;margin-top:3px;">' + s.due + ' cards remaining</div>'
         : '<div style="font-size:12px;color:#64748B;font-weight:700;margin-top:3px;">' + s.due + ' cards left</div>';
       cardOnclick = 'startFlashcardsForSubject(\'' + s.subj + '\')';
       cardOpacity = '';
@@ -16882,7 +16881,7 @@ function showHome() {
   const v3SubjectCards = !STATE.isDataReady ? '<div style="background:linear-gradient(90deg,#F0FDF4 25%,#E8F5E9 50%,#F0FDF4 75%);background-size:200% 100%;animation:gmSkeleton 1.5s infinite;border-radius:16px;height:120px;margin-bottom:12px;"></div>'.repeat(3) : subjectData.map(s => {
     const sc = subjClass(s.subj);
     const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
-    const dailyLocked   = !premiumLocked && isSubjectLockedToday(s.subj);
+    const dailyLocked   = !premiumLocked && s.due === 0;
     const totalCards    = s.cards || 1;
     const doneFrac      = Math.min(100, Math.round(((totalCards - s.due) / totalCards) * 100));
     let badgeHtml = '', statusLine = '', cardOnclick = '', cardDisabled = false;
@@ -22738,6 +22737,7 @@ function showHome() {
   const _dueLd = now;
   const _dueTodayStr = `${_dueLd.getFullYear()}-${String(_dueLd.getMonth()+1).padStart(2,'0')}-${String(_dueLd.getDate()).padStart(2,'0')}`;
   const _homeLocked = (STATE.user?.locked_topics || []).map(t => { const u = String(t).toUpperCase(); return u.startsWith('T:') ? u.slice(2) : u; });
+  const _actualDueCards = getDueCards(user);
   const subjects = ['Biology', 'Chemistry', 'Physics'];
   const subjectData = subjects.map(subj => {
     const cards = allCards.filter(c =>
@@ -22745,13 +22745,11 @@ function showHome() {
       !_homeLocked.includes(c.topic.toUpperCase()) &&
       !(c.subtopic && _homeLocked.includes(c.subtopic.toUpperCase()))
     );
-    const due = cards.filter(c => {
-      if (STATE.todayDone[c.subject]?.has(c.id)) return false;
-      if (!progress[c.id]) return true;
-      return progress[c.id].nextReview ? _localDateStr(progress[c.id].nextReview) <= _dueTodayStr : true;
-    });
-    // Cap due count at this subject's independent daily remaining allowance
-    return { subj, cards: cards.length, due: Math.min(due.length, getRemainingCards(subj)), color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
+    // Real remaining-due count: what getDueCards() would actually still serve for this
+    // subject right now, not a todayDone-vs-limit tally (reviews don't count toward
+    // todayDone, so that comparison alone can't tell if a subject is truly finished).
+    const due = _actualDueCards.filter(c => c.subject === subj).length;
+    return { subj, cards: cards.length, due, color: subjectColor(subj), emoji: subj === 'Biology' ? '🌿' : subj === 'Chemistry' ? '⚗️' : '⚡' };
   });
 
   const totalDue = subjectData.reduce((a, s) => a + s.due, 0);
@@ -22781,7 +22779,7 @@ function showHome() {
   const subjectCards = subjectData.map(s => {
     const isPrimary = s.subj === primary.subj;
     const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
-    const dailyLocked  = !premiumLocked && isSubjectLockedToday(s.subj);
+    const dailyLocked  = !premiumLocked && s.due === 0;
     const doneCount    = STATE.todayDone[s.subj]?.size || 0;
     const partiallyDone = !dailyLocked && !premiumLocked && doneCount > 0;
 
@@ -22804,7 +22802,7 @@ function showHome() {
     } else {
       badge       = '<div style="position:absolute;top:10px;right:10px;background:#EF4444;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;box-shadow:0 2px 6px rgba(239,68,68,0.4);">' + s.due + '</div>';
       statusLine  = partiallyDone
-        ? '<div style="font-size:12px;color:#D97706;font-weight:700;margin-top:3px;">' + getRemainingCards(s.subj) + ' cards remaining</div>'
+        ? '<div style="font-size:12px;color:#D97706;font-weight:700;margin-top:3px;">' + s.due + ' cards remaining</div>'
         : '<div style="font-size:12px;color:#64748B;font-weight:700;margin-top:3px;">' + s.due + ' cards left</div>';
       cardOnclick = 'startFlashcardsForSubject(\'' + s.subj + '\')';
       cardOpacity = '';
@@ -22830,7 +22828,7 @@ function showHome() {
   const v3SubjectCards = !STATE.isDataReady ? '<div style="background:linear-gradient(90deg,#F0FDF4 25%,#E8F5E9 50%,#F0FDF4 75%);background-size:200% 100%;animation:gmSkeleton 1.5s infinite;border-radius:16px;height:120px;margin-bottom:12px;"></div>'.repeat(3) : subjectData.map(s => {
     const sc = subjClass(s.subj);
     const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
-    const dailyLocked   = !premiumLocked && isSubjectLockedToday(s.subj);
+    const dailyLocked   = !premiumLocked && s.due === 0;
     const totalCards    = s.cards || 1;
     const doneFrac      = Math.min(100, Math.round(((totalCards - s.due) / totalCards) * 100));
     let badgeHtml = '', statusLine = '', cardOnclick = '', cardDisabled = false;
