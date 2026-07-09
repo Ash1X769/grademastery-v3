@@ -17606,10 +17606,11 @@ async function restoreCardProgressFromSupabase(user) {
 
   // Load today's study history to know which topics/cards are done
   try {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = _todayDateStr(); // local calendar date (BST-safe), not UTC
+    const localMidnightUTC = new Date(today + 'T00:00:00').toISOString();
     const res2 = await fetch(
       CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + user.id +
-      '&created_at=gte.' + today + 'T00:00:00Z&select=card_id,subject',
+      '&created_at=gte.' + localMidnightUTC + '&select=card_id,subject',
       { headers }
     );
     if (res2.ok) {
@@ -23526,10 +23527,11 @@ async function restoreCardProgressFromSupabase(user) {
 
   // Load today's study history to know which topics/cards are done
   try {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = _todayDateStr(); // local calendar date (BST-safe), not UTC
+    const localMidnightUTC = new Date(today + 'T00:00:00').toISOString();
     const res2 = await fetch(
       CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + user.id +
-      '&created_at=gte.' + today + 'T00:00:00Z&select=card_id,subject',
+      '&created_at=gte.' + localMidnightUTC + '&select=card_id,subject',
       { headers }
     );
     if (res2.ok) {
