@@ -30468,6 +30468,9 @@ async function submitBrainDump() {
         : smPct >= 60
         ? "Review the missed terms below, then try this Brain Dump again before moving on. 💪"
         : "Go back to the Knowledge Organiser for this topic, then retry the Brain Dump before moving on. 🧠";
+      const actionItem = smBD.missed.length > 0
+        ? `🎯 <strong>Your ONE Action Item:</strong> Go back to the Knowledge Organiser, focus on these missed terms: <em>${smBD.missed.slice(0,5).join(', ')}</em> — then retry this Brain Dump.`
+        : `🎯 <strong>Your ONE Action Item:</strong> Try this Brain Dump again under timed conditions — can you write it faster and include even more detail next time?`;
       const matchedHTML = smBD.matched.slice(0,8).map(t => `<span style="font-size:11px;background:#DCFCE7;color:#16A34A;padding:2px 8px;border-radius:99px;font-weight:700;">✅ ${t}</span>`).join(' ');
       const missedHTML = smBD.missed.slice(0,5).map(t => `<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 8px;border-radius:99px;font-weight:700;">❌ ${t}</span>`).join(' ');
       resultDiv.innerHTML = `<div class="card" style="border-top:4px solid ${color};">
@@ -30476,6 +30479,7 @@ async function submitBrainDump() {
         <div style="margin-top:6px;font-size:13px;font-weight:600;color:var(--text-secondary);line-height:1.5;">${openLine}</div>
         ${matchedHTML || missedHTML ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">${matchedHTML}${missedHTML}</div>` : ''}
         <div style="margin-top:12px;font-size:13px;color:var(--text-secondary);font-weight:600;">${closeLine}</div>
+        <div style="margin-top:8px;font-size:13px;font-weight:600;color:var(--text-secondary);">${actionItem}</div>
       </div>`;
     }
     return;
