@@ -2800,6 +2800,10 @@ h1,h2,h3,.gm-heading {
   background:#FEF08A; color:#1A2E22; border-radius:2px; padding:0 1px;
   /* Intentionally no user-select override — inherits user-select:none from .v3-ko-content */
 }
+/* Deep Dive Read & Learn KO answers: colour key bold terms the same as the standalone
+   Knowledge Organiser view's forest-coloured <strong> terms, without touching bold()
+   itself (shared with flashcards elsewhere). */
+#ko-content strong { color: var(--gm-forest); }
 @media print {
   #ko-content-wrapper { display:none !important; }
   .ko-print-block { display:block !important; }
