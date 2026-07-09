@@ -131,14 +131,6 @@ p  { line-height: 1.7; }
 .phone-input-send { width: 24px; height: 24px; background: var(--gm-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .phone-input-send svg { width: 11px; height: 11px; fill: #fff; }
 
-/* ── Social Proof ────────────────────────────────────────────────────── */
-#social-proof { padding: 56px 0; border-top: 1px solid var(--gm-border); border-bottom: 1px solid var(--gm-border); }
-.social-proof-label { font-size: .8rem; font-weight: 600; color: var(--gm-muted); text-align: center; margin-bottom: 28px; text-transform: uppercase; letter-spacing: .1em; }
-.logo-strip { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-.logo-pill { background: var(--gm-off); border: 1px solid var(--gm-border); border-radius: 10px; padding: 14px 28px; font-size: .8rem; font-weight: 600; color: var(--gm-muted); }
-.social-proof-email { text-align: center; font-size: .8rem; color: var(--gm-muted); }
-.social-proof-email a { color: var(--gm-forest); text-decoration: none; font-weight: 600; }
-
 /* ── Problem ─────────────────────────────────────────────────────────── */
 #problem { background: var(--gm-off); }
 .problem-headline { font-size: clamp(1.6rem, 3.5vw, 2.4rem); max-width: 640px; margin: 0 auto 8px; text-align: center; }
@@ -256,7 +248,6 @@ p  { line-height: 1.7; }
 .toggle-slider { position: absolute; inset: 0; background: var(--gm-forest); border-radius: 999px; cursor: pointer; transition: background .2s; }
 .toggle-slider::before { content: ''; position: absolute; width: 20px; height: 20px; left: 4px; top: 4px; background: #fff; border-radius: 50%; transition: transform .2s; }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(24px); }
-.annual-badge { background: rgba(3,168,96,.12); color: var(--gm-accent); font-size: .75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(3,168,96,.25); }
 .pricing-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 .pricing-card { border: 1.5px solid var(--gm-border); border-radius: var(--radius-lg); padding: 28px 24px; display: flex; flex-direction: column; gap: 0; transition: all .2s; }
 .pricing-card:hover { box-shadow: var(--shadow-md); }
@@ -279,19 +270,6 @@ p  { line-height: 1.7; }
 .pricing-footer { text-align: center; margin-top: 40px; }
 .pricing-footer p { font-size: .88rem; color: var(--gm-muted); margin-bottom: 8px; }
 .pricing-footer a { color: var(--gm-forest); font-weight: 600; }
-
-/* ── Scholarships ────────────────────────────────────────────────────── */
-#scholarships { background: var(--gm-forest); padding: 96px 0; }
-#scholarships .eyebrow { color: rgba(255,255,255,.6); }
-#scholarships h2 { color: #fff; }
-.scholar-body { color: rgba(255,255,255,.7); font-size: 1rem; max-width: 640px; margin: 16px auto 48px; text-align: center; line-height: 1.75; }
-.scholar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; max-width: 800px; margin: 0 auto 48px; }
-.scholar-col h4 { color: #fff; font-size: 1.05rem; margin-bottom: 16px; }
-.scholar-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.scholar-col ul li { color: rgba(255,255,255,.75); font-size: .9rem; display: flex; gap: 10px; align-items: flex-start; }
-.scholar-col ul li::before { content: '✓'; color: var(--gm-accent); font-weight: 700; flex-shrink: 0; }
-.scholar-col p { color: rgba(255,255,255,.7); font-size: .9rem; line-height: 1.7; }
-.scholar-col a { color: var(--gm-accent); font-weight: 600; }
 
 /* ── FAQ ─────────────────────────────────────────────────────────────── */
 #faq { background: var(--gm-off); }
@@ -393,7 +371,6 @@ footer { background: var(--gm-text); padding: 56px 0 32px; }
         <li><a href="#parent-teacher">Parents</a></li>
         <li><a href="#parent-teacher">Teachers</a></li>
         <li><a href="#pricing">Pricing</a></li>
-        <li><a href="#scholarships">Scholarships</a></li>
       </ul>
       <div class="nav-cta">
         <a href="app.html" class="nav-login">Log In</a>
@@ -414,7 +391,6 @@ footer { background: var(--gm-text); padding: 56px 0 32px; }
   <a href="#parent-teacher" class="overlay-link">Parents</a>
   <a href="#parent-teacher" class="overlay-link">Teachers</a>
   <a href="#pricing" class="overlay-link">Pricing</a>
-  <a href="#scholarships" class="overlay-link">Scholarships</a>
   <a href="app.html" class="btn btn-orange btn-lg" style="margin-top:16px;">Start Free</a>
 </div>
 
@@ -472,21 +448,6 @@ So — what are we tackling today? 🔬</div>
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ── Section 2: Social Proof ──────────────────────────────────────── -->
-<section id="social-proof">
-  <div class="container">
-    <p class="social-proof-label">Trusted by GCSE students and their families</p>
-    <div class="logo-strip">
-      <div class="logo-pill">School partner coming soon</div>
-      <div class="logo-pill">School partner coming soon</div>
-      <div class="logo-pill">School partner coming soon</div>
-      <div class="logo-pill">School partner coming soon</div>
-      <div class="logo-pill">School partner coming soon</div>
-    </div>
-    <p class="social-proof-email">Are you a school? <a href="mailto:hello@grademastery.co.uk">hello@grademastery.co.uk</a></p>
   </div>
 </section>
 
@@ -739,11 +700,6 @@ Or just throw a specific topic at me! 🔬</div>
           <h4>Teacher Connection</h4>
           <p>If their school uses GradeMastery, their teacher can see progress too. Everyone's working from the same data.</p>
         </div>
-        <div class="feature-card">
-          <span class="feature-icon">❤️</span>
-          <h4>Scholarship Access</h4>
-          <p>We believe every child deserves this. FSM and disadvantaged students can access GradeMastery free through our scholarship programme.</p>
-        </div>
       </div>
     </div>
 
@@ -932,7 +888,6 @@ Or just throw a specific topic at me! 🔬</div>
         <span class="toggle-slider"></span>
       </label>
       <span class="pricing-toggle-label" id="label-annual">Annual</span>
-      <span class="annual-badge" id="annual-badge" style="opacity:.5;">Save ~30%</span>
     </div>
     <div class="pricing-grid">
 
@@ -943,12 +898,12 @@ Or just throw a specific topic at me! 🔬</div>
         <p class="pricing-subtitle">Free forever</p>
         <div class="pricing-divider"></div>
         <ul class="pricing-features">
-          <li><span>✓</span> 6 flashcards per day</li>
+          <li><span>✓</span> 15 flashcards per week</li>
           <li><span>✓</span> B1, C1 and P1 topics unlocked</li>
           <li><span>✓</span> Basic progress tracking</li>
           <li><span>✓</span> Earn extra topics with streaks</li>
-          <li class="no"><span style="color:var(--gm-muted)">✗</span> No AI Grading</li>
-          <li class="no"><span style="color:var(--gm-muted)">✗</span> No AI Tutor</li>
+          <li><span>✓</span> AI Grading — 10 per day</li>
+          <li><span>✓</span> AI Tutor — 5 messages/day</li>
         </ul>
         <div class="pricing-cta">
           <a href="app.html" style="color:var(--gm-forest);border-color:var(--gm-forest);">Start Free</a>
@@ -959,16 +914,18 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Basic</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="3.99" data-annual="2.92">3.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="7.99" data-annual="6.67">7.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
         <ul class="pricing-features">
           <li><span>✓</span> Full spaced repetition</li>
           <li><span>✓</span> All topics unlocked</li>
-          <li><span>✓</span> Progress tracking and mastery badges</li>
+          <li><span>✓</span> 30 cards/day</li>
+          <li><span>✓</span> Streak tracking</li>
           <li><span>✓</span> Quick Revision mode</li>
           <li><span>✓</span> StudyCoach articles</li>
+          <li class="no"><span style="color:var(--gm-muted)">✗</span> No full Mastery Tracker (locked preview)</li>
           <li class="no"><span style="color:var(--gm-muted)">✗</span> No AI Grading</li>
           <li class="no"><span style="color:var(--gm-muted)">✗</span> No AI Tutor</li>
         </ul>
@@ -981,12 +938,13 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card popular">
         <span class="pricing-card-name">Standard</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="14.99" data-annual="10.00">14.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" id="standard-price-val" data-monthly="14.99"><span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£19.99</span>14.99</span><span class="period">/mo</span>
         </div>
-        <p class="pricing-subtitle">3-day free trial — no card needed</p>
+        <p class="pricing-subtitle">Summer Offer, ends 31 Aug 2026 · 3-day free trial, no card needed<br><span class="billing-note" id="standard-billing-note" style="display:block;margin-top:2px;">Billed monthly</span></p>
         <div class="pricing-divider"></div>
         <ul class="pricing-features">
           <li><span>✓</span> Everything in Basic</li>
+          <li><span>✓</span> Full My Mastery tracker — per-topic mastery %, badges, full history</li>
           <li><span>✓</span> AI Grading ✨ on every answer</li>
           <li><span>✓</span> Smart Grading AI ✨ — daily sessions</li>
           <li><span>✓</span> AI Tutor — 10 messages/day</li>
@@ -1004,7 +962,7 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Premium</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="24.99" data-annual="16.66">24.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="24.99" data-annual="20.83">24.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
@@ -1027,7 +985,7 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Premium Plus</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="44.99" data-annual="29.16">44.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="44.99" data-annual="37.50">44.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
@@ -1037,7 +995,6 @@ Or just throw a specific topic at me! 🔬</div>
           <li><span>✓</span> AI Tutor — unlimited, advanced model</li>
           <li><span>✓</span> AI Learning Coach</li>
           <li><span>✓</span> Weekly personalised study insights</li>
-          <li><span>✓</span> Every subscription funds a scholarship place for a disadvantaged student</li>
           <li><span>✓</span> Priority support</li>
         </ul>
         <div class="pricing-cta">
@@ -1048,33 +1005,7 @@ Or just throw a specific topic at me! 🔬</div>
     </div>
     <div class="pricing-footer">
       <p>For schools and MATs, we offer per-student pricing. Contact us: <a href="mailto:hello@grademastery.co.uk">hello@grademastery.co.uk</a></p>
-      <p>Subsidised access available for Free School Meal students through our scholarship programme — <a href="mailto:hello@grademastery.co.uk">email us</a>.</p>
     </div>
-  </div>
-</section>
-
-<!-- ── Section 12: Scholarships ────────────────────────────────────── -->
-<section id="scholarships">
-  <div class="container text-center">
-    <span class="eyebrow">Our Scholarship Programme</span>
-    <h2 style="color:#fff;">Science shouldn't depend on your postcode</h2>
-    <p class="scholar-body">For every Premium Plus subscriber, GradeMastery provides free access to a student on Free School Meals through our social enterprise. We believe the attainment gap between disadvantaged students and their peers is closeable — and we're doing something about it.</p>
-    <div class="scholar-grid">
-      <div class="scholar-col" style="text-align:left;">
-        <h4>Who qualifies</h4>
-        <ul>
-          <li>Free School Meals students</li>
-          <li>Pupil Premium students</li>
-          <li>Universal Credit families</li>
-          <li>Students in care</li>
-        </ul>
-      </div>
-      <div class="scholar-col" style="text-align:left;">
-        <h4>How to apply</h4>
-        <p>Email <a href="mailto:hello@grademastery.co.uk">hello@grademastery.co.uk</a> with the subject 'Scholarship'. We'll verify eligibility and set up free Premium access within 48 hours. No lengthy forms. No hoops.</p>
-      </div>
-    </div>
-    <a href="mailto:hello@grademastery.co.uk?subject=Scholarship" class="btn btn-white-solid btn-lg">Apply for Free Access</a>
   </div>
 </section>
 
@@ -1106,20 +1037,12 @@ Or just throw a specific topic at me! 🔬</div>
         <div class="faq-answer"><div class="faq-answer-inner">Yes — teachers get a full dashboard showing class mastery, can lock and unlock topics, ping individual students or the whole class, and view student brain dumps. Contact us about school pricing.</div></div>
       </div>
       <div class="faq-item">
-        <button class="faq-question">My child is on Free School Meals — can they get free access?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <div class="faq-answer"><div class="faq-answer-inner">Yes. Email hello@grademastery.co.uk with the subject 'Scholarship' and we'll set up free Premium access through our scholarship programme, usually within 48 hours.</div></div>
-      </div>
-      <div class="faq-item">
         <button class="faq-question">What devices does it work on?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
         <div class="faq-answer"><div class="faq-answer-inner">Any device with a browser — phone, tablet, laptop. It installs as an app on iPhone and Android without needing the App Store. Students just visit grademastery.co.uk and tap "Add to Home Screen."</div></div>
       </div>
       <div class="faq-item">
         <button class="faq-question">How is GradeMastery different from Seneca or Tassomai?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
         <div class="faq-answer"><div class="faq-answer-inner">GradeMastery builds a profile of your child — their target grade, learning style, dream career, upcoming exam dates, and what blocks them from studying. Every AI response, every notification, and every tutoring session adapts to that profile. Other platforms give every student the same experience. We don't.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-question">What is the GradeMastery scholarship programme?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <div class="faq-answer"><div class="faq-answer-inner">Our scholarship programme is our social enterprise arm, founded alongside GradeMastery specifically to provide free and subsidised access to disadvantaged students. Every Premium Plus subscription cross-subsidises a free place.</div></div>
       </div>
     </div>
   </div>
@@ -1148,7 +1071,6 @@ Or just throw a specific topic at me! 🔬</div>
         <li><a href="#parent-teacher">Parents</a></li>
         <li><a href="#parent-teacher">Teachers</a></li>
         <li><a href="#pricing">Pricing</a></li>
-        <li><a href="#scholarships">Scholarships</a></li>
         <li><a href="#how-it-works">How It Works</a></li>
       </ul>
     </div>
@@ -1164,7 +1086,7 @@ Or just throw a specific topic at me! 🔬</div>
       </div>
       <span class="footer-copy">© 2026 GradeMastery. All rights reserved.</span>
     </div>
-    <div class="footer-scholar">Subsidised access for FSM students available — email us</div>
+    <div class="footer-scholar">Are you a teacher? Get in touch about using GradeMastery with your class — <a href="mailto:hello@grademastery.co.uk" style="color:inherit;">hello@grademastery.co.uk</a></div>
   </div>
 </footer>
 
@@ -1274,20 +1196,48 @@ async function landingCheckout(tier, priceId) {
   var toggle = document.getElementById('billing-toggle');
   var labelMonthly = document.getElementById('label-monthly');
   var labelAnnual = document.getElementById('label-annual');
-  var badge = document.getElementById('annual-badge');
 
-  var annualPrices = { '3.99': '2.92', '14.99': '10.00', '24.99': '16.66', '44.99': '29.16' };
-  var annualYearly = { '3.99': '34.99', '14.99': '119.99', '24.99': '199.99', '44.99': '349.99' };
+  // Standard is handled separately below (renderStandardPricing) — it needs
+  // date-aware Summer Offer logic the other tiers don't have, so it's excluded
+  // from these generic maps rather than special-cased inside the shared loop.
+  var annualPrices = { '7.99': '6.67', '24.99': '20.83', '44.99': '37.50' };
+  var annualYearly = { '7.99': '79.99', '24.99': '249.99', '44.99': '449.99' };
 
-  toggle.addEventListener('change', function() {
-    var isAnnual = toggle.checked;
+  // Mirrors app.html's isSummerOfferActive() — same cutoff instant, so this
+  // static page self-corrects even if nobody edits it again after 31 Aug 2026.
+  function isSummerOfferActive() {
+    return Date.now() < Date.parse('2026-08-31T23:00:00Z');
+  }
 
+  function renderStandardPricing(isAnnual) {
+    var offerActive = isSummerOfferActive();
+    var priceEl = document.getElementById('standard-price-val');
+    var noteEl = document.getElementById('standard-billing-note');
+    if (priceEl) {
+      if (isAnnual) {
+        priceEl.innerHTML = offerActive
+          ? '<span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£16.67</span>12.50'
+          : '16.67';
+      } else {
+        priceEl.innerHTML = offerActive
+          ? '<span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£19.99</span>14.99'
+          : '19.99';
+      }
+    }
+    if (noteEl) {
+      noteEl.textContent = isAnnual ? ('£' + (offerActive ? '149.99' : '199.99') + '/year') : 'Billed monthly';
+    }
+  }
+
+  function renderPricing(isAnnual) {
     document.querySelectorAll('.price-val').forEach(function(el) {
+      if (el.id === 'standard-price-val') return;
       var monthly = el.dataset.monthly;
       el.textContent = isAnnual ? (annualPrices[monthly] || monthly) : monthly;
     });
 
     document.querySelectorAll('.billing-note').forEach(function(el) {
+      if (el.id === 'standard-billing-note') return;
       var priceEl = el.closest('.pricing-card').querySelector('.price-val');
       if (!priceEl) return;
       var monthly = priceEl.dataset.monthly;
@@ -1298,9 +1248,15 @@ async function landingCheckout(tier, priceId) {
       }
     });
 
+    renderStandardPricing(isAnnual);
     labelMonthly.classList.toggle('active', !isAnnual);
     labelAnnual.classList.toggle('active', isAnnual);
-    badge.style.opacity = isAnnual ? '1' : '.5';
+  }
+
+  renderStandardPricing(false); // initial paint on load, in case the offer already expired by page-load time
+
+  toggle.addEventListener('change', function() {
+    renderPricing(toggle.checked);
   });
 
   // ── Smooth scroll for anchor links ──────────────────────────────────
