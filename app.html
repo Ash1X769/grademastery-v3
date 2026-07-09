@@ -30457,14 +30457,25 @@ async function submitBrainDump() {
     const resultDiv = document.getElementById('dump-result');
     if (resultDiv) {
       resultDiv.style.display = 'block';
-      const color = smPct >= 70 ? 'var(--ss-green)' : smPct >= 40 ? 'var(--ss-blue)' : 'var(--ss-orange)';
+      const color = smPct >= 80 ? 'var(--ss-green)' : smPct >= 60 ? 'var(--ss-blue)' : 'var(--ss-orange)';
+      const openLine = smPct >= 80
+        ? "Strong recall — you're building real exam-ready memory. Keep pushing! 🔥"
+        : smPct >= 60
+        ? "Solid effort — a few key terms slipped through. Check the missed terms below and go again. 💪"
+        : "This score usually means the Knowledge Organiser needs another look before the Brain Dump. No stress — that's what it's there for! Go back, re-read, then retry. 🧠";
+      const closeLine = smPct >= 80
+        ? "You're at the level where the details matter — tighten up any small gaps and this is exam-ready. 🎯"
+        : smPct >= 60
+        ? "Review the missed terms below, then try this Brain Dump again before moving on. 💪"
+        : "Go back to the Knowledge Organiser for this topic, then retry the Brain Dump before moving on. 🧠";
       const matchedHTML = smBD.matched.slice(0,8).map(t => `<span style="font-size:11px;background:#DCFCE7;color:#16A34A;padding:2px 8px;border-radius:99px;font-weight:700;">✅ ${t}</span>`).join(' ');
       const missedHTML = smBD.missed.slice(0,5).map(t => `<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 8px;border-radius:99px;font-weight:700;">❌ ${t}</span>`).join(' ');
       resultDiv.innerHTML = `<div class="card" style="border-top:4px solid ${color};">
         <div style="font-size:13px;font-weight:800;margin-bottom:8px;">AI Marking ✨</div>
         <div style="font-size:14px;font-weight:600;line-height:1.6;color:var(--text);">You mentioned ${smBD.matched.length} of ${smBD.total} key terms (${smPct}%).</div>
+        <div style="margin-top:6px;font-size:13px;font-weight:600;color:var(--text-secondary);line-height:1.5;">${openLine}</div>
         ${matchedHTML || missedHTML ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">${matchedHTML}${missedHTML}</div>` : ''}
-        <div style="margin-top:12px;font-size:13px;color:var(--text-secondary);font-weight:600;">Review the flashcards to check any terms you missed! 🧠</div>
+        <div style="margin-top:12px;font-size:13px;color:var(--text-secondary);font-weight:600;">${closeLine}</div>
       </div>`;
     }
     return;
@@ -30480,9 +30491,29 @@ async function submitBrainDump() {
   let result = { facts_covered: [], facts_missed: [], score: 0, total: STATE.cardQueue.length, feedback: '' };
   try {
     const topicName = STATE.cardQueue[0]?.topic_name || 'this topic';
-    const bdSystem = `You are a supportive AQA GCSE science tutor marking a student's brain dump. The student wrote from memory without notes.
+    const bdSystem = `You are an expert AQA GCSE science tutor marking a student's brain dump. The student wrote from memory without notes.
+
+STRICT RULES — never break these:
+- Only reference facts, terminology, and concepts from the AQA GCSE specification
+- Never hallucinate, invent mnemonics, or suggest content outside what's in the reference facts provided
+- Never reference A-level content, university content, or anything beyond GCSE scope
+- If you're unsure whether something is AQA spec, don't mention it
+
 Return ONLY valid JSON: {"score_pct": number_0_to_100, "feedback": "string"}
-The feedback MUST be 3-4 sentences minimum and MUST include all of: (1) name at least 2 specific facts the student got right, quoting or paraphrasing what they actually wrote; (2) name 1-2 key facts from the reference that they missed or got wrong; (3) note whether any answers were partially correct or showed partial understanding; (4) end with one specific encouraging comment that references their actual content — never generic phrases like "Good effort!" or "Well done!".`;
+
+FEEDBACK RULES:
+- Be specific — reference exactly what the student wrote vs what they missed
+- NEVER use generic phrases like "Good effort!", "Well done for trying!", "Repeated retrieval is key"
+- If the student ran out of time and missed sections, state this explicitly: "You ran out of time — that's why you missed [section]"
+- Suggest a mnemonic ONLY if one naturally fits the missed content AND is strictly within AQA spec — never invent facts to support a mnemonic
+- Always end with: (1) a journal prompt — suggest they write one short paragraph on what happened, why, and what they'll keep doing; (2) ONE exact actionable next step they must do right now
+- Reiterate that this is about PERFORMANCE not intelligence — high grade students know how to perform, not that they're smarter
+- Keep it punchy and scannable — short paragraphs, bullet points, no walls of text
+
+TONE — adapt based on score_pct:
+- 80-100%: sharp, elite, performance-driven — stretch and challenge them, raise the bar
+- 60-79%: encouraging, specific gaps to close, push for more
+- Below 60%: kind and positive — explicitly tell them this score usually means the Knowledge Organiser wasn't studied properly at the start, give exact next steps`;
     const bdUser = `Topic: ${topicName}
 Reference facts (what they should know): ${referenceContent.slice(0, 1200)}
 Student's brain dump: ${text}`;
@@ -30491,9 +30522,9 @@ Student's brain dump: ${text}`;
     try { aiResult = JSON.parse(raw); } catch { aiResult = null; }
     const scorePct = (aiResult?.score_pct != null) ? Math.max(0, Math.min(100, aiResult.score_pct)) : 50;
     result.score = Math.round(STATE.cardQueue.length * scorePct / 100);
-    result.feedback = aiResult?.feedback || 'You recalled some content from this topic — well done for trying without notes! Review the flashcard answers to see what you missed, then test yourself again. Repeated retrieval is how it sticks. 🧠';
+    result.feedback = aiResult?.feedback || "We had trouble reading the full analysis that time — but you've got real content down on the page, and that's the hard part done. Check the flashcards to see what landed and what didn't, then come back and try this topic again. 🧠";
   } catch(e) {
-    result.feedback = 'Could not reach the AI marker right now. Review the flashcards to see what you remembered correctly — and what to focus on next time. 🧠';
+    result.feedback = "Couldn't reach the AI marker just then — that's on us, not your brain dump. Have a look through the flashcards to see how what you wrote lines up, and give it another go when you're ready. 🧠";
   }
 
   if (STATE.deepDiveResults) { STATE.deepDiveResults.brainDumpScore = result.score; }
@@ -30526,7 +30557,7 @@ Student's brain dump: ${text}`;
   if (resultDiv) {
     resultDiv.style.display = 'block';
     const pct = result.total > 0 ? Math.round((result.score/result.total)*100) : 50;
-    const color = pct >= 70 ? 'var(--ss-green)' : pct >= 40 ? 'var(--ss-blue)' : 'var(--ss-orange)';
+    const color = pct >= 80 ? 'var(--ss-green)' : pct >= 60 ? 'var(--ss-blue)' : 'var(--ss-orange)';
     resultDiv.innerHTML = `
       <div class="card" style="border-top:4px solid ${color};">
         <div style="font-size:13px;font-weight:800;margin-bottom:8px;">🧠 AI Feedback</div>
