@@ -17650,7 +17650,9 @@ function getRemainingCards(subject) {
 }
 
 function startFlashcardsForSubject(subject) {
-  if (isSubjectLockedToday(subject)) {
+  const premiumLocked = !STATE.user?.is_paid && subject !== (STATE.user?.primary_subject || 'Biology');
+  const dueForSubject = getDueCards(STATE.user).filter(c => c.subject === subject);
+  if (!premiumLocked && dueForSubject.length === 0) {
     showModal(`<div class="modal-handle"></div>
       <div style="text-align:center;padding:8px 0 4px;">
         <div style="font-size:44px;margin-bottom:8px;">🔒</div>
@@ -17664,7 +17666,7 @@ function startFlashcardsForSubject(subject) {
   }
 
   const remaining = getRemainingCards(subject);
-  const queue = getDueCards(STATE.user).filter(c => c.subject === subject).slice(0, remaining);
+  const queue = dueForSubject.slice(0, remaining);
 
   if (queue.length === 0) {
     showModal(`<div class="modal-handle"></div>
@@ -23571,7 +23573,9 @@ function getRemainingCards(subject) {
 }
 
 function startFlashcardsForSubject(subject) {
-  if (isSubjectLockedToday(subject)) {
+  const premiumLocked = !STATE.user?.is_paid && subject !== (STATE.user?.primary_subject || 'Biology');
+  const dueForSubject = getDueCards(STATE.user).filter(c => c.subject === subject);
+  if (!premiumLocked && dueForSubject.length === 0) {
     showModal(`<div class="modal-handle"></div>
       <div style="text-align:center;padding:8px 0 4px;">
         <div style="font-size:44px;margin-bottom:8px;">🔒</div>
@@ -23585,7 +23589,7 @@ function startFlashcardsForSubject(subject) {
   }
 
   const remaining = getRemainingCards(subject);
-  const queue = getDueCards(STATE.user).filter(c => c.subject === subject).slice(0, remaining);
+  const queue = dueForSubject.slice(0, remaining);
 
   if (queue.length === 0) {
     showModal(`<div class="modal-handle"></div>
