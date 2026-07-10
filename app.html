@@ -28178,7 +28178,7 @@ async function showParentPortal() {
 
     if (child.user_id) {
       try {
-        const hRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + child.user_id + '&select=card_id,question,subject,topic_name,grade,created_at&order=created_at.desc', { headers });
+        const hRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + child.user_id + '&select=card_id,question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc', { headers });
         childHistory = hRes.ok ? await hRes.json() : [];
         console.log('[ParentPortal] study history rows:', childHistory.length);
       } catch(e) {}
@@ -28235,12 +28235,24 @@ async function showParentPortal() {
   const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
   const gradeEmoji = { 0:'😵', 1:'😰', 2:'🙂', 3:'🌟' };
 
+  // grade/date/answer must come from the SAME row — see showStudentHistory() for why (a card
+  // can be AI-marked with an answer, then separately self-graded with none; pairing the
+  // self-grade's number with the AI-marked answer text misattributes it). Prefer the most
+  // recent row that has an answer and take grade/date/answer together from it; fall back to
+  // plain newest-row behaviour only when nothing in the group has an answer.
   const byCard = {};
   childHistory.forEach(h => {
     const key = h.card_id;
     if (!byCard[key]) {
-      byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1 };
-    } else { byCard[key].attempts++; }
+      byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
+    } else {
+      byCard[key].attempts++;
+      if (h.student_answer && !byCard[key].answer) {
+        byCard[key].grade = h.grade;
+        byCard[key].date = h.created_at;
+        byCard[key].answer = h.student_answer;
+      }
+    }
   });
   const historyCards = Object.values(byCard);
 
@@ -28392,6 +28404,7 @@ async function showParentPortal() {
           <div style="flex:1;min-width:0;margin-right:12px;">
             <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${qText}</div>
             <div style="font-size:12px;color:#64748B;font-weight:600;">${sEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
+            ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
             ${dueStr ? `<div style="font-size:11px;font-weight:700;color:var(--gm-forest);margin-top:3px;">📅 ${dueStr}</div>` : ''}
           </div>
           <div style="text-align:right;flex-shrink:0;">
