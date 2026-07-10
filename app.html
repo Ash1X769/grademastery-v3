@@ -20749,7 +20749,13 @@ async function showStudentHistory(userId) {
     const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
     const gradeEmoji = { 0:'😵', 1:'😰', 2:'🙂', 3:'🌟' };
 
-    // Aggregate: one row per unique card_id (newest-first = most recent grade)
+    // Aggregate: one row per unique card_id. Rows arrive newest-first. grade/date/answer must
+    // come from the SAME row — a card can be AI-marked (with an answer) and later separately
+    // self-graded (no answer); showing the self-grade's number next to the AI-marked answer
+    // text misattributes a grade to an answer it was never actually scored against. So: prefer
+    // the most recent row that has an answer, and take grade/date/answer all from that one row
+    // together. Only fall back to plain newest-row behaviour when nothing in the group has an
+    // answer at all (e.g. a genuine pure self-grade session with no typed input).
     const byCard = {};
     rows.forEach(h => {
       const key = h.card_id;
@@ -20757,10 +20763,13 @@ async function showStudentHistory(userId) {
         byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
-        // Rows are newest-first, so the first one seen correctly sets the current grade/date —
-        // but it may be a self-graded row with no written answer. Backfill from any older row
-        // for this card that does have one, rather than silently losing the AI-marked answer.
-        if (!byCard[key].answer && h.student_answer) byCard[key].answer = h.student_answer;
+        // Rows are newest-first, so the first row with an answer we hit here is already the
+        // most recent one that has one — take its grade/date together with the answer.
+        if (h.student_answer && !byCard[key].answer) {
+          byCard[key].grade = h.grade;
+          byCard[key].date = h.created_at;
+          byCard[key].answer = h.student_answer;
+        }
       }
     });
     const cards = Object.values(byCard);
@@ -26726,7 +26735,13 @@ async function showStudentHistory(userId) {
     const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
     const gradeEmoji = { 0:'😵', 1:'😰', 2:'🙂', 3:'🌟' };
 
-    // Aggregate: one row per unique card_id (newest-first = most recent grade)
+    // Aggregate: one row per unique card_id. Rows arrive newest-first. grade/date/answer must
+    // come from the SAME row — a card can be AI-marked (with an answer) and later separately
+    // self-graded (no answer); showing the self-grade's number next to the AI-marked answer
+    // text misattributes a grade to an answer it was never actually scored against. So: prefer
+    // the most recent row that has an answer, and take grade/date/answer all from that one row
+    // together. Only fall back to plain newest-row behaviour when nothing in the group has an
+    // answer at all (e.g. a genuine pure self-grade session with no typed input).
     const byCard = {};
     rows.forEach(h => {
       const key = h.card_id;
@@ -26734,10 +26749,13 @@ async function showStudentHistory(userId) {
         byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
-        // Rows are newest-first, so the first one seen correctly sets the current grade/date —
-        // but it may be a self-graded row with no written answer. Backfill from any older row
-        // for this card that does have one, rather than silently losing the AI-marked answer.
-        if (!byCard[key].answer && h.student_answer) byCard[key].answer = h.student_answer;
+        // Rows are newest-first, so the first row with an answer we hit here is already the
+        // most recent one that has one — take its grade/date together with the answer.
+        if (h.student_answer && !byCard[key].answer) {
+          byCard[key].grade = h.grade;
+          byCard[key].date = h.created_at;
+          byCard[key].answer = h.student_answer;
+        }
       }
     });
     const cards = Object.values(byCard);
