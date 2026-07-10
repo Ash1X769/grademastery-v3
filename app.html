@@ -23276,7 +23276,7 @@ async function submitFlashcardAI() {
     ? card.a.flatMap(line => { const matches = line.match(/\*\*([^*]+)\*\*/g) || []; return matches.map(m => m.replace(/\*\*/g, '').trim().toLowerCase()); })
     : [];
   const blankPhrases = ['', 'i dont know', "i don't know", 'idk', 'no idea', 'not sure', 'dont know', 'dunno'];
-  if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); recordAndAdvance(card.id, 'again'); return; }
+  if (blankPhrases.includes(studentAnswer)) { showAIResult('again', 'No answer given.', false); console.log('[DEBUG student_answer]', { phase: STATE.sessionPhase, currentStudentAnswer: STATE.currentStudentAnswer, cardId: card.id, branch: 'blank-phrase' }); recordAndAdvance(card.id, 'again'); return; }
   if (!aiMarkingAvailable()) {
     if (!keywordMarkingAvailable()) {
       showAILimitModal("You've used all your AI Marking for this week (Smart-AI Marking ✨ and AI Marking both used up). Switch to Self Marking to keep going, or upgrade for more — resets Monday.");
@@ -23287,6 +23287,7 @@ async function submitFlashcardAI() {
     const smResult = runSmartMarkCard(card, studentAnswer);
     STATE.currentAutoGrade = smResult.grade;
     showSmartMarkCardResult(smResult);
+    console.log('[DEBUG student_answer]', { phase: STATE.sessionPhase, currentStudentAnswer: STATE.currentStudentAnswer, cardId: card.id, branch: 'smart-mark-fallback' });
     recordAndAdvance(card.id, smResult.grade);
     return;
   }
@@ -23301,6 +23302,7 @@ async function submitFlashcardAI() {
     const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g, '').trim());
     const grade = ['again','hard','good','easy'].includes(parsed.grade) ? parsed.grade : 'again';
     showAIResult(grade, parsed.feedback || '', timeSeconds < 4);
+    console.log('[DEBUG student_answer]', { phase: STATE.sessionPhase, currentStudentAnswer: STATE.currentStudentAnswer, cardId: card.id, branch: 'claude-ai-marking' });
     recordAndAdvance(card.id, grade);
   } catch(e) {
     const inputArea = document.getElementById('ai-input-area');
@@ -24072,6 +24074,18 @@ function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
   const user = STATE.user;
   if (!user?.id || !user?.token) return;
   updateStreakOnStudy();
+  const _shPayload = {
+    user_id: user.id,
+    card_id: cardId,
+    question: card?.question || card?.q || '',
+    subject: card?.subject || '',
+    topic_name: card?.topic_name || card?.topic || '',
+    grade: gradeNum,
+    ai_graded: !!aiGraded,
+    phase: STATE.sessionPhase || 'flashcard',
+    student_answer: STATE.currentStudentAnswer || null
+  };
+  console.log('[DEBUG student_answer] syncStudyHistoryRow payload', { student_answer: _shPayload.student_answer, phase: _shPayload.phase, ai_graded: _shPayload.ai_graded, card_id: _shPayload.card_id, full: _shPayload });
   fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history', {
     method: 'POST',
     headers: {
@@ -24080,17 +24094,7 @@ function syncStudyHistoryRow(cardId, gradeNum, card, aiGraded) {
       'Content-Type': 'application/json',
       'Prefer': 'return=minimal'
     },
-    body: JSON.stringify({
-      user_id: user.id,
-      card_id: cardId,
-      question: card?.question || card?.q || '',
-      subject: card?.subject || '',
-      topic_name: card?.topic_name || card?.topic || '',
-      grade: gradeNum,
-      ai_graded: !!aiGraded,
-      phase: STATE.sessionPhase || 'flashcard',
-      student_answer: STATE.currentStudentAnswer || null
-    })
+    body: JSON.stringify(_shPayload)
   }).then(r => { if (!r.ok) r.text().then(t => console.error('study_history write failed:', r.status, t)); }).catch(e => console.error('study_history write failed:', e));
   STATE.currentStudentAnswer = null;
 }
