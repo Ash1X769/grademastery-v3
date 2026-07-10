@@ -3194,6 +3194,7 @@ let STATE = {
   pendingAnswerTime: null,
   todayDone: {}, // { [subject: string]: Set<cardId> } — NEW cards graded today, keyed by subject (gates new-card intro in getDueCards)
   todayGraded: {}, // { [subject: string]: number } — TOTAL cards (new + review) graded today, keyed by subject (gates daily-limit display/lock)
+  restoreProgressPromise: null, // in-flight/settled promise from restoreCardProgressFromSupabase(), awaited by startFlashcards()/resumeMidSession() to avoid grading before SRS state is hydrated
 };
 
 const _expandedTopics = new Set(); // tracks which topic rows have their subtopics panel open
@@ -21900,7 +21901,8 @@ async function afterLogin(startScreen) {
   if (STATE.role === 'student') {
     STATE.isDataReady = false;
     showHome();  // render nav + home immediately; card counts update below
-    await restoreCardProgressFromSupabase(STATE.user);
+    STATE.restoreProgressPromise = restoreCardProgressFromSupabase(STATE.user);
+    await STATE.restoreProgressPromise;
     STATE.isDataReady = true;
     if (STATE.screen === 'home') showHome();  // re-render with restored card counts
     loadUnreadCount();
@@ -23037,7 +23039,12 @@ function renderNavBar(active) {
 // ============================================================
 // FLASHCARD MODE
 // ============================================================
-function startFlashcards() {
+async function startFlashcards() {
+  if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+    showToast('Loading your progress\u2026');
+    await STATE.restoreProgressPromise;
+    STATE.isDataReady = true;
+  }
   const user = STATE.user;
 
   // Free tier: weekly card limit — nudge toward Basic/Standard, throttled (Category 2)
@@ -25274,7 +25281,12 @@ ${renderNavBar('profile')}
   render(html);
 }
 
-function resumeMidSession() {
+async function resumeMidSession() {
+  if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+    showToast('Loading your progress\u2026');
+    await STATE.restoreProgressPromise;
+    STATE.isDataReady = true;
+  }
   const snap = LS.get('mid_session');
   if (!snap || !snap.queue) return;
   const allCards = SAMPLE_CARDS;
