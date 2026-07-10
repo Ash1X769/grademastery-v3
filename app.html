@@ -2902,6 +2902,26 @@ function hasTier(minTier) {
   return TIER_RANK[getEffectiveSubscriptionTier()] >= TIER_RANK[minTier];
 }
 
+// ============================================================
+// EFFECTIVE AI-MARKING MODE (shared — do not duplicate this logic per screen)
+// Precedence: teacher class-wide lock (minus per-student exemption) wins outright;
+// otherwise an explicit parent preference; otherwise the student's own session toggle.
+// No screen should read class_ai_marking_locked / allow_self_grade / parent_ai_mode_override
+// / STATE.aiMode directly — always go through this.
+// ============================================================
+function getEffectiveAIMode(profile) {
+  const teacherLocked = !!profile?.class_code
+    && profile?.class_ai_marking_locked === true
+    && profile?.allow_self_grade === false;
+  if (teacherLocked) {
+    return { aiMode: true, locked: true, lockedBy: 'teacher' };
+  }
+  if (profile?.parent_ai_mode_override != null) {
+    return { aiMode: profile.parent_ai_mode_override === true, locked: false, lockedBy: 'parent' };
+  }
+  return { aiMode: STATE.aiMode !== false, locked: false, lockedBy: null };
+}
+
 // Wraps a feature: returns null if the user is entitled (caller renders the real thing),
 // or an inert dimmed preview (pointer-events:none — no nested click handler can ever fire)
 // with a single click target that triggers the upgrade nudge, if not.
@@ -15737,7 +15757,6 @@ async function doLogin() {
     primary_subject: meta.primary_subject || 'Biology',
     is_paid: false,
     xp: 0, streak: 0, level: 1,
-    ai_mode: true, ai_mode_locked: false,
   };
   STATE.role = meta.role || 'student';
   LS.set('demo_user', STATE.user);
@@ -15841,7 +15860,6 @@ async function doSignup() {
         primary_subject: m.primary_subject || 'Biology',
         is_paid: false,
         xp: 0, streak: 0, level: 1,
-        ai_mode: true, ai_mode_locked: false,
       };
       STATE.role = m.role || 'student';
       afterLogin();
@@ -15992,7 +16010,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -16039,6 +16057,7 @@ async function loadUserPaidStatus() {
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade === true;
       STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
+      STATE.user.parent_ai_mode_override = p.parent_ai_mode_override ?? null;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
@@ -17127,6 +17146,7 @@ function startFlashcards() {
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
 
   if (STATE.cardQueue.length === 0) {
@@ -17144,7 +17164,9 @@ function renderFlashcard() {
   const current = STATE.currentCardIndex;
   STATE.flashcardFlipped = false;
   STATE.pendingAnswerTime = Date.now();
-  const aiMode = STATE.aiMode !== false;
+  const _effAI = getEffectiveAIMode(STATE.user);
+  const aiMode = _effAI.aiMode;
+  const aiLocked = _effAI.locked;
   const aiLimitReached = !aiMarkingAvailable();
 
   // Build answer bullets - support both old (string) and V1 (array) format
@@ -17209,10 +17231,11 @@ function renderFlashcard() {
         <div class="v3-ai-toggle-name">${_v3AiToggleLabel}</div>
         <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? 'AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
       </div>
-      <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
+      <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode" ${aiLocked ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}></button>
     </div>
-    ${aiMode && !(STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false) ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
-    ${STATE.user?.class_ai_marking_locked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">Your teacher requires AI marking for this class</div>` : ''}
+    ${aiLocked
+      ? `<div class="v3-self-grade-link" style="color:var(--gm-muted);cursor:default;">🔒 Locked by your teacher</div>`
+      : (aiMode ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : '')}
   </div>
 
   <!-- Card -->
@@ -17244,6 +17267,9 @@ function renderFlashcard() {
 
     <!-- Rating -->
     <div id="rating-wrap" style="display:none;margin-top:8px;">
+      ${aiLocked ? `
+      <div class="ai-locked-msg" style="text-align:center;padding:10px 0;font-size:12px;color:var(--gm-muted);font-weight:600;">🔒 Locked by your teacher — AI marking is required, try submitting again</div>
+      ` : `
       <div class="v3-rating-prompt">How did you find that?</div>
       <div class="v3-rating-grid">
         <button class="v3-rate-btn again" onclick="selfGrade('${card.id}',0)"><span class="em">😵</span>Again</button>
@@ -17251,6 +17277,7 @@ function renderFlashcard() {
         <button class="v3-rate-btn good" onclick="selfGrade('${card.id}',2)"><span class="em">😊</span>Good</button>
         <button class="v3-rate-btn easy" onclick="selfGrade('${card.id}',3)"><span class="em">😄</span>Easy!</button>
       </div>
+      `}
 
       ${hasExamQ ? `
       <button class="exam-reveal-btn" id="exam-reveal-btn" onclick="toggleExamCard()" style="margin-top:12px;">
@@ -17412,8 +17439,10 @@ function showAIResult(grade, feedback, copyPaste) {
   // AI graded — hide self-rating buttons, grade already saved to SRS
   const ratingGrid = document.querySelector('#rating-wrap .rating-grid');
   const ratingPrompt = document.querySelector('#rating-wrap .rating-prompt');
+  const ratingLockedMsg = document.querySelector('#rating-wrap .ai-locked-msg');
   if (ratingGrid) ratingGrid.style.display = 'none';
   if (ratingPrompt) ratingPrompt.style.display = 'none';
+  if (ratingLockedMsg) ratingLockedMsg.style.display = 'none';
   const examBtn = document.getElementById('exam-reveal-btn');
   if (examBtn) examBtn.style.display = 'flex';
 }
@@ -17478,6 +17507,9 @@ function recordAndAdvance(cardId, grade) {
       nextBtn.style.marginTop = '12px';
       nextBtn.textContent = 'Next card →';
       nextBtn.onclick = () => {
+        // Same leak this guards against in nextCard(): must not let an AI/smart-mark
+        // auto-grade on this card silently exempt self-grade on the next one.
+        delete STATE.currentAutoGrade;
         STATE.currentCardIndex++;
         if (STATE.currentCardIndex >= STATE.cardQueue.length) {
           if (STATE.sessionPhase === 'quickRevision') {
@@ -17520,7 +17552,7 @@ function flipCard() {
 }
 
 function selfGrade(cardId, grade) {
-  if (STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false && !STATE.currentAutoGrade) {
+  if (getEffectiveAIMode(STATE.user).locked && !STATE.currentAutoGrade) {
     showToast('AI marking is required in your class');
     return;
   }
@@ -17688,6 +17720,7 @@ function startFlashcardsForSubject(subject) {
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
   renderFlashcard();
 }
@@ -18108,6 +18141,10 @@ function recordGrade(cardId, grade, aiGraded) {
 }
 
 function nextCard() {
+  // Must clear before advancing: this flag legitimately bypasses the teacher AI-marking
+  // lock for the one auto-graded card that set it (smart-mark fallback), and must not
+  // leak into whether the NEXT card's self-grade buttons are gated.
+  delete STATE.currentAutoGrade;
   STATE.currentCardIndex++;
   if (STATE.currentCardIndex >= STATE.cardQueue.length) {
     if (STATE.sessionPhase === 'quickRevision') {
@@ -18506,6 +18543,7 @@ function renderEmbedPhase() {
   STATE.sessionPhase = 'deepDive';
   STATE.deepDiveCurrentPhase = 'cards';
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   renderEmbedCard();
 }
 
@@ -18517,6 +18555,7 @@ function renderEmbedCard() {
   const current = STATE.currentCardIndex;
   STATE.pendingAnswerTime = Date.now();
   STATE.flashcardFlipped = false;
+  const aiLocked = getEffectiveAIMode(STATE.user).locked;
 
   let answerBullets;
   if (Array.isArray(card.a) && card.a.length > 0) {
@@ -18560,6 +18599,7 @@ function renderEmbedCard() {
       <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:12px;">${questionHTML}</div>
     </div>
     <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;" oninput="STATE.currentStudentAnswer=this.value"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
+    ${aiLocked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">🔒 Your teacher requires AI marking for this class</div>` : ''}
     <div id="ai-result" style="display:none;"></div>
 
     <div id="answer-sec" style="display:none;">
@@ -18571,6 +18611,9 @@ function renderEmbedCard() {
     </div>
 
     <div id="rating-wrap" style="display:none;">
+      ${aiLocked ? `
+      <div class="ai-locked-msg" style="text-align:center;padding:10px 0;font-size:12px;color:var(--gm-muted);font-weight:600;">🔒 Locked by your teacher — AI marking is required, try submitting again</div>
+      ` : `
       <div class="rating-prompt">How did you find that?</div>
       <div class="rating-grid">
         <button class="rate-btn again" onclick="selfGrade('${card.id}',0)"><span class="em">😵</span>Again</button>
@@ -18578,6 +18621,7 @@ function renderEmbedCard() {
         <button class="rate-btn good" onclick="selfGrade('${card.id}',2)"><span class="em">🙂</span>Good</button>
         <button class="rate-btn easy" onclick="selfGrade('${card.id}',3)"><span class="em">🌟</span>Easy!</button>
       </div>
+      `}
 
       ${hasExamQ ? `
       <button class="exam-reveal-btn" id="exam-reveal-btn" onclick="toggleExamCard()">
@@ -19383,6 +19427,7 @@ function resumeMidSession() {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.currentCardIndex = Math.min(snap.index, queue.length - 1);
+  delete STATE.currentAutoGrade;
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE._activeTopic = snap.topic || null;
@@ -19430,6 +19475,7 @@ function startFlashcardsForTopic(topicKey) {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE._activeTopic = topicKey;
@@ -21716,7 +21762,6 @@ async function doLogin() {
     primary_subject: meta.primary_subject || 'Biology',
     is_paid: false,
     xp: 0, streak: 0, level: 1,
-    ai_mode: true, ai_mode_locked: false,
   };
   STATE.role = meta.role || 'student';
   LS.set('demo_user', STATE.user);
@@ -21820,7 +21865,6 @@ async function doSignup() {
         primary_subject: m.primary_subject || 'Biology',
         is_paid: false,
         xp: 0, streak: 0, level: 1,
-        ai_mode: true, ai_mode_locked: false,
       };
       STATE.role = m.role || 'student';
       afterLogin();
@@ -21957,7 +22001,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -22004,6 +22048,7 @@ async function loadUserPaidStatus() {
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade === true;
       STATE.user.allow_student_unlock   = p.allow_student_unlock === true;
+      STATE.user.parent_ai_mode_override = p.parent_ai_mode_override ?? null;
       if (p.class_code) {
         fetch(CONFIG.SUPABASE_URL + '/rest/v1/classes?code=eq.' + p.class_code + '&select=allow_student_unlock,ai_marking_locked', {
           headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token }
@@ -23084,6 +23129,7 @@ async function startFlashcards() {
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
 
   if (STATE.cardQueue.length === 0) {
@@ -23101,7 +23147,9 @@ function renderFlashcard() {
   const current = STATE.currentCardIndex;
   STATE.flashcardFlipped = false;
   STATE.pendingAnswerTime = Date.now();
-  const aiMode = STATE.aiMode !== false;
+  const _effAI = getEffectiveAIMode(STATE.user);
+  const aiMode = _effAI.aiMode;
+  const aiLocked = _effAI.locked;
   const aiLimitReached = !aiMarkingAvailable();
 
   // Build answer bullets - support both old (string) and V1 (array) format
@@ -23166,10 +23214,11 @@ function renderFlashcard() {
         <div class="v3-ai-toggle-name">${_v3AiToggleLabel}</div>
         <div class="v3-ai-toggle-sub">${!aiMode ? 'Reveal and mark yourself honestly' : aiLimitReached ? 'AI Marking — no AI calls used' : 'Write your answer — assessed against AQA criteria'}</div>
       </div>
-      <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode"></button>
+      <button class="v3-toggle ${aiMode ? 'on' : ''}" onclick="toggleAIMode()" aria-label="Toggle AI mode" ${aiLocked ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}></button>
     </div>
-    ${aiMode && !(STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false) ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : ''}
-    ${STATE.user?.class_ai_marking_locked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">Your teacher requires AI marking for this class</div>` : ''}
+    ${aiLocked
+      ? `<div class="v3-self-grade-link" style="color:var(--gm-muted);cursor:default;">🔒 Locked by your teacher</div>`
+      : (aiMode ? `<div class="v3-self-grade-link"><span onclick="toggleAIMode()">Mark yourself instead</span></div>` : '')}
   </div>
 
   <!-- Card -->
@@ -23201,6 +23250,9 @@ function renderFlashcard() {
 
     <!-- Rating -->
     <div id="rating-wrap" style="display:none;margin-top:8px;">
+      ${aiLocked ? `
+      <div class="ai-locked-msg" style="text-align:center;padding:10px 0;font-size:12px;color:var(--gm-muted);font-weight:600;">🔒 Locked by your teacher — AI marking is required, try submitting again</div>
+      ` : `
       <div class="v3-rating-prompt">How did you find that?</div>
       <div class="v3-rating-grid">
         <button class="v3-rate-btn again" onclick="selfGrade('${card.id}',0)"><span class="em">😵</span>Again</button>
@@ -23208,6 +23260,7 @@ function renderFlashcard() {
         <button class="v3-rate-btn good" onclick="selfGrade('${card.id}',2)"><span class="em">😊</span>Good</button>
         <button class="v3-rate-btn easy" onclick="selfGrade('${card.id}',3)"><span class="em">😄</span>Easy!</button>
       </div>
+      `}
 
       ${hasExamQ ? `
       <button class="exam-reveal-btn" id="exam-reveal-btn" onclick="toggleExamCard()" style="margin-top:12px;">
@@ -23344,8 +23397,10 @@ function showAIResult(grade, feedback, copyPaste) {
   // AI graded — hide self-rating buttons, grade already saved to SRS
   const ratingGrid = document.querySelector('#rating-wrap .rating-grid');
   const ratingPrompt = document.querySelector('#rating-wrap .rating-prompt');
+  const ratingLockedMsg = document.querySelector('#rating-wrap .ai-locked-msg');
   if (ratingGrid) ratingGrid.style.display = 'none';
   if (ratingPrompt) ratingPrompt.style.display = 'none';
+  if (ratingLockedMsg) ratingLockedMsg.style.display = 'none';
   const examBtn = document.getElementById('exam-reveal-btn');
   if (examBtn) examBtn.style.display = 'flex';
 }
@@ -23414,6 +23469,9 @@ function recordAndAdvance(cardId, grade) {
       nextBtn.style.marginTop = '12px';
       nextBtn.textContent = 'Next card →';
       nextBtn.onclick = () => {
+        // Same leak this guards against in nextCard(): must not let an AI/smart-mark
+        // auto-grade on this card silently exempt self-grade on the next one.
+        delete STATE.currentAutoGrade;
         STATE.currentCardIndex++;
         if (STATE.currentCardIndex >= STATE.cardQueue.length) {
           if (STATE.sessionPhase === 'quickRevision') {
@@ -23456,7 +23514,7 @@ function flipCard() {
 }
 
 function selfGrade(cardId, grade) {
-  if (STATE.user?.class_ai_marking_locked && STATE.user?.allow_self_grade === false && !STATE.currentAutoGrade) {
+  if (getEffectiveAIMode(STATE.user).locked && !STATE.currentAutoGrade) {
     showToast('AI marking is required in your class');
     return;
   }
@@ -23628,6 +23686,7 @@ function startFlashcardsForSubject(subject) {
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
   renderFlashcard();
 }
@@ -23851,6 +23910,7 @@ function startQuickRevision(topicKey) {
   if (!topicKey) {
     STATE.cardQueue = [...SAMPLE_CARDS].sort(() => Math.random() - 0.5);
     STATE.currentCardIndex = 0;
+    delete STATE.currentAutoGrade;
     STATE.sessionPhase = 'quickRevision';
     renderFlashcard();
     return;
@@ -23865,6 +23925,7 @@ function startQuickRevision(topicKey) {
   const shuffled = [...topicCards].sort(() => Math.random() - 0.5);
   STATE.cardQueue = shuffled;
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.sessionPhase = 'quickRevision';
   STATE.screen = 'quickRevision';
   STATE._quickRevisionTopic = key;
@@ -23884,6 +23945,7 @@ function startQuickRevisionSubtopic(subtopicKey) {
   const shuffled = [...subtopicCards].sort(() => Math.random() - 0.5);
   STATE.cardQueue = shuffled;
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.sessionPhase = 'quickRevision';
   STATE.screen = 'quickRevision';
   STATE._quickRevisionTopic = key;
@@ -23893,10 +23955,10 @@ function startQuickRevisionSubtopic(subtopicKey) {
 }
 
 function qrPrev() {
-  if (STATE.currentCardIndex > 0) { STATE.currentCardIndex--; renderFlashcard(); }
+  if (STATE.currentCardIndex > 0) { delete STATE.currentAutoGrade; STATE.currentCardIndex--; renderFlashcard(); }
 }
 function qrNext() {
-  if (STATE.currentCardIndex < STATE.cardQueue.length - 1) { STATE.currentCardIndex++; renderFlashcard(); }
+  if (STATE.currentCardIndex < STATE.cardQueue.length - 1) { delete STATE.currentAutoGrade; STATE.currentCardIndex++; renderFlashcard(); }
 }
 
 function showQuickRevisionEnd() {
@@ -24149,6 +24211,10 @@ function recordGrade(cardId, grade, aiGraded) {
 }
 
 function nextCard() {
+  // Must clear before advancing: this flag legitimately bypasses the teacher AI-marking
+  // lock for the one auto-graded card that set it (smart-mark fallback), and must not
+  // leak into whether the NEXT card's self-grade buttons are gated.
+  delete STATE.currentAutoGrade;
   STATE.currentCardIndex++;
   if (STATE.currentCardIndex >= STATE.cardQueue.length) {
     if (STATE.sessionPhase === 'quickRevision') {
@@ -24545,6 +24611,7 @@ function renderEmbedPhase() {
   STATE.sessionPhase = 'deepDive';
   STATE.deepDiveCurrentPhase = 'cards';
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   renderEmbedCard();
 }
 
@@ -24556,6 +24623,7 @@ function renderEmbedCard() {
   const current = STATE.currentCardIndex;
   STATE.pendingAnswerTime = Date.now();
   STATE.flashcardFlipped = false;
+  const aiLocked = getEffectiveAIMode(STATE.user).locked;
 
   let answerBullets;
   if (Array.isArray(card.a) && card.a.length > 0) {
@@ -24599,6 +24667,7 @@ function renderEmbedCard() {
       <div style="font-size:16px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:12px;">${questionHTML}</div>
     </div>
     <div id="ai-input-area"><textarea id="student-answer" class="input" placeholder="Write your answer using key terms..." rows="3" style="margin-bottom:8px;width:100%;" oninput="STATE.currentStudentAnswer=this.value"></textarea>${!STATE.user?.is_paid ? `<div style="text-align:right;font-size:11px;color:#94A3B8;font-weight:700;margin-bottom:6px;">✨ ${getAIMarkingDailyCount()}/${CONFIG.FREE_AI_MARKING_DAILY} AI marks used today</div>` : ''}<button class="btn btn-primary btn-full" onclick="submitFlashcardAI()">Submit for marking</button></div>
+    ${aiLocked ? `<div style="font-size:11px;color:var(--gm-muted);text-align:center;margin-top:4px;font-weight:600;">🔒 Your teacher requires AI marking for this class</div>` : ''}
     <div id="ai-result" style="display:none;"></div>
 
     <div id="answer-sec" style="display:none;">
@@ -24610,6 +24679,9 @@ function renderEmbedCard() {
     </div>
 
     <div id="rating-wrap" style="display:none;">
+      ${aiLocked ? `
+      <div class="ai-locked-msg" style="text-align:center;padding:10px 0;font-size:12px;color:var(--gm-muted);font-weight:600;">🔒 Locked by your teacher — AI marking is required, try submitting again</div>
+      ` : `
       <div class="rating-prompt">How did you find that?</div>
       <div class="rating-grid">
         <button class="rate-btn again" onclick="selfGrade('${card.id}',0)"><span class="em">😵</span>Again</button>
@@ -24617,6 +24689,7 @@ function renderEmbedCard() {
         <button class="rate-btn good" onclick="selfGrade('${card.id}',2)"><span class="em">🙂</span>Good</button>
         <button class="rate-btn easy" onclick="selfGrade('${card.id}',3)"><span class="em">🌟</span>Easy!</button>
       </div>
+      `}
 
       ${hasExamQ ? `
       <button class="exam-reveal-btn" id="exam-reveal-btn" onclick="toggleExamCard()">
@@ -25300,6 +25373,7 @@ async function resumeMidSession() {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.currentCardIndex = Math.min(snap.index, queue.length - 1);
+  delete STATE.currentAutoGrade;
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE._activeTopic = snap.topic || null;
@@ -25347,6 +25421,7 @@ function startFlashcardsForTopic(topicKey) {
   LS.del('mid_session');
   STATE.cardQueue = queue;
   STATE.currentCardIndex = 0;
+  delete STATE.currentAutoGrade;
   STATE.cardsDone = [];
   STATE.sessionResults = [];
   STATE._activeTopic = topicKey;
@@ -29428,7 +29503,6 @@ async function init() {
           class_code: meta.class_code || null,
           parent_code: meta.parent_code || null,
           xp: meta.xp || 0, streak: meta.streak || 0, level: meta.level || 1,
-          ai_mode: meta.ai_mode !== false,
         };
         STATE.role = STATE.user?.role || 'student';
         // Same staleness gap as the demo_user branch above: this access_token was
