@@ -16576,6 +16576,10 @@ async function setStudentReminderHourByParentOrTeacher(studentUserId, hour, sect
 async function showStudyHistory() {
   STATE.screen = 'history'; saveScreen('history');
   const user = STATE.user;
+  // Don't read card_progress until the post-login restore has actually landed — otherwise
+  // a student who opens History quickly after logging in sees stale/empty local "Next due"
+  // data even though the correct value already exists server-side.
+  if (STATE.restoreProgressPromise) { try { await STATE.restoreProgressPromise; } catch(e) {} }
   const progress = LS.get('card_progress') || {};
 
   const gradeColor = { again:'#DC2626', hard:'#D97706', good:'#16A34A', easy:'var(--gm-forest)', 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
@@ -20728,6 +20732,19 @@ async function showStudentHistory(userId) {
     );
     const rows = res.ok ? await res.json() : [];
 
+    // "Next due" calendar — same source (card_progress.next_review) and same display rule
+    // as the student's own history view, just fetched server-side instead of localStorage.
+    let progressByCard = {};
+    try {
+      const progRes = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/card_progress?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,next_review',
+        { headers }
+      );
+      if (progRes.ok) {
+        (await progRes.json()).forEach(p => { progressByCard[p.card_id] = p.next_review; });
+      }
+    } catch(e) {}
+
     const gradeColor = { 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
     const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
     const gradeEmoji = { 0:'😵', 1:'😰', 2:'🙂', 3:'🌟' };
@@ -20737,9 +20754,13 @@ async function showStudentHistory(userId) {
     rows.forEach(h => {
       const key = h.card_id;
       if (!byCard[key]) {
-        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
+        byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
+        // Rows are newest-first, so the first one seen correctly sets the current grade/date —
+        // but it may be a self-graded row with no written answer. Backfill from any older row
+        // for this card that does have one, rather than silently losing the AI-marked answer.
+        if (!byCard[key].answer && h.student_answer) byCard[key].answer = h.student_answer;
       }
     });
     const cards = Object.values(byCard);
@@ -20753,11 +20774,20 @@ async function showStudentHistory(userId) {
           const date = h.date ? new Date(h.date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
           const subjectEmoji = h.subject === 'Biology' ? '🌿' : h.subject === 'Chemistry' ? '⚗️' : h.subject === 'Physics' ? '⚡' : '📚';
           const questionText = h.question || h.topic || 'Flashcard';
+          const nextReview = progressByCard[h.cardId];
+          let dueStr = '';
+          if (nextReview) {
+            const due = new Date(nextReview);
+            dueStr = due <= new Date()
+              ? 'Due now'
+              : 'Next due: ' + due.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+          }
           return `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
             <div style="flex:1;min-width:0;margin-right:12px;">
               <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${questionText}</div>
               <div style="font-size:12px;color:#64748B;font-weight:600;">${subjectEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
               ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
+              ${dueStr ? `<div style="font-size:11px;font-weight:700;color:var(--gm-forest);margin-top:3px;">📅 ${dueStr}</div>` : ''}
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:13px;font-weight:900;color:${col};">${em} ${lbl}</div>
@@ -22553,6 +22583,10 @@ async function setStudentReminderHourByParentOrTeacher(studentUserId, hour, sect
 async function showStudyHistory() {
   STATE.screen = 'history'; saveScreen('history');
   const user = STATE.user;
+  // Don't read card_progress until the post-login restore has actually landed — otherwise
+  // a student who opens History quickly after logging in sees stale/empty local "Next due"
+  // data even though the correct value already exists server-side.
+  if (STATE.restoreProgressPromise) { try { await STATE.restoreProgressPromise; } catch(e) {} }
   const progress = LS.get('card_progress') || {};
 
   const gradeColor = { again:'#DC2626', hard:'#D97706', good:'#16A34A', easy:'var(--gm-forest)', 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
@@ -26675,6 +26709,19 @@ async function showStudentHistory(userId) {
     );
     const rows = res.ok ? await res.json() : [];
 
+    // "Next due" calendar — same source (card_progress.next_review) and same display rule
+    // as the student's own history view, just fetched server-side instead of localStorage.
+    let progressByCard = {};
+    try {
+      const progRes = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/card_progress?user_id=eq.' + encodeURIComponent(userId) + '&select=card_id,next_review',
+        { headers }
+      );
+      if (progRes.ok) {
+        (await progRes.json()).forEach(p => { progressByCard[p.card_id] = p.next_review; });
+      }
+    } catch(e) {}
+
     const gradeColor = { 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
     const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
     const gradeEmoji = { 0:'😵', 1:'😰', 2:'🙂', 3:'🌟' };
@@ -26684,9 +26731,13 @@ async function showStudentHistory(userId) {
     rows.forEach(h => {
       const key = h.card_id;
       if (!byCard[key]) {
-        byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
+        byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1, answer: h.student_answer };
       } else {
         byCard[key].attempts++;
+        // Rows are newest-first, so the first one seen correctly sets the current grade/date —
+        // but it may be a self-graded row with no written answer. Backfill from any older row
+        // for this card that does have one, rather than silently losing the AI-marked answer.
+        if (!byCard[key].answer && h.student_answer) byCard[key].answer = h.student_answer;
       }
     });
     const cards = Object.values(byCard);
@@ -26700,11 +26751,20 @@ async function showStudentHistory(userId) {
           const date = h.date ? new Date(h.date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
           const subjectEmoji = h.subject === 'Biology' ? '🌿' : h.subject === 'Chemistry' ? '⚗️' : h.subject === 'Physics' ? '⚡' : '📚';
           const questionText = h.question || h.topic || 'Flashcard';
+          const nextReview = progressByCard[h.cardId];
+          let dueStr = '';
+          if (nextReview) {
+            const due = new Date(nextReview);
+            dueStr = due <= new Date()
+              ? 'Due now'
+              : 'Next due: ' + due.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+          }
           return `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
             <div style="flex:1;min-width:0;margin-right:12px;">
               <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${questionText}</div>
               <div style="font-size:12px;color:#64748B;font-weight:600;">${subjectEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
               ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
+              ${dueStr ? `<div style="font-size:11px;font-weight:700;color:var(--gm-forest);margin-top:3px;">📅 ${dueStr}</div>` : ''}
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:13px;font-weight:900;color:${col};">${em} ${lbl}</div>
@@ -28066,6 +28126,7 @@ async function showParentPortal() {
   // ── 3. Fetch child profile + history ──
   let child = { name: 'Your Child', streak: 0, xp: 0, level: 1, tier: '', year_group: null, exam_board: 'AQA', user_id: null };
   let childHistory = [];
+  let childProgressByCard = {};
 
   if (linkedStudentId) {
     try {
@@ -28102,6 +28163,14 @@ async function showParentPortal() {
         const hRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + child.user_id + '&select=card_id,question,subject,topic_name,grade,created_at&order=created_at.desc', { headers });
         childHistory = hRes.ok ? await hRes.json() : [];
         console.log('[ParentPortal] study history rows:', childHistory.length);
+      } catch(e) {}
+      // "Next due" calendar — same source (card_progress.next_review) as the student's own
+      // and teacher's history views, fetched server-side (parent RLS already permits this).
+      try {
+        const progRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/card_progress?user_id=eq.' + child.user_id + '&select=card_id,next_review', { headers });
+        if (progRes.ok) {
+          (await progRes.json()).forEach(p => { childProgressByCard[p.card_id] = p.next_review; });
+        }
       } catch(e) {}
     }
   } else {
@@ -28152,7 +28221,7 @@ async function showParentPortal() {
   childHistory.forEach(h => {
     const key = h.card_id;
     if (!byCard[key]) {
-      byCard[key] = { question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1 };
+      byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, attempts: 1 };
     } else { byCard[key].attempts++; }
   });
   const historyCards = Object.values(byCard);
@@ -28293,10 +28362,19 @@ async function showParentPortal() {
         const date = h.date ? new Date(h.date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
         const sEmoji = h.subject === 'Biology' ? '🌿' : h.subject === 'Chemistry' ? '⚗️' : h.subject === 'Physics' ? '⚡' : '📚';
         const qText = h.question || h.topic || 'Flashcard';
+        const nextReview = childProgressByCard[h.cardId];
+        let dueStr = '';
+        if (nextReview) {
+          const due = new Date(nextReview);
+          dueStr = due <= new Date()
+            ? 'Due now'
+            : 'Next due: ' + due.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+        }
         return `<div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
           <div style="flex:1;min-width:0;margin-right:12px;">
             <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:4px;">${qText}</div>
             <div style="font-size:12px;color:#64748B;font-weight:600;">${sEmoji} ${h.subject || ''} &nbsp;·&nbsp; ${h.topic || ''} &nbsp;·&nbsp; Last seen ${date}</div>
+            ${dueStr ? `<div style="font-size:11px;font-weight:700;color:var(--gm-forest);margin-top:3px;">📅 ${dueStr}</div>` : ''}
           </div>
           <div style="text-align:right;flex-shrink:0;">
             <div style="font-size:13px;font-weight:900;color:${col};">${em} ${lbl}</div>
