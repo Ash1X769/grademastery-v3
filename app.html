@@ -31761,21 +31761,56 @@ async function loadStudentPanelHistory(studentUserId) {
   try {
     const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(studentUserId) + '&select=question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc&limit=30',
+      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(studentUserId) + '&select=card_id,question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc&limit=30',
       { headers }
     );
     const rows = res.ok ? await res.json() : [];
     if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#94A3B8;">No study history yet.</div>'; return; }
 
+    // "Next due" — same source (card_progress.next_review) as showStudentHistory()/showStudyHistory().
+    let progressByCard = {};
+    try {
+      const progRes = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/card_progress?user_id=eq.' + encodeURIComponent(studentUserId) + '&select=card_id,next_review',
+        { headers }
+      );
+      if (progRes.ok) {
+        (await progRes.json()).forEach(p => { progressByCard[p.card_id] = p.next_review; });
+      }
+    } catch(e) {}
+
     const gradeColor = { 0:'#DC2626', 1:'#D97706', 2:'#16A34A', 3:'var(--gm-forest)' };
     const gradeLabel = { 0:'Again', 1:'Hard', 2:'Good', 3:'Easy' };
-    el.innerHTML = rows.map(h => {
+
+    // Aggregate: one row per unique card_id, grade/date/answer from the SAME row — see
+    // showStudentHistory() for why (a card can be AI-marked then later separately self-graded).
+    const byCard = {};
+    rows.forEach(h => {
+      const key = h.card_id;
+      if (!byCard[key]) {
+        byCard[key] = { cardId: h.card_id, question: h.question, subject: h.subject, topic: h.topic_name, grade: h.grade, date: h.created_at, answer: h.student_answer };
+      } else if (h.student_answer && !byCard[key].answer) {
+        byCard[key].grade = h.grade;
+        byCard[key].date = h.created_at;
+        byCard[key].answer = h.student_answer;
+      }
+    });
+    const cards = Object.values(byCard);
+
+    el.innerHTML = cards.map(h => {
       const col = gradeColor[h.grade] ?? '#64748B';
       const lbl = gradeLabel[h.grade] ?? h.grade;
-      const date = h.created_at ? new Date(h.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+      const date = h.date ? new Date(h.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+      const nextReview = progressByCard[h.cardId];
+      let dueStr = '';
+      if (nextReview) {
+        const due = new Date(nextReview);
+        dueStr = due <= new Date() ? 'Due now' : 'Next due: ' + due.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+      }
       return `<div style="background:#F8FAFC;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
-        <div style="font-size:13px;font-weight:700;color:#1A2E22;">${h.question || h.topic_name || 'Flashcard'}</div>
-        ${h.student_answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.student_answer}"</div>` : ''}
+        <div style="font-size:13px;font-weight:700;color:#1A2E22;">${h.question || h.topic || 'Flashcard'}</div>
+        ${h.answer ? `<div style="font-size:12px;color:#94A3B8;font-style:italic;margin-top:3px;padding-left:8px;border-left:2px solid #E2E8F0;">Student wrote: "${h.answer}"</div>` : ''}
+        ${dueStr ? `<div style="font-size:11px;font-weight:700;color:var(--gm-forest);margin-top:3px;">📅 ${dueStr}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
           <span style="font-size:11px;color:#64748B;font-weight:600;">${h.subject || ''} · ${date}</span>
           <span style="font-size:12px;font-weight:800;color:${col};">${lbl}</span>
