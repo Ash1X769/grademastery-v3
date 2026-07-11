@@ -1383,7 +1383,12 @@ textarea.input { resize: vertical; min-height: 100px; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.5);
-  z-index: 300;
+  /* Was 300 — below the sliding student panel's own backdrop (900/901), so a modal opened
+     from within an open panel (e.g. the reset-progress confirmation) had its clicks silently
+     intercepted by the panel's backdrop instead of reaching the modal. Found via a real
+     end-to-end test, not a pre-existing showModal() caller — nothing else opened a modal
+     from inside the panel before. Raised above the panel, still below toasts/critical overlays. */
+  z-index: 950;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -31411,7 +31416,7 @@ function openStudentPanel(studentUserId) {
   panel.id = 'student-panel';
   panel.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);background:white;z-index:901;box-shadow:-4px 0 24px rgba(0,0,0,0.12);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);';
 
-  const tabs = [['limits','⏱️ Limits'],['topics','🔒 Topics'],['history','📜 History'],['journal','📓 Journal'],['homework','🚀 Homework']];
+  const tabs = [['limits','⏱️ Limits'],['topics','🔒 Topics'],['history','📜 History'],['journal','📓 Journal'],['homework','🚀 Homework'],['export','📤 Export']];
 
   panel.innerHTML = `
     <div style="background:linear-gradient(135deg,#216D39,#03A860);padding:20px;color:white;position:relative;flex-shrink:0;">
@@ -31449,6 +31454,25 @@ function openStudentPanel(studentUserId) {
       <div id="sp-content-history" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
       <div id="sp-content-journal" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
       <div id="sp-content-homework" style="display:none;"><div style="text-align:center;padding:24px;color:#94A3B8;">Loading...</div></div>
+      <div id="sp-content-export" style="display:none;">
+        <div style="background:white;border:1px solid #F1F5F9;border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">Export</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" id="sp-export-history-${safeUid}" checked style="width:16px;height:16px;flex-shrink:0;">
+            Full study history
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:14px;cursor:pointer;">
+            <input type="checkbox" id="sp-export-stats-${safeUid}" checked style="width:16px;height:16px;flex-shrink:0;">
+            Summary stats
+          </label>
+          <button onclick="downloadStudentExcelExport('${studentUserId}')" style="width:100%;padding:10px;border-radius:10px;border:none;background:#216D39;color:white;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">⬇️ Download Excel</button>
+        </div>
+        <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;padding:14px;">
+          <div style="font-size:12px;font-weight:800;color:#991B1B;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">⚠️ Danger Zone</div>
+          <div style="font-size:12px;color:#7F1D1D;font-weight:600;margin-bottom:12px;line-height:1.5;">Permanently wipes this student's study history and card progress. This cannot be undone.</div>
+          <button onclick="openResetProgressModal('${studentUserId}')" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #DC2626;background:white;color:#DC2626;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">🗑️ Reset Progress</button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -31483,7 +31507,7 @@ function closeStudentPanel(instant) {
 }
 
 function switchStudentPanelTab(tab, btn) {
-  ['limits','topics','history','journal','homework'].forEach(t => {
+  ['limits','topics','history','journal','homework','export'].forEach(t => {
     const content = document.getElementById('sp-content-' + t);
     const tabBtn = document.getElementById('sp-tab-' + t);
     if (content) content.style.display = t === tab ? 'block' : 'none';
@@ -31493,6 +31517,178 @@ function switchStudentPanelTab(tab, btn) {
       tabBtn.style.border = t === tab ? 'none' : '1.5px solid #E2E8F0';
     }
   });
+}
+
+// Loads SheetJS on demand, only when a teacher actually opens Export — this app has no other
+// lazy-script precedent (every other CDN library is a static <script> tag), but SheetJS is
+// ~1MB and this feature is rarely used, so loading it for every visitor isn't worth it.
+let _sheetJSLoadPromise = null;
+function _loadSheetJS() {
+  if (window.XLSX) return Promise.resolve();
+  if (_sheetJSLoadPromise) return _sheetJSLoadPromise;
+  _sheetJSLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => { _sheetJSLoadPromise = null; reject(new Error('load failed')); };
+    document.head.appendChild(script);
+  });
+  return _sheetJSLoadPromise;
+}
+
+async function downloadStudentExcelExport(studentUserId) {
+  const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  const studentName = student?.name || 'Student';
+  const safeUid = studentUserId.replace(/-/g, '');
+  const wantHistory = document.getElementById('sp-export-history-' + safeUid)?.checked;
+  const wantStats = document.getElementById('sp-export-stats-' + safeUid)?.checked;
+  if (!wantHistory && !wantStats) { showToast('Select at least one option to export'); return; }
+
+  const btn = document.querySelector('#sp-content-export button');
+  const btnLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+
+  try {
+    await _loadSheetJS();
+    const token = STATE.user?.token;
+    const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
+
+    const res = await fetch(
+      CONFIG.SUPABASE_URL + '/rest/v1/study_history?user_id=eq.' + encodeURIComponent(studentUserId) +
+      '&select=card_id,question,subject,topic_name,grade,student_answer,created_at&order=created_at.desc',
+      { headers }
+    );
+    const rows = res.ok ? await res.json() : [];
+
+    const gradeLabel = { 0: 'Again', 1: 'Hard', 2: 'Good', 3: 'Easy' };
+    const wb = XLSX.utils.book_new();
+
+    if (wantHistory) {
+      const historyData = rows.length ? rows.map(h => ({
+        Date: h.created_at ? new Date(h.created_at).toLocaleDateString('en-GB') : '',
+        Subject: h.subject || '',
+        Topic: h.topic_name || '',
+        Question: h.question || '',
+        Grade: gradeLabel[h.grade] ?? h.grade,
+        'Student Answer': h.student_answer || ''
+      })) : [{ Date: '', Subject: '', Topic: '', Question: '', Grade: '', 'Student Answer': 'No study history yet' }];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historyData), 'Study History');
+    }
+
+    if (wantStats) {
+      const totalCards = rows.length;
+      const correct = rows.filter(h => h.grade >= 2).length;
+      const accuracy = totalCards > 0 ? Math.round((correct / totalCards) * 100) : 0;
+      const bySubject = {};
+      rows.forEach(h => {
+        const s = h.subject || 'Unknown';
+        if (!bySubject[s]) bySubject[s] = { total: 0, correct: 0 };
+        bySubject[s].total++;
+        if (h.grade >= 2) bySubject[s].correct++;
+      });
+      const lastStudied = totalCards ? new Date(rows[0].created_at).toLocaleDateString('en-GB') : 'Never';
+      const statsData = [
+        { Metric: 'Student', Value: studentName },
+        { Metric: 'Total cards studied', Value: totalCards },
+        { Metric: 'Overall accuracy', Value: accuracy + '%' },
+        { Metric: 'Current streak', Value: (student?.streak ?? 0) + ' days' },
+        { Metric: 'Last studied', Value: lastStudied },
+        ...Object.entries(bySubject).map(([subj, s]) => ({
+          Metric: subj + ' accuracy',
+          Value: (s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0) + '% (' + s.total + ' cards)'
+        }))
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(statsData), 'Summary');
+    }
+
+    const safeName = studentName.replace(/[^a-z0-9]+/gi, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, safeName + '_progress_' + dateStr + '.xlsx');
+    showToast('Export downloaded ✅');
+  } catch (e) {
+    showToast('Could not generate export — try again');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+  }
+}
+
+function openResetProgressModal(studentUserId) {
+  const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  const studentName = student?.name || 'this student';
+
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:44px;margin-bottom:8px;">⚠️</div>
+      <div class="modal-title">Reset ${studentName}'s progress?</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:14px;line-height:1.5;text-align:left;margin-top:12px;">
+        This permanently deletes all study history and card progress for ${studentName}. This cannot be undone.
+      </p>
+      <p style="color:var(--text-secondary);font-weight:700;font-size:13px;margin-top:16px;text-align:left;">
+        Type <strong>${studentName}</strong> to confirm:
+      </p>
+      <input id="reset-confirm-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        style="width:100%;margin-top:8px;padding:10px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:14px;font-family:inherit;box-sizing:border-box;"
+        oninput="_checkResetConfirmMatch('${studentUserId}')" />
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline btn-full" onclick="closeModal()">Cancel</button>
+        <button id="reset-confirm-btn" class="btn btn-full" disabled
+          style="background:#DC2626;color:white;opacity:0.5;cursor:not-allowed;border:none;"
+          onclick="confirmResetStudentProgress('${studentUserId}')">Reset Progress</button>
+      </div>
+    </div>
+  `);
+
+  // Intentional friction: the teacher must actually type the name, not paste/drop/right-click
+  // it in from the panel header or clipboard. Not a UX nicety — block every input path.
+  setTimeout(() => {
+    const input = document.getElementById('reset-confirm-input');
+    if (input) {
+      input.addEventListener('paste', e => e.preventDefault());
+      input.addEventListener('drop', e => e.preventDefault());
+      input.addEventListener('contextmenu', e => e.preventDefault());
+      input.focus();
+    }
+  }, 0);
+}
+
+function _checkResetConfirmMatch(studentUserId) {
+  const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+  const studentName = student?.name || '';
+  const input = document.getElementById('reset-confirm-input');
+  const btn = document.getElementById('reset-confirm-btn');
+  if (!input || !btn) return;
+  // Exact, case-sensitive match — no trim, no normalization. A near-match must not pass.
+  const matches = input.value === studentName;
+  btn.disabled = !matches;
+  btn.style.opacity = matches ? '1' : '0.5';
+  btn.style.cursor = matches ? 'pointer' : 'not-allowed';
+}
+
+async function confirmResetStudentProgress(studentUserId) {
+  const btn = document.getElementById('reset-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Resetting…'; }
+  try {
+    const token = STATE.user?.token;
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/reset_student_progress', {
+      method: 'POST',
+      headers: {
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ target_student_id: studentUserId })
+    });
+    if (!res.ok) throw new Error('reset failed');
+    const student = (STATE.teacherStudents || []).find(s => s.user_id === studentUserId);
+    const studentName = student?.name || 'student';
+    closeModal();
+    closeStudentPanel();
+    showToast('Progress reset for ' + studentName + '.');
+  } catch (e) {
+    showToast('Could not reset progress — try again');
+    if (btn) { btn.disabled = false; btn.textContent = 'Reset Progress'; }
+  }
 }
 
 function buildStudentPanelTopicsHTML(student) {
