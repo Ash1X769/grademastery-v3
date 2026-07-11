@@ -17626,8 +17626,13 @@ async function restoreCardProgressFromSupabase(user) {
     );
     if (!res.ok) return;
     const rows = await res.json();
-    if (Array.isArray(rows) && rows.length > 0) {
-      const local = LS.get('card_progress') || {};
+    // Server is the source of truth for this table — replace the local cache wholesale
+    // (including down to {} if the server has nothing) rather than merging/adding-only.
+    // A merge-only sync means a server-side reset (like the 10 July card_progress wipe)
+    // never actually reaches the client: stale pre-reset repetitions/interval history
+    // just sits in localStorage and keeps incrementing as if nothing happened.
+    const local = {};
+    if (Array.isArray(rows)) {
       rows.forEach(r => {
         local[r.card_id] = {
           cardId: r.card_id,
@@ -17638,8 +17643,8 @@ async function restoreCardProgressFromSupabase(user) {
           lastGrade: r.last_grade ?? null
         };
       });
-      LS.set('card_progress', local);
     }
+    LS.set('card_progress', local);
   } catch(e) {}
 
   // Load today's study history to know which topics/cards are done
@@ -17687,7 +17692,14 @@ function getRemainingCards(subject) {
   return Math.max(0, getSubjectLimit(subject) - (STATE.todayDone[subject]?.size || 0));
 }
 
-function startFlashcardsForSubject(subject) {
+async function startFlashcardsForSubject(subject) {
+  // Must not decide what's "due" from a possibly-stale local cache — await the same
+  // post-login restore startFlashcards() already waits on before consulting getDueCards().
+  if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+    showToast('Loading your progress…');
+    await STATE.restoreProgressPromise;
+    STATE.isDataReady = true;
+  }
   const premiumLocked = !STATE.user?.is_paid && subject !== (STATE.user?.primary_subject || 'Biology');
   const dueForSubject = getDueCards(STATE.user).filter(c => c.subject === subject);
   if (!premiumLocked && dueForSubject.length === 0) {
@@ -18183,7 +18195,7 @@ function startFullSession() {
   showDeepDivePicker();
 }
 
-function launchSession(subject, depthMode, topicKey, minutes) {
+async function launchSession(subject, depthMode, topicKey, minutes) {
   STATE.sessionDuration = minutes;
   STATE.sessionPhase = 'deepDive';
   STATE.deepDiveCurrentPhase = 'read';
@@ -18192,6 +18204,13 @@ function launchSession(subject, depthMode, topicKey, minutes) {
   STATE.deepDiveResults = { mcqScore: null, mcqTotal: 0, gapScore: null, gapTotal: 0, brainDumpFacts: null, examScore: null, examTotal: 0, cardsStudied: 0 };
   const locked = (STATE.user?.locked_topics || []).map(t => t.toUpperCase());
   if (depthMode === 'due') {
+    // Only this branch makes a due-status scheduling decision — the other depthModes filter
+    // by topic membership, not by card_progress, so they don't need to wait on the restore.
+    if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+      showToast('Loading your progress…');
+      await STATE.restoreProgressPromise;
+      STATE.isDataReady = true;
+    }
     const allDue = getDueCards(STATE.user);
     STATE.cardQueue = subject === 'all' ? allDue : allDue.filter(c => c.subject === subject);
   } else if (depthMode === 'topic') {
@@ -23627,8 +23646,13 @@ async function restoreCardProgressFromSupabase(user) {
     );
     if (!res.ok) return;
     const rows = await res.json();
-    if (Array.isArray(rows) && rows.length > 0) {
-      const local = LS.get('card_progress') || {};
+    // Server is the source of truth for this table — replace the local cache wholesale
+    // (including down to {} if the server has nothing) rather than merging/adding-only.
+    // A merge-only sync means a server-side reset (like the 10 July card_progress wipe)
+    // never actually reaches the client: stale pre-reset repetitions/interval history
+    // just sits in localStorage and keeps incrementing as if nothing happened.
+    const local = {};
+    if (Array.isArray(rows)) {
       rows.forEach(r => {
         local[r.card_id] = {
           cardId: r.card_id,
@@ -23639,8 +23663,8 @@ async function restoreCardProgressFromSupabase(user) {
           lastGrade: r.last_grade ?? null
         };
       });
-      LS.set('card_progress', local);
     }
+    LS.set('card_progress', local);
   } catch(e) {}
 
   // Load today's study history to know which topics/cards are done
@@ -23692,7 +23716,14 @@ function getRemainingCards(subject) {
   return Math.max(0, getSubjectLimit(subject) - (STATE.todayGraded[subject] || 0));
 }
 
-function startFlashcardsForSubject(subject) {
+async function startFlashcardsForSubject(subject) {
+  // Must not decide what's "due" from a possibly-stale local cache — await the same
+  // post-login restore startFlashcards() already waits on before consulting getDueCards().
+  if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+    showToast('Loading your progress…');
+    await STATE.restoreProgressPromise;
+    STATE.isDataReady = true;
+  }
   const premiumLocked = !STATE.user?.is_paid && subject !== (STATE.user?.primary_subject || 'Biology');
   const dueForSubject = getDueCards(STATE.user).filter(c => c.subject === subject);
   if (!premiumLocked && dueForSubject.length === 0) {
@@ -24292,7 +24323,7 @@ function startFullSession() {
   showDeepDivePicker();
 }
 
-function launchSession(subject, depthMode, topicKey, minutes) {
+async function launchSession(subject, depthMode, topicKey, minutes) {
   STATE.sessionDuration = minutes;
   STATE.sessionPhase = 'deepDive';
   STATE.deepDiveCurrentPhase = 'read';
@@ -24301,6 +24332,13 @@ function launchSession(subject, depthMode, topicKey, minutes) {
   STATE.deepDiveResults = { mcqScore: null, mcqTotal: 0, gapScore: null, gapTotal: 0, brainDumpFacts: null, examScore: null, examTotal: 0, cardsStudied: 0 };
   const locked = (STATE.user?.locked_topics || []).map(t => t.toUpperCase());
   if (depthMode === 'due') {
+    // Only this branch makes a due-status scheduling decision — the other depthModes filter
+    // by topic membership, not by card_progress, so they don't need to wait on the restore.
+    if (!STATE.isDataReady && STATE.restoreProgressPromise) {
+      showToast('Loading your progress…');
+      await STATE.restoreProgressPromise;
+      STATE.isDataReady = true;
+    }
     const allDue = getDueCards(STATE.user);
     STATE.cardQueue = subject === 'all' ? allDue : allDue.filter(c => c.subject === subject);
   } else if (depthMode === 'topic') {
