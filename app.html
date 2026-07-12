@@ -2951,6 +2951,47 @@ function _triggerUpgradeNudge(msg) {
   showUpgradeModal(msg);
 }
 
+// ============================================================
+// DEEP DIVE ACCESS (shared — do not duplicate this logic per entry point)
+// Basic/Free: no access at all. Standard: 3 sessions/week, self-initiated and
+// teacher-homework-assigned sessions share the same pool. Premium/Premium Plus:
+// unlimited. Read-only status check, safe to call anywhere for UX purposes —
+// the actual allowance is only consumed inside launchSession().
+// ============================================================
+function _getDeepDiveAccessStatus() {
+  if (!hasTier('standard')) return { allowed: false, reason: 'locked', remaining: 0 };
+  if (hasTier('premium')) return { allowed: true, reason: null, remaining: Infinity };
+  const weekStart = _aiWeekStart();
+  const used = (STATE.user?.deep_dive_week_start === weekStart) ? (STATE.user?.deep_dive_sessions_this_week || 0) : 0;
+  return { allowed: used < 3, reason: used < 3 ? null : 'weekly_cap', remaining: Math.max(0, 3 - used) };
+}
+
+function _blockDeepDiveAccess(status) {
+  if (status.reason === 'locked') {
+    _triggerUpgradeNudge('Deep Dive is a Standard feature 🌊 Unlock full guided lessons with Standard');
+  } else if (status.reason === 'weekly_cap') {
+    showToast("You've used all 3 Deep Dive sessions this week — resets Monday. Upgrade to Premium for unlimited Deep Dive.");
+  }
+}
+
+// Home-screen tile — same visual language as the locked subject cards (PRO pill,
+// dimmed, upgrade-nudge onclick) when fully locked; a small remaining-count note
+// when capped but not locked; unchanged when unrestricted.
+function _buildDeepDiveTileHTML() {
+  const status = _getDeepDiveAccessStatus();
+  if (status.reason === 'locked') {
+    return '<div class="v3-feature-card" style="position:relative;opacity:0.7;" onclick="showUpgradeModal(\'Unlock Deep Dive with GradeMastery Standard\')">'
+      + '<div style="position:absolute;top:10px;right:10px;background:var(--gm-forest);color:white;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:900;letter-spacing:0.05em;">PRO</div>'
+      + '<span class="v3-feature-icon">🌊</span><div class="v3-feature-title">Deep Dive</div>'
+      + '<div class="v3-feature-desc" style="color:var(--gm-forest);font-weight:700;">Upgrade to unlock</div>'
+      + '</div>';
+  }
+  const capNote = status.reason === 'weekly_cap'
+    ? '<div style="font-size:11px;color:#D97706;font-weight:700;margin-top:2px;">0 left this week</div>'
+    : (Number.isFinite(status.remaining) ? '<div style="font-size:11px;color:#64748B;font-weight:700;margin-top:2px;">' + status.remaining + ' left this week</div>' : '');
+  return '<div class="v3-feature-card" onclick="startFullSession()"><span class="v3-feature-icon">🌊</span><div class="v3-feature-title">Deep Dive</div><div class="v3-feature-desc">Full guided lesson in 6 phases</div>' + capNote + '</div>';
+}
+
 // Category 1 — hard walls: always show, no throttling
 function triggerHardWallNudge(msg) {
   _triggerUpgradeNudge(msg);
@@ -3136,6 +3177,44 @@ function _chooseStreakBonusSubtopic(subtopicKey) {
 
 // Fixed placeholder sample data for the Mastery Tracker's locked preview (Basic/Free) —
 // never the user's real progress.
+function _buildStudyHistorySampleHTML() {
+  const SAMPLE_ROWS = [
+    { subject:'Biology', topic:'Cell Biology', question:'What is the function of the cell membrane?', grade:'good', date:'3 Jul', attempts:2 },
+    { subject:'Chemistry', topic:'Atomic Structure', question:'Describe the structure of an atom.', grade:'easy', date:'2 Jul', attempts:1 },
+    { subject:'Physics', topic:'Forces', question:"State Newton's First Law.", grade:'hard', date:'1 Jul', attempts:3 },
+  ];
+  const gradeColor = { hard:'#D97706', good:'#16A34A', easy:'var(--gm-forest)' };
+  const gradeEmoji = { hard:'😰', good:'🙂', easy:'🌟' };
+  const subjectEmoji = { Biology:'🌿', Chemistry:'⚗️', Physics:'⚡' };
+  return SAMPLE_ROWS.map(h => `
+    <div style="background:white;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #F0F4F8;">
+      <div style="flex:1;min-width:0;margin-right:12px;">
+        <div style="font-size:14px;font-weight:500;color:#0F172A;margin-bottom:4px;">${h.question}</div>
+        <div style="font-size:12px;color:#64748B;font-weight:600;">${subjectEmoji[h.subject]} ${h.subject} &nbsp;·&nbsp; ${h.topic} &nbsp;·&nbsp; Last seen ${h.date}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:900;color:${gradeColor[h.grade]};">${gradeEmoji[h.grade]} ${h.grade.charAt(0).toUpperCase()+h.grade.slice(1)}</div>
+        <div style="font-size:11px;color:#64748B;font-weight:600;margin-top:2px;">${h.attempts} attempt${h.attempts!==1?'s':''}</div>
+      </div>
+    </div>`).join('');
+}
+
+function _buildVisionBoardSampleHTML() {
+  return '<div class="card" id="profile-journal-sample" style="margin-bottom:16px;">'
+    + '<div style="font-size:15px;font-weight:800;margin-bottom:12px;">🚀 My Vision Board</div>'
+    + '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
+    +   '<div style="flex:1.2;min-width:200px;background:#F0FDF4;border-radius:16px;padding:16px;min-height:200px;display:flex;flex-direction:column;gap:10px;">'
+    +     '<div style="font-family:\'Caveat\',cursive;font-size:24px;font-weight:700;color:var(--gm-forest);">Your Name</div>'
+    +     '<div style="display:flex;flex-wrap:wrap;gap:6px;"><span style="background:var(--gm-forest);color:white;border-radius:9999px;padding:3px 12px;font-size:12px;font-weight:700;">🎯 Target: Grade 8</span></div>'
+    +     '<div style="display:flex;flex-wrap:wrap;gap:6px;"><div style="width:40px;height:40px;background:white;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);font-size:24px;display:flex;align-items:center;justify-content:center;">🏆</div><div style="width:40px;height:40px;background:white;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);font-size:24px;display:flex;align-items:center;justify-content:center;">⭐</div></div>'
+    +   '</div>'
+    +   '<div style="flex:1;min-width:180px;background:#FFFEF0;border:1px solid #E8E0C8;border-radius:12px;padding:16px;min-height:200px;background-image:repeating-linear-gradient(transparent,transparent 31px,#E8E0C8 31px,#E8E0C8 32px);">'
+    +     '<div style="font-family:\'Caveat\',cursive;font-size:18px;color:#B8A88A;margin-bottom:8px;">📓 Learning Journey</div>'
+    +     '<div style="font-style:italic;font-size:12px;color:#94A3B8;line-height:1.5;">Write about what you\'ve learned this week...</div>'
+    +   '</div>'
+    + '</div></div>';
+}
+
 function _buildMasteryTrackerSampleHTML() {
   const SAMPLE_SUBJECTS = [
     { name: 'Biology',   emoji: '🌿', pct: 72 },
@@ -16665,7 +16744,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -16708,6 +16787,10 @@ async function loadUserPaidStatus() {
       STATE.user.streak_current         = p.streak_current         || 0;
       STATE.user.last_study_date        = p.last_study_date        || null;
       STATE.user.streak_bonus_subtopic  = p.streak_bonus_subtopic  || null;
+      STATE.user.is_beta_grant = p.is_beta_grant === true;
+      STATE.user.beta_granted_at = p.beta_granted_at || null;
+      STATE.user.deep_dive_sessions_this_week = p.deep_dive_sessions_this_week || 0;
+      STATE.user.deep_dive_week_start = p.deep_dive_week_start || null;
       STATE.user.vision_board_enabled   = p.vision_board_enabled !== false;
       STATE.user.class_code             = p.class_code || null;
       STATE.user.allow_self_grade       = p.allow_self_grade === true;
@@ -16758,6 +16841,17 @@ async function _patchAICounts(user) {
       method: 'PATCH',
       headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ ai_tutor_daily_count: user.ai_tutor_daily_count || 0, ai_tutor_weekly_count: user.ai_tutor_weekly_count || 0, ai_marking_daily_count: user.ai_marking_daily_count || 0, ai_marking_weekly_count: user.ai_marking_weekly_count || 0, ai_last_reset_date: user.ai_last_reset_date, ai_week_start: user.ai_week_start })
+    });
+  } catch(e) {}
+}
+
+async function _patchDeepDiveCount(user) {
+  if (!user?.token || !user?.id) return;
+  try {
+    await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id, {
+      method: 'PATCH',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ deep_dive_sessions_this_week: user.deep_dive_sessions_this_week || 0, deep_dive_week_start: user.deep_dive_week_start })
     });
   } catch(e) {}
 }
@@ -17217,6 +17311,25 @@ async function setStudentReminderHourByParentOrTeacher(studentUserId, hour, sect
 async function showStudyHistory() {
   STATE.screen = 'history'; saveScreen('history');
   const user = STATE.user;
+
+  if (!hasTier('standard')) {
+    render(`
+      ${renderNavBar('history')}
+      <div class="v3-screen" id="screen-history">
+        <div style="padding-bottom:40px;">
+          <h1 style="font-size:22px;font-weight:900;margin-bottom:4px;">📖 Study History</h1>
+          <p style="font-size:14px;color:#64748B;font-weight:600;margin-bottom:16px;">See every card you've studied</p>
+          ${gatedFeature({
+            minTier: 'standard',
+            sampleHTML: _buildStudyHistorySampleHTML(),
+            lockMessage: 'Unlock your full study history with Standard'
+          })}
+        </div>
+      </div>
+    `);
+    return;
+  }
+
   // Don't read card_progress until the post-login restore has actually landed — otherwise
   // a student who opens History quickly after logging in sees stale/empty local "Next due"
   // data even though the correct value already exists server-side.
@@ -17497,7 +17610,10 @@ function showHome() {
 
   const subjectCards = subjectData.map(s => {
     const isPrimary = s.subj === primary.subj;
-    const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
+    // Basic is a subject-restricted taster tier, same as Free -- hasTier('standard')
+    // covers both uniformly (Free=0, Basic=1, both < standard=2), while correctly
+    // giving trial-active users (isTrialActive() -> 'standard' effective tier) full access.
+    const premiumLocked = !hasTier('standard') && s.subj !== (user.primary_subject || 'Biology');
     const dailyLocked  = !premiumLocked && (isSubjectLockedToday(s.subj) || s.due === 0);
     const doneCount    = STATE.todayDone[s.subj]?.size || 0;
     const partiallyDone = !dailyLocked && !premiumLocked && doneCount > 0;
@@ -17546,7 +17662,10 @@ function showHome() {
 
   const v3SubjectCards = !STATE.isDataReady ? '<div style="background:linear-gradient(90deg,#F0FDF4 25%,#E8F5E9 50%,#F0FDF4 75%);background-size:200% 100%;animation:gmSkeleton 1.5s infinite;border-radius:16px;height:120px;margin-bottom:12px;"></div>'.repeat(3) : subjectData.map(s => {
     const sc = subjClass(s.subj);
-    const premiumLocked = !user.is_paid && s.subj !== (user.primary_subject || 'Biology');
+    // Basic is a subject-restricted taster tier, same as Free -- hasTier('standard')
+    // covers both uniformly (Free=0, Basic=1, both < standard=2), while correctly
+    // giving trial-active users (isTrialActive() -> 'standard' effective tier) full access.
+    const premiumLocked = !hasTier('standard') && s.subj !== (user.primary_subject || 'Biology');
     const dailyLocked   = !premiumLocked && (isSubjectLockedToday(s.subj) || s.due === 0);
     const displayDue    = dailyLocked ? 0 : s.due;
     const totalCards    = s.cards || 1;
@@ -17645,7 +17764,7 @@ ${renderNavBar('home')}
 
   <div class="v3-section-label">MORE WAYS TO STUDY</div>
   <div class="v3-feature-grid">
-    <div class="v3-feature-card" onclick="startFullSession()"><span class="v3-feature-icon">🌊</span><div class="v3-feature-title">Deep Dive</div><div class="v3-feature-desc">Full guided lesson in 6 phases</div></div>
+    ${_buildDeepDiveTileHTML()}
     <div class="v3-feature-card" onclick="startQuickRevision()"><span class="v3-feature-icon">⚡</span><div class="v3-feature-title">Quick Revision</div><div class="v3-feature-desc">Revise any topic, any time</div></div>
     <div class="v3-feature-card" onclick="showStudyHistory()"><span class="v3-feature-icon">📊</span><div class="v3-feature-title">Progress</div><div class="v3-feature-desc">Track your mastery growth</div></div>
     <div class="v3-feature-card" onclick="showStudyCoachFeed()"><span class="v3-feature-icon">💡</span><div class="v3-feature-title">Feed</div><div class="v3-feature-desc">Evidence-based study tips</div></div>
@@ -18330,7 +18449,7 @@ async function startFlashcardsForSubject(subject) {
     await STATE.restoreProgressPromise;
     STATE.isDataReady = true;
   }
-  const premiumLocked = !STATE.user?.is_paid && subject !== (STATE.user?.primary_subject || 'Biology');
+  const premiumLocked = !hasTier('standard') && subject !== (STATE.user?.primary_subject || 'Biology');
   const dueForSubject = getDueCards(STATE.user).filter(c => c.subject === subject);
   if (!premiumLocked && dueForSubject.length === 0) {
     showModal(`<div class="modal-handle"></div>
@@ -18922,14 +19041,29 @@ function nextCard() {
 // FULL LEARNING SESSION
 // ============================================================
 function startFullSession() {
-  if (!STATE.user?.is_paid) {
-    triggerHardWallNudge('Deep Dive is a Premium feature 🌊 Unlock 6-phase timed study sessions with Read, MCQ, Fill the Gaps, Brain Dump, Flashcards & Exam — £24.99/month');
-    return;
-  }
+  const status = _getDeepDiveAccessStatus();
+  if (!status.allowed) { _blockDeepDiveAccess(status); return; }
   showDeepDivePicker();
 }
 
 async function launchSession(subject, depthMode, topicKey, minutes) {
+  // Authoritative gate: every Deep Dive entry path (self-initiated, homework-assigned,
+  // any future one) funnels through here before a session actually starts, so this is
+  // the one place that both re-checks and actually consumes the weekly allowance --
+  // the checks at each entry point above are UX-only (show the lock/cap early), not
+  // the security boundary.
+  const _ddStatus = _getDeepDiveAccessStatus();
+  if (!_ddStatus.allowed) { _blockDeepDiveAccess(_ddStatus); showHome(); return; }
+  if (getEffectiveSubscriptionTier() === 'standard') {
+    const weekStart = _aiWeekStart();
+    if (STATE.user.deep_dive_week_start !== weekStart) {
+      STATE.user.deep_dive_week_start = weekStart;
+      STATE.user.deep_dive_sessions_this_week = 0;
+    }
+    STATE.user.deep_dive_sessions_this_week += 1;
+    _patchDeepDiveCount(STATE.user);
+  }
+
   STATE.sessionDuration = minutes;
   STATE.sessionPhase = 'deepDive';
   STATE.deepDiveCurrentPhase = 'read';
@@ -20190,7 +20324,26 @@ ${renderNavBar('profile')}
   </div>
 
     <!-- Premium Status -->
-    ${user.is_paid
+    ${user.is_paid && user.is_beta_grant
+      ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <div style="font-size:15px;font-weight:800;color:var(--gm-forest);">⚡ GradeMastery ${display.name}</div>
+              <div style="font-size:13px;color:var(--gm-accent);font-weight:600;margin-top:3px;">${display.desc}</div>
+            </div>
+            <div style="font-size:28px;">✅</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:10px;padding:10px 12px;">
+            <div class="badge-icon earned">👑</div>
+            <div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;color:#15803D;margin-bottom:2px;">Founding Member</div>
+              <div style="font-size:12px;font-weight:700;color:#15803D;line-height:1.5;">You're a Founding Member on ${display.name} — free until launch. It'll normally be ${
+                ({ basic: '£7.99', standard: getStandardPriceDisplay('m'), premium: '£24.99', premium_plus: '£44.99' })[subTier] || getStandardPriceDisplay('m')
+              }/month.</div>
+            </div>
+          </div>
+        </div>`
+      : user.is_paid
       ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
@@ -20354,7 +20507,9 @@ ${renderNavBar('profile')}
     <div id="profile-notifications-section"><div id="student-notif-section">${buildNotifSectionHTML('student', null)}</div></div>
 
     <!-- Vision Board -->
-    ${STATE.user.vision_board_enabled === false ? '<div class="card" id="profile-journal-section" style="margin-bottom:16px;"><div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:24px;text-align:center;"><div style="font-size:32px;margin-bottom:8px;">🔒</div><div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:4px;">Vision Board locked</div><div style="font-size:12px;color:#64748B;">Your parent has disabled the Vision Board. Ask them to re-enable it in their parent portal.</div></div></div>' : buildVisionBoardHTML(user)}
+    ${!hasTier('standard')
+      ? gatedFeature({ minTier: 'standard', sampleHTML: _buildVisionBoardSampleHTML(), lockMessage: 'Unlock your Vision Board Journal with Standard' })
+      : STATE.user.vision_board_enabled === false ? '<div class="card" id="profile-journal-section" style="margin-bottom:16px;"><div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:24px;text-align:center;"><div style="font-size:32px;margin-bottom:8px;">🔒</div><div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:4px;">Vision Board locked</div><div style="font-size:12px;color:#64748B;">Your parent has disabled the Vision Board. Ask them to re-enable it in their parent portal.</div></div></div>' : buildVisionBoardHTML(user)}
 
     <!-- Badges -->
     <div class="card" id="profile-badges-section" style="margin-bottom:16px;">
@@ -22712,7 +22867,11 @@ function closePinPicker() {
 }
 
 // Stubs for pin actions that map to existing functions
-function startDeepDive() { showDeepDivePicker(); }
+function startDeepDive() {
+  const status = _getDeepDiveAccessStatus();
+  if (!status.allowed) { _blockDeepDiveAccess(status); return; }
+  showDeepDivePicker();
+}
 function showQuickRevision() { startQuickRevision(); }
 
 function showTopicsTab() { showProfile(); setTimeout(function(){ document.getElementById('profile-topics-section')?.scrollIntoView({behavior:'smooth'}); }, 300); }
@@ -24634,7 +24793,6 @@ window.addEventListener('appinstalled', () => dismissInstallBanner());
 function getAIMarkingLimit() {
   const user = STATE.user;
   if (!user) return 0;
-  if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (isTrialActive()) return CONFIG.STANDARD_AI_MARKING_DAILY;
   if (!user.is_paid) return CONFIG.FREE_AI_MARKING_DAILY;
   if (user.subscription_tier === 'basic') return CONFIG.BASIC_AI_MARKING_DAILY;
@@ -24645,7 +24803,6 @@ function getAIMarkingLimit() {
 function getAITutorDailyLimit() {
   const user = STATE.user;
   if (!user) return 0;
-  if (user.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (isTrialActive()) return CONFIG.STANDARD_AI_TUTOR_DAILY;
   if (!user.is_paid) return CONFIG.FREE_AI_TUTOR_DAILY;
   if (user.subscription_tier === 'basic') return CONFIG.BASIC_AI_TUTOR_WEEKLY; // non-binding ceiling — weekly cap is the real constraint
@@ -24654,16 +24811,12 @@ function getAITutorDailyLimit() {
   return CONFIG.STANDARD_AI_TUTOR_DAILY;
 }
 function getAITutorWeeklyLimit() {
-  // DEV TESTING: unlimited for test account — remove before launch
-  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
   if (isTrialActive()) return Infinity; // Standard-equivalent — Standard itself has no weekly Tutor cap
   if (!STATE.user?.is_paid) return CONFIG.FREE_AI_TUTOR_WEEKLY;
   if (STATE.user?.subscription_tier === 'basic') return CONFIG.BASIC_AI_TUTOR_WEEKLY;
   return Infinity;
 }
 function getBrainDumpLimit() {
-  // DEV TESTING: unlimited for test account — remove before launch
-  if (STATE.user?.email === 'swifts.59.carnage@icloud.com') return Infinity;
   return Infinity;
 }
 
@@ -27167,6 +27320,8 @@ function pingIncompleteStudents(homeworkId, topicName) {
 }
 
 function startDeepDiveForTopic(topicKey) {
+  const status = _getDeepDiveAccessStatus();
+  if (!status.allowed) { _blockDeepDiveAccess(status); return; }
   const subject = topicKey.startsWith('B') ? 'Biology' : topicKey.startsWith('C') ? 'Chemistry' : 'Physics';
   showDeepDiveTopicPicker(subject, 'topic');
 }
@@ -27193,12 +27348,22 @@ function redeemPromoCode() {
     STATE.user.is_paid = true;
     STATE.user.subscription_tier = tier;
     showToast('🎉 Code applied! Welcome to GradeMastery ' + tier.charAt(0).toUpperCase() + tier.slice(1) + '!');
-    setTimeout(() => showProfile(), 1000);
+    // Refresh fully rather than just showProfile() on the locally-guessed fields above --
+    // is_beta_grant (and everything else redeem_promo_code() may have set) isn't known
+    // client-side until we re-fetch, same pattern already used after Stripe checkout.
+    setTimeout(() => { loadUserPaidStatus().then(() => showProfile()); }, 1000);
   })
   .catch(() => showToast('Could not apply code — try again'));
 }
 
 function startHomeworkDeepDive(topicKey, subtopicName) {
+  // Basic/Free students never see the homework widget at all (loadStudentHomeworkWidget()/
+  // loadParentHomeworkWidget() gate that), but this is also reachable via a direct
+  // ?hw=...&type=deepdive URL param (afterLogin()), so it needs its own defense-in-depth
+  // check. Standard's homework-assigned sessions draw from the SAME weekly pool as
+  // self-initiated ones -- not exempt/unlimited.
+  const status = _getDeepDiveAccessStatus();
+  if (!status.allowed) { _blockDeepDiveAccess(status); showHome(); return; }
   const subject = topicKey.startsWith('B') ? 'Biology' : topicKey.startsWith('C') ? 'Chemistry' : 'Physics';
 
   if (subtopicName && subtopicName !== 'null' && subtopicName !== '') {
@@ -27221,6 +27386,11 @@ function startHomeworkDeepDive(topicKey, subtopicName) {
 }
 
 function loadStudentHomeworkWidget() {
+  // Homework is assigned per-class, not per-student (no student_id column on the
+  // homework table), so a Basic/Free student in a mixed-tier class would otherwise
+  // see the same homework as their Standard+ classmates. Filtered at the receiving
+  // end rather than restructuring assignment -- see PROJECT_STATE.md.
+  if (!hasTier('standard')) return;
   const classCode = STATE.user?.class_code;
   if (!classCode) return;
   fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&end_date=gte.' + new Date().toISOString() + '&order=end_date.asc', {
@@ -27263,6 +27433,21 @@ async function loadParentHomeworkWidget(classCode, childUserId) {
   if (!container || !classCode) return;
   const headers = { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user?.token };
   try {
+    // Gate on the CHILD's tier, not the parent's own -- a parent of a Basic/Free
+    // child shouldn't see homework prompts for something their child can't access.
+    // This function has no access to the child's profile fields otherwise, so fetch
+    // just the tier-relevant ones here.
+    if (childUserId) {
+      const childRes = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + childUserId + '&select=is_paid,subscription_tier,trial_ends_at',
+        { headers }
+      );
+      const childProfiles = childRes.ok ? await childRes.json() : [];
+      const child = childProfiles[0];
+      const childTrialActive = !!child?.trial_ends_at && new Date(child.trial_ends_at) > new Date() && !child?.is_paid;
+      const childRank = childTrialActive ? TIER_RANK['standard'] : (!child?.is_paid ? TIER_RANK['free'] : (TIER_RANK[child?.subscription_tier] ?? TIER_RANK['standard']));
+      if (childRank < TIER_RANK['standard']) { container.innerHTML = ''; return; }
+    }
     const hwRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/homework?class_code=eq.' + classCode + '&order=end_date.asc', { headers });
     const homeworks = hwRes.ok ? await hwRes.json() : [];
     if (!homeworks.length) { container.innerHTML = ''; return; }
