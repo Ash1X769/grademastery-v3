@@ -24202,6 +24202,41 @@ async function init() {
     } catch(e) {}
   }
 
+  // Paywall/subject-access decisions (hasTier(), getEffectiveSubscriptionTier(), and the
+  // premiumLocked check in showHome()/startFlashcardsForSubject()) read
+  // STATE.user.is_paid/subscription_tier/trial_ends_at synchronously at render time.
+  // Both restore paths below used to populate STATE.user from a client-side cache
+  // (localStorage `demo_user`) or bare JWT metadata -- neither reliably holds current
+  // tier data -- and only corrected it afterwards via the unawaited loadUserPaidStatus()
+  // call inside afterLogin(). That left a window where the first render (and any paywall
+  // click before the background fetch resolved) could show a stale/wrong paywall or
+  // subject lock, only fixed by luck or a manual refresh. Fetch these fields fresh here,
+  // before the first render -- same fix pattern already applied to display_name and the
+  // card_progress restore this week.
+  async function _refreshAccessFieldsBeforeRender() {
+    const user = STATE.user;
+    if (!user?.id || !user?.token) return;
+    try {
+      const res = await fetch(
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id +
+        '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name',
+        { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
+      );
+      const profiles = res.ok ? await res.json() : [];
+      const p = profiles[0];
+      if (p) {
+        STATE.user.is_paid = p.is_paid || false;
+        STATE.user.subscription_tier = p.subscription_tier || 'free';
+        STATE.user.trial_ends_at = p.trial_ends_at || null;
+        if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
+        if (p.display_name) STATE.user.display_name = p.display_name;
+      }
+    } catch(e) {
+      // Network error -- proceed with whatever STATE.user already had (cached/metadata
+      // fallback); the unawaited loadUserPaidStatus() inside afterLogin() will retry shortly after.
+    }
+  }
+
   const saved = LS.get('demo_user');
 
   const _urlScreen = new URLSearchParams(window.location.search).get('screen') || null;
@@ -24233,6 +24268,7 @@ async function init() {
     } catch(e) {
       // Network error — proceed with the cached (possibly stale) session; user may be offline
     }
+    await _refreshAccessFieldsBeforeRender();
     afterLogin(_urlScreen);
     return;
   }
@@ -24283,21 +24319,14 @@ async function init() {
             // Network error — proceed with the cached (possibly stale) session; user may be offline
           }
         }
-        // Read display_name from profiles directly rather than trusting auth user_metadata,
-        // which is set once at signup and never updated again — a student renaming themselves
-        // via saveProfile() only writes profiles.display_name, so metadata silently goes stale
-        // forever otherwise. Fetching it here (before the first render) removes the race
-        // entirely, rather than leaving the stale name on screen until loadUserPaidStatus()
-        // corrects it later.
-        try {
-          const profRes = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id + '&select=display_name', {
-            headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token }
-          });
-          const profData = profRes.ok ? await profRes.json() : [];
-          if (profData[0]?.display_name) STATE.user.display_name = profData[0].display_name;
-        } catch(e) {
-          // Network error — keep the auth-metadata-derived name as a fallback
-        }
+        // Read display_name, is_paid/subscription_tier/trial_ends_at, and primary_subject
+        // from profiles directly rather than trusting auth user_metadata (set once at
+        // signup, never updated again) or leaving is_paid/subscription_tier undefined
+        // until the unawaited loadUserPaidStatus() inside afterLogin() corrects them.
+        // STATE.user built above from raw JWT metadata doesn't even set is_paid, so
+        // without this it's `undefined` (falsy) on the very first render, every time --
+        // fetching here (before the first render) removes the race entirely.
+        await _refreshAccessFieldsBeforeRender();
         LS.set('demo_user', STATE.user);
         afterLogin(_urlScreen);
         return;
