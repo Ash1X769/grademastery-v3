@@ -2143,6 +2143,15 @@ h1,h2,h3,.gm-heading {
   font-family:'Plus Jakarta Sans','Nunito',sans-serif; font-weight:900;
   font-size:1.1rem; color:var(--gm-forest); letter-spacing:-0.02em; flex-shrink:0;
 }
+/* Small, muted pill next to the primary GradeMastery wordmark only (auth screen + main
+   nav logo) -- a soft tint of the brand's own forest green rather than a separate loud
+   colour, echoing the same uppercase small-label treatment as the Founding Member badge. */
+.v3-beta-pill {
+  display:inline-flex; align-items:center; vertical-align:middle;
+  background:rgba(33,109,57,0.08); border:1px solid rgba(33,109,57,0.18);
+  color:var(--gm-forest); border-radius:999px; padding:2px 8px; margin-left:6px;
+  font-size:0.62rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;
+}
 .v3-nav-tabs { display:flex; align-items:center; gap:2px; flex:1; justify-content:center; }
 .v3-nav-tab {
   display:flex; align-items:center; gap:5px; padding:7px 14px; border-radius:8px; border:none;
@@ -16347,7 +16356,7 @@ function showAuth() {
   const html = `
 <div class="v3-auth-wrap" id="screen-auth">
   <div class="v3-auth-left">
-    <span class="v3-auth-wordmark">GradeMastery</span>
+    <span class="v3-auth-wordmark">GradeMastery</span><span class="v3-beta-pill">Beta</span>
     <div class="v3-auth-showcase">
       <div class="v3-chat-bubble user">What's the role of enzymes in digestion?</div>
       <div class="v3-chat-bubble ai">Great question! Enzymes are biological <strong>catalysts</strong> that speed up digestion by breaking down large molecules. <strong>Pepsin</strong> breaks proteins in the stomach (pH 2), while <strong>lipase</strong> breaks fats in the small intestine. Each enzyme has a specific <strong>active site</strong> — the lock-and-key model. 🔑</div>
@@ -17857,7 +17866,7 @@ function renderNavBar(active) {
     <div class="v3-sb-streak">${streak > 0 ? '🔥<br>' + streak : ''}</div>
   </aside>
   <nav class="v3-nav" aria-label="Mobile top bar">
-    <span class="v3-nav-logo">GradeMastery</span>
+    <span class="v3-nav-logo">GradeMastery</span><span class="v3-beta-pill">Beta</span>
     <div style="flex:1;"></div>
     ${streak > 0 ? `<div class="v3-streak-pill">🔥 ${streak}</div>` : ''}
     <div class="profile-wrap">
@@ -20344,6 +20353,7 @@ ${renderNavBar('profile')}
     <button onclick="document.getElementById('profile-badges-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🏆 Badges</button>
     <button onclick="document.getElementById('profile-notifications-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">🔔 Notifications</button>
     <button onclick="document.getElementById('profile-settings-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">⚙️ Settings</button>
+    <button onclick="document.getElementById('profile-feedback-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:white;border:1.5px solid #E2E8F0;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#1A2E22;cursor:pointer;white-space:nowrap;">💬 Feedback</button>
     <button onclick="document.getElementById('profile-signout-section')?.scrollIntoView({behavior:'smooth'})" style="flex-shrink:0;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:#DC2626;cursor:pointer;white-space:nowrap;">🚪 Sign Out</button>
   </div>
 
@@ -20501,6 +20511,16 @@ ${renderNavBar('profile')}
         </select>
       </div>` : ''}
       <button class="btn btn-primary btn-full" onclick="saveProfile()">Save Changes</button>
+    </div>
+
+    <!-- Feedback -->
+    <div class="card" id="profile-feedback-section" style="margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px;">💬 Feedback</div>
+      <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:14px;">Spotted something broken, or got an idea for us? We read every message.</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline btn-full" onclick="showFeedbackModal('bug')">🐛 Report a Bug</button>
+        <button class="btn btn-outline btn-full" onclick="showFeedbackModal('feature')">✨ Request a Feature</button>
+      </div>
     </div>
 
     <!-- Study Schedule -->
@@ -24353,6 +24373,52 @@ function showModal(content) {
 
 function closeModal() {
   document.getElementById('modal-backdrop')?.remove();
+}
+
+// ============================================================
+// FEEDBACK
+// ============================================================
+function showFeedbackModal(type) {
+  const isBug = type === 'bug';
+  showModal(`<div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:40px;margin-bottom:8px;">${isBug ? '🐛' : '✨'}</div>
+      <div class="modal-title">${isBug ? 'Report a Bug' : 'Request a Feature'}</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:15px;line-height:1.5;">${isBug ? "Tell us what went wrong — the more detail, the faster we can fix it." : "Tell us what you'd love to see — we read every idea."}</p>
+      <textarea id="feedback-message" rows="4" placeholder="${isBug ? 'What happened? What did you expect instead?' : 'What would you like GradeMastery to do?'}" class="input" style="width:100%;box-sizing:border-box;resize:none;text-align:left;"></textarea>
+      <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="submitFeedback('${type}')">Send ${isBug ? 'Bug Report' : 'Feature Request'}</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function submitFeedback(type) {
+  const textarea = document.getElementById('feedback-message');
+  const message = (textarea?.value || '').trim();
+  if (!message) { showToast('Please add a few details first'); return; }
+
+  try {
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/rest/v1/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${STATE.user.token}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: STATE.user.id,
+        user_role: STATE.user.role,
+        type,
+        message,
+        page_context: STATE.screen || null,
+      }),
+    });
+    if (!res.ok) throw new Error('Feedback insert failed: ' + res.status);
+    closeModal();
+    showToast("Thanks — we've got it! 🙌");
+  } catch (e) {
+    showToast("Couldn't send that — please try again");
+  }
 }
 
 // ============================================================
