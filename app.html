@@ -16083,9 +16083,9 @@ function sm2Next(card, grade) {
 // ============================================================
 async function callClaude(systemPrompt, userMessage, maxTokens=500) {
   try {
-    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev', {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/ai-marking', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user?.token },
       body: JSON.stringify({
         model: CONFIG.CLAUDE_MODEL,
         max_tokens: maxTokens,
@@ -16093,7 +16093,18 @@ async function callClaude(systemPrompt, userMessage, maxTokens=500) {
         messages: [{ role: 'user', content: userMessage }],
       })
     });
+    if (res.status === 403 || res.status === 401) {
+      // Server-side cap already hit (or an auth problem) -- the client-side pre-check
+      // (aiMarkingAvailable()) is a UX optimization only, not the security boundary,
+      // so this can legitimately fire even when the local count thought there was
+      // room (e.g. another device already used the last slot today).
+      showToast("You've reached your AI Marking limit for today — resets tomorrow. Try Self Marking, or upgrade for more.");
+      return null;
+    }
     const data = await res.json();
+    if (data._usage) {
+      STATE.user.ai_marking_daily_count = data._usage.count;
+    }
     return data.content?.[0]?.text || '';
   } catch (e) {
     console.error('Claude API error:', e);
@@ -19994,9 +20005,9 @@ async function sendTutorMessage(message) {
   const messages = STATE.tutorHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }));
 
   try {
-    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev', {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/ai-tutor', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user?.token },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 600,
@@ -20004,12 +20015,25 @@ async function sendTutorMessage(message) {
         messages,
       })
     });
+    if (res.status === 403 || res.status === 401) {
+      // Server-side cap already hit -- checkAITutorLimitAndBlock() above is a UX
+      // optimization only, not the security boundary, so this can legitimately
+      // fire even when the local count thought there was room.
+      document.getElementById('tutor-loading')?.remove();
+      STATE.tutorHistory.pop(); // remove the user message we optimistically pushed -- it wasn't answered
+      showAILimitModal("You've reached your AI Tutor limit — resets tomorrow (or Monday for weekly plans). Upgrade for more messages.");
+      showAITutor();
+      return;
+    }
     const data = await res.json();
     const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Try again!";
+    if (data._usage) {
+      STATE.user.ai_tutor_daily_count = data._usage.daily_count;
+      STATE.user.ai_tutor_weekly_count = data._usage.weekly_count;
+    }
 
     document.getElementById('tutor-loading')?.remove();
     STATE.tutorHistory.push({ role: 'ai', content: reply });
-    await incrementAITutorCount();
     showAITutor();
   } catch (e) {
     document.getElementById('tutor-loading')?.remove();
@@ -24664,9 +24688,9 @@ async function sendAIChat() {
     const user = (typeof STATE !== 'undefined' && STATE.user) || {};
     const year = user.year_group || 11;
     const tier = (user.tier || 'combined higher').replace(/_/g, ' ');
-    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev', {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/ai-tutor', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user?.token },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 600,
@@ -24674,9 +24698,17 @@ async function sendAIChat() {
         messages: [{ role: 'user', content: message }]
       })
     });
+    if (res.status === 403 || res.status === 401) {
+      aiDiv.textContent = "You've reached your AI Tutor limit — resets tomorrow (or Monday for weekly plans). Upgrade for more messages.";
+      msgs.scrollTop = msgs.scrollHeight;
+      return;
+    }
     const data = await res.json();
     aiDiv.innerHTML = renderMarkdown(data.content?.[0]?.text || 'Sorry, try again!');
-    await incrementAITutorCount();
+    if (data._usage) {
+      STATE.user.ai_tutor_daily_count = data._usage.daily_count;
+      STATE.user.ai_tutor_weekly_count = data._usage.weekly_count;
+    }
   } catch(e) {
     aiDiv.textContent = 'Something went wrong. Please try again.';
   }
@@ -24708,9 +24740,9 @@ async function sendAITabChat() {
     const user = (typeof STATE !== 'undefined' && STATE.user) || {};
     const year = user.year_group || 11;
     const tier = (user.tier || 'combined higher').replace(/_/g, ' ');
-    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev', {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/ai-tutor', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user?.token },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 600,
@@ -24718,9 +24750,17 @@ async function sendAITabChat() {
         messages: [{ role: 'user', content: message }]
       })
     });
+    if (res.status === 403 || res.status === 401) {
+      aiDiv.textContent = "You've reached your AI Tutor limit — resets tomorrow (or Monday for weekly plans). Upgrade for more messages.";
+      msgs.scrollTop = msgs.scrollHeight;
+      return;
+    }
     const data = await res.json();
     aiDiv.innerHTML = renderMarkdown(data.content?.[0]?.text || 'Sorry, try again!');
-    await incrementAITutorCount();
+    if (data._usage) {
+      STATE.user.ai_tutor_daily_count = data._usage.daily_count;
+      STATE.user.ai_tutor_weekly_count = data._usage.weekly_count;
+    }
   } catch(e) {
     aiDiv.textContent = 'Something went wrong. Please try again.';
   }
