@@ -2109,8 +2109,19 @@ h1,h2,h3,.gm-heading {
 }
 .v3-sb-mono {
   font-family:'Plus Jakarta Sans','Nunito',sans-serif; font-weight:900;
-  font-size:20px; color:#fff; margin-top:16px; margin-bottom:28px;
+  font-size:20px; color:#fff; margin-top:16px; margin-bottom:4px;
   text-align:center; width:100%;
+}
+/* Desktop-only counterpart to .v3-beta-pill -- the sidebar has no wordmark to attach
+   the light-tint version to (icon-only rail, solid forest-green background), so this
+   is a light-on-dark variant of the same small pill shape, always visible under the
+   "G" monogram rather than hover-only, matching Part 1's "always visible at the
+   primary brand-mark" intent. */
+.v3-sb-beta-pill {
+  display:block; width:fit-content; margin:0 auto 24px;
+  font-size:0.55rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;
+  color:rgba(255,255,255,0.85); background:rgba(255,255,255,0.14);
+  border-radius:999px; padding:2px 6px;
 }
 .v3-sb-nav { display:flex; flex-direction:column; gap:8px; flex:1; align-items:center; padding-top:4px; }
 .v3-sb-item {
@@ -17855,6 +17866,7 @@ function renderNavBar(active) {
   const _mbPins = _buildMobilePinsHTML(_pins);
   return `<aside class="v3-sidebar" aria-label="Main navigation">
     <div class="v3-sb-mono">G</div>
+    <div class="v3-sb-beta-pill">Beta</div>
     <div class="v3-sb-nav">
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
       <div id="gm-sb-pins">${_sbPins}</div>
