@@ -16386,7 +16386,7 @@ function showAuth() {
           <input type="email" id="login-email" class="v3-form-input" placeholder="your@email.com" autocomplete="email">
         </div>
         <div class="v3-form-group">
-          <div class="v3-form-group-row"><a href="#" class="v3-forgot" onclick="return false;">Forgot password?</a></div>
+          <div class="v3-form-group-row"><a href="#" class="v3-forgot" onclick="showForgotPasswordForm(); return false;">Forgot password?</a></div>
           <div class="v3-pw-wrap">
             <input type="password" id="login-password" class="v3-form-input" placeholder="••••••••" autocomplete="current-password">
             <button type="button" class="v3-pw-toggle" onclick="togglePwVisibility('login-password',this)">👁</button>
@@ -16437,11 +16437,33 @@ function showAuth() {
         <div class="v3-auth-terms">By creating an account you agree to our <a href="terms.html" target="_blank">Terms of Service</a> and <a href="privacy.html" target="_blank">Privacy Policy</a>.</div>
         <div class="v3-auth-switch">Already have an account? <a onclick="switchAuthTabV3('login')">Sign in →</a></div>
       </div>
+      <div id="auth-forgot" class="hidden">
+        <div id="auth-forgot-form">
+          <div class="v3-auth-heading">Reset your password</div>
+          <div class="v3-auth-sub">Enter your email and we'll send you a reset link</div>
+          <div id="v3-forgot-error" class="v3-auth-error"></div>
+          <div class="v3-form-group">
+            <label class="v3-form-label">Email</label>
+            <input type="email" id="forgot-email" class="v3-form-input" placeholder="your@email.com" autocomplete="email">
+          </div>
+          <button class="v3-btn-primary" id="forgot-submit-btn" onclick="submitForgotPassword()">Send reset link</button>
+          <div class="v3-auth-switch"><a onclick="showLoginFormFromForgot()">← Back to sign in</a></div>
+        </div>
+        <div id="auth-forgot-done" class="hidden">
+          <div class="v3-auth-heading">Check your email</div>
+          <div class="v3-auth-sub">If an account exists for this email, we've sent a reset link. It may take a few minutes to arrive.</div>
+          <div class="v3-auth-switch"><a onclick="showLoginFormFromForgot()">← Back to sign in</a></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>`;
   render(html);
   STATE._currentRole = 'student';
+  if (STATE._pendingAuthError) {
+    showToast(STATE._pendingAuthError);
+    STATE._pendingAuthError = null;
+  }
 }
 
 function switchAuthTabV3(tab) {
@@ -16449,6 +16471,52 @@ function switchAuthTabV3(tab) {
   const signup = document.getElementById('auth-signup');
   if (login) login.classList.toggle('hidden', tab !== 'login');
   if (signup) signup.classList.toggle('hidden', tab !== 'signup');
+}
+
+function showForgotPasswordForm() {
+  document.getElementById('auth-login')?.classList.add('hidden');
+  document.getElementById('auth-signup')?.classList.add('hidden');
+  document.getElementById('auth-forgot')?.classList.remove('hidden');
+}
+
+function showLoginFormFromForgot() {
+  document.getElementById('auth-forgot')?.classList.add('hidden');
+  document.getElementById('auth-signup')?.classList.add('hidden');
+  document.getElementById('auth-login')?.classList.remove('hidden');
+  // Reset the panel back to its form state for next time it's opened.
+  document.getElementById('auth-forgot-form')?.classList.remove('hidden');
+  document.getElementById('auth-forgot-done')?.classList.add('hidden');
+  const emailInput = document.getElementById('forgot-email');
+  if (emailInput) emailInput.value = '';
+  const errorEl = document.getElementById('v3-forgot-error');
+  if (errorEl) errorEl.textContent = '';
+  const btn = document.getElementById('forgot-submit-btn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Send reset link'; }
+}
+
+async function submitForgotPassword() {
+  const email = document.getElementById('forgot-email')?.value?.trim();
+  const errorEl = document.getElementById('v3-forgot-error');
+  const btn = document.getElementById('forgot-submit-btn');
+  if (errorEl) errorEl.textContent = '';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (errorEl) errorEl.textContent = 'Please enter a valid email address.';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  try {
+    await fetch(CONFIG.SUPABASE_URL + '/auth/v1/recover?redirect_to=' + encodeURIComponent('https://grademastery.co.uk/app.html'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email }),
+    });
+  } catch (e) {
+    // Supabase's /recover intentionally returns 200 regardless of whether the
+    // email exists (avoids account enumeration) -- show the same generic
+    // confirmation even on a network error so we never leak account existence.
+  }
+  document.getElementById('auth-forgot-form')?.classList.add('hidden');
+  document.getElementById('auth-forgot-done')?.classList.remove('hidden');
 }
 
 function togglePwVisibility(inputId, btn) {
@@ -16493,6 +16561,135 @@ function selectRole(role) {
     const fields = document.getElementById(`signup-${r}-fields`);
     if (fields) fields.classList.toggle('hidden', r !== role);
   });
+}
+
+// ============================================================
+// PASSWORD RESET (recovery-link landing screen)
+// ============================================================
+
+// Reads the URL hash Supabase appends on redirect after a recovery-link click
+// (#access_token=...&type=recovery) or on an expired/already-used link
+// (#error=access_denied&error_code=otp_expired&...). Returns null if the hash
+// has neither shape, so normal init() falls through unaffected.
+function _handleAuthHash() {
+  const hash = window.location.hash;
+  if (!hash || hash.length < 2) return null;
+  const params = new URLSearchParams(hash.substring(1));
+  const errorCode = params.get('error_code');
+  if (errorCode) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    return { error: (params.get('error_description') || 'This link is invalid or has expired.').replace(/\+/g, ' ') };
+  }
+  if (params.get('type') === 'recovery' && params.get('access_token')) {
+    return { token: params.get('access_token') };
+  }
+  return null;
+}
+
+function showResetPassword(token) {
+  STATE.screen = 'reset-password';
+  STATE._recoveryToken = token;
+  const html = `
+<div class="v3-auth-wrap" id="screen-reset-password">
+  <div class="v3-auth-left">
+    <span class="v3-auth-wordmark">GradeMastery</span><span class="v3-beta-pill">Beta</span>
+    <div class="v3-auth-showcase">
+      <div class="v3-chat-bubble ai">Almost there — set a new password below and you'll be straight back into your revision. 🔑</div>
+    </div>
+    <div class="v3-auth-trust"><span class="v3-auth-stars">★★★★★</span> Trusted by GCSE students across England</div>
+  </div>
+  <div class="v3-auth-right">
+    <div class="v3-auth-form-wrap">
+      <div id="reset-password-form">
+        <div class="v3-auth-heading">Set a new password</div>
+        <div class="v3-auth-sub">Choose a new password for your account</div>
+        <div id="v3-reset-error" class="v3-auth-error"></div>
+        <div class="v3-form-group">
+          <label class="v3-form-label">New password</label>
+          <div class="v3-pw-wrap">
+            <input type="password" id="reset-password-new" class="v3-form-input" placeholder="At least 8 characters, with a letter and a number" autocomplete="new-password" oninput="updatePwStrength(this.value)">
+            <button type="button" class="v3-pw-toggle" onclick="togglePwVisibility('reset-password-new',this)">👁</button>
+          </div>
+          <div class="v3-pw-strength"><div class="v3-pw-strength-bar" id="pw-strength-bar" style="width:0%;background:#EF4444;"></div></div>
+        </div>
+        <div class="v3-form-group">
+          <label class="v3-form-label">Confirm new password</label>
+          <div class="v3-pw-wrap">
+            <input type="password" id="reset-password-confirm" class="v3-form-input" placeholder="Re-enter your new password" autocomplete="new-password">
+            <button type="button" class="v3-pw-toggle" onclick="togglePwVisibility('reset-password-confirm',this)">👁</button>
+          </div>
+        </div>
+        <button class="v3-btn-primary" id="reset-password-submit" onclick="submitPasswordReset()">Set new password</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+  render(html);
+}
+
+async function submitPasswordReset() {
+  const token = STATE._recoveryToken;
+  const errorEl = document.getElementById('v3-reset-error');
+  const btn = document.getElementById('reset-password-submit');
+  if (errorEl) errorEl.textContent = '';
+
+  if (!token) {
+    if (errorEl) errorEl.textContent = 'This reset link is invalid or has expired. Please request a new one.';
+    return;
+  }
+
+  const pw = document.getElementById('reset-password-new')?.value || '';
+  const confirmPw = document.getElementById('reset-password-confirm')?.value || '';
+
+  if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) {
+    if (errorEl) errorEl.textContent = 'Password must be at least 8 characters and include a letter and a number.';
+    return;
+  }
+  if (pw !== confirmPw) {
+    if (errorEl) errorEl.textContent = 'Passwords do not match.';
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/user', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (errorEl) errorEl.textContent = data.error_description || data.msg || 'Could not update password — please request a new reset link.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Set new password'; }
+      return;
+    }
+  } catch (e) {
+    if (errorEl) errorEl.textContent = 'Network error — please try again.';
+    if (btn) { btn.disabled = false; btn.textContent = 'Set new password'; }
+    return;
+  }
+
+  // Actively revoke the recovery session server-side rather than just discarding
+  // it client-side — otherwise the access token stays valid for its full TTL.
+  try {
+    await fetch(CONFIG.SUPABASE_URL + '/auth/v1/logout', {
+      method: 'POST',
+      headers: {
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+      },
+    });
+  } catch (e) {}
+
+  STATE._recoveryToken = null;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  showAuth();
+  showToast('Password updated — please log in with your new password');
 }
 
 async function doLogin() {
@@ -24441,6 +24638,18 @@ async function submitFeedback(type) {
 })();
 
 async function init() {
+  // Recovery-link landing takes priority over everything else below — a user
+  // clicking a password-reset email should always land on the set-password
+  // screen, regardless of any existing cached session.
+  const _authHash = _handleAuthHash();
+  if (_authHash?.token) {
+    showResetPassword(_authHash.token);
+    return;
+  }
+  if (_authHash?.error) {
+    STATE._pendingAuthError = _authHash.error;
+  }
+
   // Handle Stripe redirect
   if (window.location.search.includes('upgraded=true')) {
     const saved = LS.get('demo_user');
