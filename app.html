@@ -18066,6 +18066,9 @@ function renderNavBar(active) {
       ${tabs.map(t => `<button class="v3-sb-item${active===t.id?' active':''}" onclick="${t.fn}" title="${t.label}">${t.icon}</button>`).join('')}
       <div id="gm-sb-pins">${_sbPins}</div>
     </div>
+    <button class="gm-sb-feedback-btn" onclick="showFeedbackChooser()" title="Feedback" style="background:none;border:none;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;padding:0;">
+      <span style="font-size:22px;color:rgba(255,255,255,0.7);">💬</span>
+    </button>
     <div class="gm-sb-notif-wrap" onclick="openNotificationPanel()" style="position:relative;display:flex;justify-content:center;margin-bottom:8px;cursor:pointer;">
       <span style="font-size:22px;color:rgba(255,255,255,0.7);">🔔</span>
       <span id="notif-badge" style="position:absolute;top:-4px;right:8px;background:#DC2626;color:white;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;line-height:16px;text-align:center;display:none;"></span>
@@ -18084,6 +18087,10 @@ function renderNavBar(active) {
         <button class="pd-item" onclick="closeProfileDropdown();showKOTopicPicker()">📖 Knowledge Organisers</button>
         <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();showAbout()">ℹ️ About GradeMastery</button>
+        <div class="pd-sep"></div>
+        <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('bug')">🐛 Report a Bug</button>
+        <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('feature')">✨ Request a Feature</button>
+        <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('feedback')">💬 General Feedback</button>
         <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();doLogout()">🚪 Sign Out</button>
       </div>
@@ -20724,9 +20731,10 @@ ${renderNavBar('profile')}
     <div class="card" id="profile-feedback-section" style="margin-bottom:16px;">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px;">💬 Feedback</div>
       <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:14px;">Spotted something broken, or got an idea for us? We read every message.</div>
-      <div style="display:flex;gap:10px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-full" onclick="showFeedbackModal('bug')">🐛 Report a Bug</button>
         <button class="btn btn-outline btn-full" onclick="showFeedbackModal('feature')">✨ Request a Feature</button>
+        <button class="btn btn-outline btn-full" onclick="showFeedbackModal('feedback')">💬 General Feedback</button>
       </div>
     </div>
 
@@ -24585,15 +24593,49 @@ function closeModal() {
 // ============================================================
 // FEEDBACK
 // ============================================================
-function showFeedbackModal(type) {
-  const isBug = type === 'bug';
+const FEEDBACK_TYPES = {
+  bug: {
+    icon: '🐛', label: 'Report a Bug', chooserLabel: '🐛 Report a Bug',
+    intro: 'Tell us what went wrong — the more detail, the faster we can fix it.',
+    placeholder: 'What happened? What did you expect instead?',
+    sendLabel: 'Send Bug Report',
+  },
+  feature: {
+    icon: '✨', label: 'Request a Feature', chooserLabel: '✨ Request a Feature',
+    intro: "Tell us what you'd love to see — we read every idea.",
+    placeholder: 'What would you like GradeMastery to do?',
+    sendLabel: 'Send Feature Request',
+  },
+  feedback: {
+    icon: '💬', label: 'General Feedback', chooserLabel: '💬 General Feedback',
+    intro: "Anything else on your mind? We'd love to hear it.",
+    placeholder: 'What would you like to tell us?',
+    sendLabel: 'Send Feedback',
+  },
+};
+
+function showFeedbackChooser() {
   showModal(`<div class="modal-handle"></div>
     <div style="text-align:center;padding:8px 0 4px;">
-      <div style="font-size:40px;margin-bottom:8px;">${isBug ? '🐛' : '✨'}</div>
-      <div class="modal-title">${isBug ? 'Report a Bug' : 'Request a Feature'}</div>
-      <p style="color:var(--text-secondary);font-weight:600;font-size:15px;line-height:1.5;">${isBug ? "Tell us what went wrong — the more detail, the faster we can fix it." : "Tell us what you'd love to see — we read every idea."}</p>
-      <textarea id="feedback-message" rows="4" placeholder="${isBug ? 'What happened? What did you expect instead?' : 'What would you like GradeMastery to do?'}" class="input" style="width:100%;box-sizing:border-box;resize:none;text-align:left;"></textarea>
-      <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="submitFeedback('${type}')">Send ${isBug ? 'Bug Report' : 'Feature Request'}</button>
+      <div style="font-size:40px;margin-bottom:8px;">💬</div>
+      <div class="modal-title">Feedback</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:15px;line-height:1.5;">Spotted something broken, or got an idea for us? We read every message.</p>
+      <button class="btn btn-outline btn-full" style="margin-top:12px;" onclick="showFeedbackModal('bug')">${FEEDBACK_TYPES.bug.chooserLabel}</button>
+      <button class="btn btn-outline btn-full" style="margin-top:8px;" onclick="showFeedbackModal('feature')">${FEEDBACK_TYPES.feature.chooserLabel}</button>
+      <button class="btn btn-outline btn-full" style="margin-top:8px;" onclick="showFeedbackModal('feedback')">${FEEDBACK_TYPES.feedback.chooserLabel}</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function showFeedbackModal(type) {
+  const cfg = FEEDBACK_TYPES[type];
+  showModal(`<div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:40px;margin-bottom:8px;">${cfg.icon}</div>
+      <div class="modal-title">${cfg.label}</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:15px;line-height:1.5;">${cfg.intro}</p>
+      <textarea id="feedback-message" rows="4" placeholder="${cfg.placeholder}" class="input" style="width:100%;box-sizing:border-box;resize:none;text-align:left;"></textarea>
+      <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="submitFeedback('${type}')">${cfg.sendLabel}</button>
       <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="closeModal()">Cancel</button>
     </div>`);
 }
@@ -24623,6 +24665,18 @@ async function submitFeedback(type) {
     if (!res.ok) throw new Error('Feedback insert failed: ' + res.status);
     closeModal();
     showToast("Thanks — we've got it! 🙌");
+
+    // Fire-and-forget notification email — the feedback row is already safely
+    // stored above, so a failure here (network blip, Resend outage) must never
+    // surface to the user or block their submission.
+    fetch('https://sciencespark-worker.sciencespark.workers.dev/notify-feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${STATE.user.token}`,
+      },
+      body: JSON.stringify({ type, message, user_role: STATE.user.role }),
+    }).catch(() => {});
   } catch (e) {
     showToast("Couldn't send that — please try again");
   }
