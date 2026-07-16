@@ -3276,24 +3276,11 @@ const STRIPE_PRICES = {
   premium_plus_annual: 'price_1Tpc6OBeyG4M2T8lcB8pjIYd'
 };
 
-// Standard "Summer Offer" — £14.99/mo (£149.99/yr) until the cutoff, £19.99/mo (£199.99/yr)
-// after. The Worker resolves the actual charged price server-side off its own clock; this
-// client-side check only controls what's *displayed*.
-function isSummerOfferActive() {
-  return Date.now() < Date.parse('2026-08-31T23:00:00Z');
-}
 function getStandardPriceDisplay(period) { // period: 'm' | 'a'
-  if (period === 'm') {
-    return isSummerOfferActive()
-      ? '<span style="text-decoration:line-through;opacity:0.5;font-size:0.7em;margin-right:4px;">£19.99</span>£14.99'
-      : '£19.99';
-  }
-  return isSummerOfferActive()
-    ? '<span style="text-decoration:line-through;opacity:0.5;font-size:0.7em;margin-right:4px;">£199.99</span>£149.99'
-    : '£199.99';
+  return period === 'm' ? '£17.99' : '£197.89';
 }
 function getStandardMonthlyPriceLabel() {
-  return isSummerOfferActive() ? '£14.99' : '£19.99';
+  return '£17.99';
 }
 
 // ============================================================
@@ -15524,7 +15511,7 @@ function getSessionStartMessage() {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£24.99',a:'£249.99'},premium_plus:{m:'£44.99',a:'£449.99'}};
+  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
@@ -17140,9 +17127,9 @@ function showUpgradeModal(reason) {
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
     { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Start Free Trial', trial:true, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£24.99',a:'£249.99'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
-    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£44.99',a:'£449.99'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
+    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Get Pro', trial:false, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£41.99',a:'£461.89'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£55.99',a:'£615.89'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
   el.className = 'v3-upgrade-overlay';
@@ -17176,7 +17163,7 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£24.99',a:'£249.99'},premium_plus:{m:'£44.99',a:'£449.99'}};
+  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
@@ -20586,7 +20573,7 @@ ${renderNavBar('profile')}
             <div>
               <div style="font-size:11px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;color:#15803D;margin-bottom:2px;">Founding Member</div>
               <div style="font-size:12px;font-weight:700;color:#15803D;line-height:1.5;">You're a Founding Member on ${display.name} — free until launch. It'll normally be ${
-                ({ basic: '£7.99', standard: getStandardPriceDisplay('m'), premium: '£24.99', premium_plus: '£44.99' })[subTier] || getStandardPriceDisplay('m')
+                ({ basic: '£7.99', standard: getStandardPriceDisplay('m'), premium: '£41.99', premium_plus: '£55.99' })[subTier] || getStandardPriceDisplay('m')
               }/month.</div>
             </div>
           </div>
@@ -20605,7 +20592,7 @@ ${renderNavBar('profile')}
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
           <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week<br>Upgrade for everything unlimited.</div>
           <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £14.99/month — beta testers get a special founding member discount.</div>
+            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £17.99/month — beta testers get a special founding member discount.</div>
           </div>
           <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
           <div style="margin-top:12px;">
@@ -21666,7 +21653,7 @@ async function showTeacherDashboard(selectedClass) {
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
       <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
+        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £41.99/month — beta testers get a special founding member discount.</div>
       </div>
       <div id="tcontent-overview">
         <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -23561,7 +23548,7 @@ async function showParentPortal() {
     <div style="max-width:860px;margin:0 auto;padding-top:8px;padding-bottom:80px;">
       <div style="padding:16px 20px 0;">
         <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £24.99/month — beta testers get a special founding member discount.</div>
+          <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £41.99/month — beta testers get a special founding member discount.</div>
         </div>
       </div>
       <div id="pcontent-progress" style="padding:0 20px;">${progressHTML}</div>
