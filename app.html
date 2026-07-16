@@ -18155,6 +18155,7 @@ function renderFlashcard() {
   const current = STATE.currentCardIndex;
   STATE.flashcardFlipped = false;
   STATE.pendingAnswerTime = Date.now();
+  STATE._cardAlreadyGraded = false;
   const _effAI = getEffectiveAIMode(STATE.user);
   const aiMode = _effAI.aiMode;
   const aiLocked = _effAI.locked;
@@ -18402,9 +18403,12 @@ function showAIResult(grade, feedback, copyPaste) {
   }
   document.getElementById('answer-sec').style.display = 'block';
   document.getElementById('rating-wrap').style.display = 'block';
-  // AI graded — hide self-rating buttons, grade already saved to SRS
-  const ratingGrid = document.querySelector('#rating-wrap .rating-grid');
-  const ratingPrompt = document.querySelector('#rating-wrap .rating-prompt');
+  // AI graded — hide self-rating buttons, grade already saved to SRS.
+  // Two render paths use two different class-name sets for these elements
+  // (renderFlashcard(): v3-rating-grid/v3-rating-prompt; renderEmbedCard():
+  // rating-grid/rating-prompt) — match both, since this function is shared.
+  const ratingGrid = document.querySelector('#rating-wrap .v3-rating-grid, #rating-wrap .rating-grid');
+  const ratingPrompt = document.querySelector('#rating-wrap .v3-rating-prompt, #rating-wrap .rating-prompt');
   const ratingLockedMsg = document.querySelector('#rating-wrap .ai-locked-msg');
   if (ratingGrid) ratingGrid.style.display = 'none';
   if (ratingPrompt) ratingPrompt.style.display = 'none';
@@ -18413,6 +18417,10 @@ function showAIResult(grade, feedback, copyPaste) {
   if (examBtn) examBtn.style.display = 'flex';
 }
 function recordAndAdvance(cardId, grade) {
+  // Defense-in-depth against selfGrade() also firing for this card while the
+  // grading UI is still on screen (e.g. a stale render, browser back button) —
+  // see the matching guard at the top of selfGrade().
+  STATE._cardAlreadyGraded = true;
   const card = STATE.cardQueue[STATE.currentCardIndex];
   const gradeNum = { again:0, hard:1, good:2, easy:3 }[grade] ?? 0;
   playGradeSound(gradeNum);
@@ -18522,6 +18530,13 @@ function flipCard() {
 }
 
 function selfGrade(cardId, grade) {
+  // Defense-in-depth: this card was already graded (AI or smart-mark-fallback)
+  // via recordAndAdvance() this card-view — refuse a second grade even if the
+  // self-grade buttons are somehow still reachable (stale render, back button).
+  if (STATE._cardAlreadyGraded) {
+    showToast("This card's already been graded — tap Next to continue");
+    return;
+  }
   if (getEffectiveAIMode(STATE.user).locked && !STATE.currentAutoGrade) {
     showToast('AI marking is required in your class');
     return;
@@ -19665,6 +19680,7 @@ function renderEmbedCard() {
   const current = STATE.currentCardIndex;
   STATE.pendingAnswerTime = Date.now();
   STATE.flashcardFlipped = false;
+  STATE._cardAlreadyGraded = false;
   const aiLocked = getEffectiveAIMode(STATE.user).locked;
 
   let answerBullets;
