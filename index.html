@@ -913,7 +913,7 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Basic</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="7.99" data-annual="6.67">7.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="7.99">7.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
@@ -935,9 +935,9 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card popular">
         <span class="pricing-card-name">Standard</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" id="standard-price-val" data-monthly="14.99"><span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£19.99</span>14.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="17.99">17.99</span><span class="period">/mo</span>
         </div>
-        <p class="pricing-subtitle">Summer Offer, ends 31 Aug 2026 · 3-day free trial, no card needed<br><span class="billing-note" id="standard-billing-note" style="display:block;margin-top:2px;">Billed monthly</span></p>
+        <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
         <ul class="pricing-features">
           <li><span>✓</span> Everything in Basic</li>
@@ -951,7 +951,7 @@ Or just throw a specific topic at me! 🔬</div>
           <li><span>✓</span> StudyCoach tips</li>
         </ul>
         <div class="pricing-cta">
-          <button onclick="landingCheckout('standard', 'price_1Tpc0fBeyG4M2T8lAM06cuGZ')" style="background:var(--gm-orange);color:#fff;border-color:var(--gm-orange);font-size:1rem;padding:14px 20px;">Start Free Trial</button>
+          <button onclick="landingCheckout('standard', 'price_1Tpc0fBeyG4M2T8lAM06cuGZ')" style="background:var(--gm-orange);color:#fff;border-color:var(--gm-orange);font-size:1rem;padding:14px 20px;">Get Pro</button>
         </div>
       </div>
 
@@ -959,7 +959,7 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Premium</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="24.99" data-annual="20.83">24.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="41.99">41.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
@@ -982,7 +982,7 @@ Or just throw a specific topic at me! 🔬</div>
       <div class="pricing-card">
         <span class="pricing-card-name">Premium Plus</span>
         <div class="pricing-price">
-          <sup>£</sup><span class="price-val" data-monthly="44.99" data-annual="37.50">44.99</span><span class="period">/mo</span>
+          <sup>£</sup><span class="price-val" data-monthly="55.99">55.99</span><span class="period">/mo</span>
         </div>
         <p class="pricing-subtitle"><span class="billing-note">Billed monthly</span></p>
         <div class="pricing-divider"></div>
@@ -1027,7 +1027,7 @@ Or just throw a specific topic at me! 🔬</div>
       </div>
       <div class="faq-item">
         <button class="faq-question">Is there a free trial?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <div class="faq-answer"><div class="faq-answer-inner">Yes — Standard tier has a 3-day free trial with no card required. The Free tier is free forever, also with no card needed.</div></div>
+        <div class="faq-answer"><div class="faq-answer-inner">The Free tier is free forever, with no card needed. Paid tiers can be cancelled any time — no long-term commitment.</div></div>
       </div>
       <div class="faq-item">
         <button class="faq-question">Can teachers use GradeMastery with their whole class?<svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
@@ -1194,63 +1194,24 @@ async function landingCheckout(tier, priceId) {
   var labelMonthly = document.getElementById('label-monthly');
   var labelAnnual = document.getElementById('label-annual');
 
-  // Standard is handled separately below (renderStandardPricing) — it needs
-  // date-aware Summer Offer logic the other tiers don't have, so it's excluded
-  // from these generic maps rather than special-cased inside the shared loop.
-  var annualPrices = { '7.99': '6.67', '24.99': '20.83', '44.99': '37.50' };
-  var annualYearly = { '7.99': '79.99', '24.99': '249.99', '44.99': '449.99' };
-
-  // Mirrors app.html's isSummerOfferActive() — same cutoff instant, so this
-  // static page self-corrects even if nobody edits it again after 31 Aug 2026.
-  function isSummerOfferActive() {
-    return Date.now() < Date.parse('2026-08-31T23:00:00Z');
-  }
-
-  function renderStandardPricing(isAnnual) {
-    var offerActive = isSummerOfferActive();
-    var priceEl = document.getElementById('standard-price-val');
-    var noteEl = document.getElementById('standard-billing-note');
-    if (priceEl) {
-      if (isAnnual) {
-        priceEl.innerHTML = offerActive
-          ? '<span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£16.67</span>12.50'
-          : '16.67';
-      } else {
-        priceEl.innerHTML = offerActive
-          ? '<span style="text-decoration:line-through;opacity:.5;font-size:.65em;margin-right:4px;">£19.99</span>14.99'
-          : '19.99';
-      }
-    }
-    if (noteEl) {
-      noteEl.textContent = isAnnual ? ('£' + (offerActive ? '149.99' : '199.99') + '/year') : 'Billed monthly';
-    }
-  }
-
+  // Annual pricing is computed, not hardcoded: current live monthly price x 11
+  // (i.e. 11 months' worth as the annual total, ~1 month free equivalent).
   function renderPricing(isAnnual) {
     document.querySelectorAll('.price-val').forEach(function(el) {
-      if (el.id === 'standard-price-val') return;
-      var monthly = el.dataset.monthly;
-      el.textContent = isAnnual ? (annualPrices[monthly] || monthly) : monthly;
+      var monthly = parseFloat(el.dataset.monthly);
+      el.textContent = isAnnual ? (monthly * 11 / 12).toFixed(2) : monthly.toFixed(2);
     });
 
     document.querySelectorAll('.billing-note').forEach(function(el) {
-      if (el.id === 'standard-billing-note') return;
       var priceEl = el.closest('.pricing-card').querySelector('.price-val');
       if (!priceEl) return;
-      var monthly = priceEl.dataset.monthly;
-      if (isAnnual) {
-        el.textContent = '£' + (annualYearly[monthly] || '') + '/year';
-      } else {
-        el.textContent = 'Billed monthly';
-      }
+      var monthly = parseFloat(priceEl.dataset.monthly);
+      el.textContent = isAnnual ? ('£' + (monthly * 11).toFixed(2) + '/year') : 'Billed monthly';
     });
 
-    renderStandardPricing(isAnnual);
     labelMonthly.classList.toggle('active', !isAnnual);
     labelAnnual.classList.toggle('active', isAnnual);
   }
-
-  renderStandardPricing(false); // initial paint on load, in case the offer already expired by page-load time
 
   toggle.addEventListener('change', function() {
     renderPricing(toggle.checked);
