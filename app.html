@@ -16165,6 +16165,12 @@ function formatAIResponse(text) {
 // ============================================================
 // HELPERS
 // ============================================================
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function generateCode(len=6) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I/L to avoid confusion
   let code = '';
@@ -16947,23 +16953,25 @@ async function loadUserPaidStatus() {
       // No auth token (demo/token-less or pending-checkout account) — still
       // confirm is_paid via the anon key so a stale cached value can't stick.
       const res = await fetch(
-        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier',
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,is_admin',
         { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY } }
       );
       const profiles = res.ok ? await res.json() : [];
       STATE.user.is_paid = profiles[0]?.is_paid || false;
       STATE.user.subscription_tier = profiles[0]?.subscription_tier || 'free';
+      STATE.user.is_admin = profiles[0]?.is_admin || false;
       LS.set('demo_user', STATE.user);
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start,is_admin',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
     STATE.user.is_paid = profiles[0]?.is_paid || false;
     if (profiles[0]) {
       const p = profiles[0];
+      STATE.user.is_admin = p.is_admin || false;
       STATE.user.subscription_tier = p.subscription_tier || 'free';
       STATE.user.trial_ends_at = p.trial_ends_at || null;
       STATE.user.trial_start_date = p.trial_start_date || null;
@@ -17523,6 +17531,7 @@ async function setStudentReminderHourByParentOrTeacher(studentUserId, hour, sect
 
 async function showStudyHistory() {
   STATE.screen = 'history'; saveScreen('history');
+  logScreenView('history');
   const user = STATE.user;
 
   if (!hasTier('standard')) {
@@ -17648,6 +17657,7 @@ ${renderNavBar('history')}
 
 function showDashboard() {
   STATE.screen = 'dashboard';
+  logScreenView('dashboard');
   const user = STATE.user;
   const history = LS.get('card_history') || [];
   const progress = LS.get('card_progress') || {};
@@ -17767,6 +17777,7 @@ ${renderNavBar('dashboard')}
 
 function showHome() {
   STATE.screen = 'home';
+  logScreenView('home');
   _loadTodayDone();
   const user = STATE.user;
   const progress = LS.get('card_progress') || {};
@@ -18078,6 +18089,8 @@ function renderNavBar(active) {
         <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('bug')">🐛 Report a Bug</button>
         <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('feature')">✨ Request a Feature</button>
         <button class="pd-item" onclick="closeProfileDropdown();showFeedbackModal('feedback')">💬 General Feedback</button>
+        ${STATE.user?.is_admin ? `<div class="pd-sep"></div>
+        <button class="pd-item" onclick="closeProfileDropdown();showAdminDashboard()">🛠️ Admin</button>` : ''}
         <div class="pd-sep"></div>
         <button class="pd-item" onclick="closeProfileDropdown();doLogout()">🚪 Sign Out</button>
       </div>
@@ -18139,6 +18152,7 @@ async function startFlashcards() {
   STATE.currentCardIndex = 0;
   delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
+  logScreenView('flashcards');
 
   if (STATE.cardQueue.length === 0) {
     showModal('<div class="modal-handle"></div><div class="modal-title">🎉 All caught up!</div><p style="color:var(--text-secondary);font-weight:600;font-size:15px;line-height:1.5;">You have no cards due for review. Come back tomorrow to keep your streak going!</p><button class="btn btn-primary btn-full" style="margin-top:20px;" onclick="closeModal();showHome()">Back to Home</button>');
@@ -18723,6 +18737,7 @@ async function startFlashcardsForSubject(subject) {
   STATE.currentCardIndex = 0;
   delete STATE.currentAutoGrade;
   STATE.screen = 'flashcards';
+  logScreenView('flashcards');
   renderFlashcard();
 }
 
@@ -18963,6 +18978,7 @@ function startQuickRevision(topicKey) {
   delete STATE.currentAutoGrade;
   STATE.sessionPhase = 'quickRevision';
   STATE.screen = 'quickRevision';
+  logScreenView('quickRevision');
   STATE._quickRevisionTopic = key;
   STATE._quickRevisionResults = [];
   showAIChatWidget();
@@ -18983,6 +18999,7 @@ function startQuickRevisionSubtopic(subtopicKey) {
   delete STATE.currentAutoGrade;
   STATE.sessionPhase = 'quickRevision';
   STATE.screen = 'quickRevision';
+  logScreenView('quickRevision');
   STATE._quickRevisionTopic = key;
   STATE._quickRevisionResults = [];
   showAIChatWidget();
@@ -20122,6 +20139,7 @@ async function loadClassLeaderboard() {
 // ============================================================
 function showAITutor() {
   STATE.screen = 'tutor';
+  logScreenView('tutor');
   STATE.tutorHistory = STATE.tutorHistory || [];
 
   const allSuggestions = [
@@ -20285,6 +20303,7 @@ function scrollChatToBottom() {
 // ============================================================
 function showAllKO() {
   STATE.screen = 'ko';
+  logScreenView('ko');
   const subjects = ['Biology', 'Chemistry', 'Physics'];
   const colors = { Biology: 'var(--bio-color)', Chemistry: 'var(--chem-color)', Physics: 'var(--phys-color)' };
 
@@ -20390,6 +20409,7 @@ function showKnowledgeOrganiser(topicKey) {
     '</div>';
   }).join('');
   STATE.screen = 'ko-v3';
+  logScreenView('ko-v3');
   STATE._koV3Order = _order;
   const html = `
 ${renderNavBar('profile')}
@@ -20449,6 +20469,7 @@ async function resumeMidSession() {
   STATE.sessionResults = [];
   STATE._activeTopic = snap.topic || null;
   STATE.screen = 'flashcards';
+  logScreenView('flashcards');
   renderFlashcard();
 }
 
@@ -20518,6 +20539,7 @@ function showProfile() {
     return;
   }
   STATE.screen = 'profile';
+  logScreenView('profile');
   const user = STATE.user;
 
   const subTier = STATE.user.subscription_tier || 'free';
@@ -20835,6 +20857,7 @@ function ptToggle(id) {
 
 async function showProgressTracker() {
   STATE.screen = 'progress-tracker';
+  logScreenView('progress-tracker');
 
   if (!hasTier('standard')) {
     render(`
@@ -21328,6 +21351,7 @@ function doLogout() {
 // ============================================================
 function showAIChatTab() {
   STATE.screen = 'ai-chat';
+  logScreenView('ai-chat');
   const html = `
 ${renderNavBar('ai-chat')}
 <div class="v3-screen" id="screen-ai-chat">
@@ -21429,6 +21453,7 @@ async function loadStudentsForTeacher(selectedClassId, classesArr, token) {
 
 async function showTeacherDashboard(selectedClass) {
   STATE.screen = 'teacher'; saveScreen('teacher');
+  logScreenView('teacher');
   const user = STATE.user;
 
   selectedClass = selectedClass || 'all';
@@ -22474,6 +22499,7 @@ function buildParentInsightHTML(child, childHistory, parentName, tip) {
 // ── Parent tip notification screen ───────────────────────────────────────────
 async function showParentTipScreen() {
   STATE.screen = 'parent-tip';
+  logScreenView('parent-tip');
 
   render('<div style="min-height:100vh;background:#F8FAFC;display:flex;align-items:center;justify-content:center;">'
     + '<div style="text-align:center;color:#64748B;"><div style="font-size:32px;margin-bottom:12px;">✨</div>'
@@ -23143,6 +23169,7 @@ function showBadges() { showProfile(); setTimeout(function(){ document.getElemen
 // ── Student StudyCoach Feed screen ───────────────────────────────────────
 function showStudyCoachFeed() {
   STATE.screen = 'studycoach'; saveScreen('studycoach');
+  logScreenView('studycoach');
   const html = '<div class="studycoach-screen">'
     + '<div class="studycoach-hdr">'
     + '<button onclick="showHome()" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">← Back</button>'
@@ -23160,6 +23187,7 @@ function showStudyCoachFeed() {
 
 async function showParentPortal() {
   STATE.screen = 'parent'; saveScreen('parent');
+  logScreenView('parent');
   const user = STATE.user;
 
   const token = user.token;
@@ -24686,6 +24714,328 @@ async function submitFeedback(type) {
 }
 
 // ============================================================
+// ADMIN DASHBOARD
+// ============================================================
+// Fire-and-forget site-usage logging -- same posture as submitFeedback's
+// notify-feedback call: never blocks or throws into the caller, never surfaces
+// a failure to the user. Skipped entirely when there's no authenticated user
+// (auth/reset-password screens) since the insert would just fail RLS anyway.
+function logScreenView(screenName) {
+  if (!STATE.user?.id || !STATE.user?.token) return;
+  fetch(`${CONFIG.SUPABASE_URL}/rest/v1/screen_views`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${STATE.user.token}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ user_id: STATE.user.id, screen_name: screenName }),
+  }).catch(() => {});
+}
+
+const ADMIN_VIEWS = [
+  { id: 'feedback', label: '💬 Feedback',  fn: 'showAdminFeedback' },
+  { id: 'costs',    label: '💰 AI Costs',  fn: 'showAdminCosts' },
+  { id: 'users',    label: '🔍 Users',     fn: 'showAdminUsers' },
+  { id: 'usage',    label: '📊 Usage',     fn: 'showAdminUsage' },
+];
+
+function renderAdminShell(activeId, bodyHtml) {
+  return `<div class="v3-screen" id="screen-admin" style="max-width:1000px;margin:0 auto;padding:24px 16px 80px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <button class="btn btn-ghost" onclick="showHome()" style="padding:6px 12px;">← Exit</button>
+      <div style="font-size:20px;font-weight:800;color:#1E293B;">🛠️ Admin</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+      ${ADMIN_VIEWS.map(v => `<button class="btn ${activeId===v.id?'btn-primary':'btn-ghost'}" onclick="${v.fn}()" style="padding:8px 14px;font-size:13px;">${v.label}</button>`).join('')}
+    </div>
+    <div id="admin-body">${bodyHtml}</div>
+  </div>`;
+}
+
+function _adminLoading() {
+  return `<div style="text-align:center;padding:60px;color:#64748B;font-weight:600;">Loading…</div>`;
+}
+
+// Swaps just the body panel if the shell is already on screen (fast tab
+// switches), otherwise does a full render (first entry into /admin).
+function _renderAdminBody(activeId, bodyHtml) {
+  const el = document.getElementById('admin-body');
+  if (el && STATE.screen === 'admin') { el.innerHTML = bodyHtml; }
+  else { render(renderAdminShell(activeId, bodyHtml)); }
+}
+
+function showAdminDashboard() {
+  if (!STATE.user?.is_admin) {
+    STATE.screen = 'admin-denied';
+    render(`<div class="v3-screen" style="max-width:480px;margin:80px auto;text-align:center;padding:24px;">
+      <div style="font-size:48px;margin-bottom:14px;">🔒</div>
+      <div style="font-size:18px;font-weight:800;color:#1E293B;margin-bottom:8px;">Access denied</div>
+      <div style="font-size:14px;color:#64748B;font-weight:600;margin-bottom:20px;">This area is for admin accounts only.</div>
+      <button class="btn btn-primary" onclick="showHome()">Back to app</button>
+    </div>`);
+    return;
+  }
+  STATE.screen = 'admin';
+  showAdminFeedback();
+}
+
+// ── Feedback viewer ─────────────────────────────────────────
+async function showAdminFeedback(type) {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  STATE.adminFeedbackType = type || STATE.adminFeedbackType || 'all';
+  logScreenView('admin-feedback');
+  render(renderAdminShell('feedback', _adminLoading()));
+
+  const filterType = STATE.adminFeedbackType;
+  let url = CONFIG.SUPABASE_URL + '/rest/v1/feedback?select=id,user_id,user_role,type,message,page_context,created_at&order=created_at.desc&limit=100';
+  if (filterType !== 'all') url += '&type=eq.' + encodeURIComponent(filterType);
+
+  let rows = [];
+  try {
+    const res = await fetch(url, { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
+    rows = res.ok ? await res.json() : [];
+  } catch (e) {}
+
+  const typeIcon = { bug: '🐛', feature: '✨', feedback: '💬' };
+  const filters = ['all', 'bug', 'feature', 'feedback'];
+  const body = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+      ${filters.map(f => `<button class="btn ${filterType===f?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminFeedback('${f}')">${f==='all' ? 'All' : (typeIcon[f]+' '+f)}</button>`).join('')}
+    </div>
+    ${rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No feedback yet</div>` :
+      rows.map(r => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:13px;">${typeIcon[r.type]||''} ${escHtml(r.type)} · ${escHtml(r.user_role||'')}</span>
+          <span style="font-size:11px;color:#94A3B8;">${new Date(r.created_at).toLocaleString()}</span>
+        </div>
+        <div style="font-size:13px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escHtml(r.message||'')}</div>
+        ${r.page_context ? `<div style="font-size:11px;color:#94A3B8;margin-top:6px;">on: ${escHtml(r.page_context)}</div>` : ''}
+      </div>`).join('')}
+  `;
+  _renderAdminBody('feedback', body);
+}
+
+// ── AI cost dashboard ───────────────────────────────────────
+// Pricing confirmed in PRICING_COST_ANALYSIS.md: $3/1M input tokens,
+// $15/1M output tokens -- both Sonnet variants used across call sites are
+// priced identically, so a single flat rate is correct here.
+const AI_COST_PER_INPUT_TOKEN = 3 / 1e6;
+const AI_COST_PER_OUTPUT_TOKEN = 15 / 1e6;
+
+async function showAdminCosts(days) {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  STATE.adminCostDays = days || STATE.adminCostDays || 30;
+  logScreenView('admin-costs');
+  render(renderAdminShell('costs', _adminLoading()));
+
+  const windowDays = STATE.adminCostDays;
+  const cutoff = new Date(Date.now() - windowDays * 86400000).toISOString();
+
+  let usageRows = [], profileRows = [];
+  try {
+    const [usageRes, profileRes] = await Promise.all([
+      fetch(CONFIG.SUPABASE_URL + '/rest/v1/ai_usage_log?select=user_id,call_type,model,input_tokens,output_tokens,created_at&created_at=gte.' + encodeURIComponent(cutoff) + '&order=created_at.desc',
+        { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } }),
+      fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?select=user_id,display_name,subscription_tier',
+        { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } }),
+    ]);
+    usageRows = usageRes.ok ? await usageRes.json() : [];
+    profileRows = profileRes.ok ? await profileRes.json() : [];
+  } catch (e) {}
+
+  const profileByUser = {};
+  profileRows.forEach(p => { profileByUser[p.user_id] = p; });
+
+  const rowCost = r => (r.input_tokens||0) * AI_COST_PER_INPUT_TOKEN + (r.output_tokens||0) * AI_COST_PER_OUTPUT_TOKEN;
+
+  let totalCost = 0;
+  const byUser = {}, byTier = {}, byDay = {};
+  usageRows.forEach(r => {
+    const cost = rowCost(r);
+    totalCost += cost;
+
+    const uid = r.user_id || 'unknown';
+    if (!byUser[uid]) byUser[uid] = { cost: 0, calls: 0 };
+    byUser[uid].cost += cost; byUser[uid].calls += 1;
+
+    const tier = profileByUser[uid]?.subscription_tier || 'unknown';
+    byTier[tier] = (byTier[tier] || 0) + cost;
+
+    const day = (r.created_at || '').slice(0, 10);
+    byDay[day] = (byDay[day] || 0) + cost;
+  });
+
+  const userRows = Object.entries(byUser)
+    .map(([uid, v]) => ({ uid, name: profileByUser[uid]?.display_name || uid, tier: profileByUser[uid]?.subscription_tier || 'unknown', ...v }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 25);
+
+  const tierRows = Object.entries(byTier).sort((a, b) => b[1] - a[1]);
+  const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
+  const maxDayCost = Math.max(1e-9, ...dayRows.map(d => d[1]));
+  const money = n => '$' + n.toFixed(n < 1 ? 4 : 2);
+
+  const body = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      ${[7, 30].map(d => `<button class="btn ${windowDays===d?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminCosts(${d})">Last ${d}d</button>`).join('')}
+    </div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
+      <div style="font-size:12px;color:#64748B;font-weight:700;">TOTAL AI SPEND (${windowDays}d)</div>
+      <div style="font-size:28px;font-weight:800;color:#1E293B;">${money(totalCost)}</div>
+      <div style="font-size:12px;color:#94A3B8;">${usageRows.length} calls logged</div>
+    </div>
+
+    <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Spend over time</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
+      ${dayRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No AI usage logged in this window</div>` :
+        dayRows.map(([day, cost]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:11px;color:#64748B;width:80px;flex-shrink:0;">${day}</span>
+          <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2, (cost/maxDayCost)*100)}%;height:100%;background:#6366F1;"></div></div>
+          <span style="font-size:11px;color:#334155;width:60px;text-align:right;">${money(cost)}</span>
+        </div>`).join('')}
+    </div>
+
+    <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Spend per tier</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
+      ${tierRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No data</div>` :
+        tierRows.map(([tier, cost]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#334155;">${escHtml(tier)}</span><span style="font-weight:700;">${money(cost)}</span></div>`).join('')}
+    </div>
+
+    <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Top spend per user</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;">
+      ${userRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No data</div>` :
+        userRows.map(u => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F1F5F9;font-size:13px;">
+          <span style="color:#334155;">${escHtml(u.name)} <span style="color:#94A3B8;font-size:11px;">(${escHtml(u.tier)}, ${u.calls} calls)</span></span>
+          <span style="font-weight:700;">${money(u.cost)}</span>
+        </div>`).join('')}
+    </div>
+  `;
+  _renderAdminBody('costs', body);
+}
+
+// ── User lookup ──────────────────────────────────────────────
+async function showAdminUsers(searchOverride) {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  if (searchOverride !== undefined) STATE.adminUserSearch = searchOverride;
+  logScreenView('admin-users');
+
+  const search = STATE.adminUserSearch || '';
+  const searchBar = `<div style="margin-bottom:16px;">
+    <input id="admin-user-search" class="input" type="text" placeholder="Search by name or email…" value="${escHtml(search)}"
+      style="width:100%;box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter') showAdminUsers(document.getElementById('admin-user-search').value.trim())">
+    <button class="btn btn-primary" style="margin-top:8px;padding:8px 14px;font-size:13px;" onclick="showAdminUsers(document.getElementById('admin-user-search').value.trim())">Search</button>
+  </div>`;
+
+  render(renderAdminShell('users', searchBar + _adminLoading()));
+
+  let rows = [];
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/admin_search_users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ search: search || null }),
+    });
+    rows = res.ok ? await res.json() : [];
+  } catch (e) {}
+
+  const list = rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No matching users</div>` :
+    rows.slice(0, 50).map(u => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <span style="font-weight:700;font-size:13px;color:#1E293B;">${escHtml(u.display_name||'(no name)')} <span style="color:#94A3B8;font-weight:600;">· ${escHtml(u.role||'')}</span></span>
+        <span style="font-size:11px;color:#94A3B8;">joined ${new Date(u.created_at).toLocaleDateString()}</span>
+      </div>
+      <div style="font-size:12px;color:#64748B;margin-top:4px;">${escHtml(u.email||'')}</div>
+      <div style="font-size:12px;color:#334155;margin-top:6px;">Tier: <strong>${escHtml(u.subscription_tier||'free')}</strong> · Status: <strong>${escHtml(u.subscription_status||'free')}</strong> · Paid: <strong>${u.is_paid ? 'yes' : 'no'}</strong></div>
+      ${u.stripe_customer_id ? `<div style="font-size:12px;margin-top:6px;"><a href="https://dashboard.stripe.com/test/customers/${encodeURIComponent(u.stripe_customer_id)}" target="_blank" rel="noopener" style="color:#6366F1;font-weight:700;">View in Stripe (test mode) →</a></div>` : ''}
+    </div>`).join('');
+
+  _renderAdminBody('users', searchBar + list);
+}
+
+// ── Site-usage analytics ────────────────────────────────────
+async function showAdminUsage(days) {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  STATE.adminUsageDays = days || STATE.adminUsageDays || 30;
+  logScreenView('admin-usage');
+  render(renderAdminShell('usage', _adminLoading()));
+
+  const windowDays = STATE.adminUsageDays;
+  const cutoff = new Date(Date.now() - windowDays * 86400000).toISOString();
+
+  let rows = [];
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/screen_views?select=user_id,screen_name,created_at&created_at=gte.' + encodeURIComponent(cutoff) + '&order=created_at.asc&limit=5000',
+      { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
+    rows = res.ok ? await res.json() : [];
+  } catch (e) {}
+
+  // Most-visited screens
+  const byScreen = {};
+  rows.forEach(r => { byScreen[r.screen_name] = (byScreen[r.screen_name] || 0) + 1; });
+  const screenRows = Object.entries(byScreen).sort((a, b) => b[1] - a[1]);
+  const maxScreenCount = Math.max(1, ...screenRows.map(s => s[1]));
+
+  // Rough session lengths: group each user's views chronologically, starting a
+  // new session whenever the gap since the previous view exceeds 30 minutes.
+  const byUser = {};
+  rows.forEach(r => { (byUser[r.user_id] = byUser[r.user_id] || []).push(r); });
+  const GAP_MS = 30 * 60 * 1000;
+  const sessions = [];
+  Object.values(byUser).forEach(views => {
+    let current = null;
+    views.forEach(v => {
+      const t = new Date(v.created_at).getTime();
+      if (!current || t - current.last > GAP_MS) {
+        current = { start: t, last: t, views: 1 };
+        sessions.push(current);
+      } else {
+        current.last = t; current.views += 1;
+      }
+    });
+  });
+  const sessionLengthsMin = sessions.map(s => (s.last - s.start) / 60000);
+  const avgSessionMin = sessionLengthsMin.length ? sessionLengthsMin.reduce((a, b) => a + b, 0) / sessionLengthsMin.length : 0;
+
+  const body = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      ${[7, 30].map(d => `<button class="btn ${windowDays===d?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminUsage(${d})">Last ${d}d</button>`).join('')}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
+        <div style="font-size:12px;color:#64748B;font-weight:700;">SCREEN VIEWS (${windowDays}d)</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${rows.length}</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
+        <div style="font-size:12px;color:#64748B;font-weight:700;">SESSIONS</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${sessions.length}</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
+        <div style="font-size:12px;color:#64748B;font-weight:700;">AVG SESSION LENGTH</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${avgSessionMin.toFixed(1)}m</div>
+      </div>
+    </div>
+
+    <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Most-visited screens</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;">
+      ${screenRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No usage logged in this window</div>` :
+        screenRows.map(([name, count]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:12px;color:#334155;width:120px;flex-shrink:0;">${escHtml(name)}</span>
+          <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2, (count/maxScreenCount)*100)}%;height:100%;background:#10B981;"></div></div>
+          <span style="font-size:11px;color:#334155;width:40px;text-align:right;">${count}</span>
+        </div>`).join('')}
+    </div>
+  `;
+  _renderAdminBody('usage', body);
+}
+
+// ============================================================
 // INIT
 // ============================================================
 // Restore accent colour preference on load
@@ -24744,7 +25094,7 @@ async function init() {
     try {
       const res = await fetch(
         CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id +
-        '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name',
+        '&select=is_paid,subscription_tier,trial_ends_at,primary_subject,display_name,is_admin',
         { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
       );
       const profiles = res.ok ? await res.json() : [];
@@ -24753,6 +25103,7 @@ async function init() {
         STATE.user.is_paid = p.is_paid || false;
         STATE.user.subscription_tier = p.subscription_tier || 'free';
         STATE.user.trial_ends_at = p.trial_ends_at || null;
+        STATE.user.is_admin = p.is_admin || false;
         if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
         if (p.display_name) STATE.user.display_name = p.display_name;
       }
