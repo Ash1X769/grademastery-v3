@@ -1922,6 +1922,18 @@ textarea.input { resize: vertical; min-height: 100px; }
 .gm-pulse{animation:gmPinPulse 2s ease-in-out infinite;}
 .gm-sb-divider{height:1px;background:rgba(255,255,255,0.2);margin:6px 8px;}
 
+/* Phase 3: shared admin table component -- hover/cursor states need real CSS,
+   can't be expressed as inline styles like the rest of the admin screens. */
+.admin-table{width:100%;border-collapse:collapse;font-size:13px;}
+.admin-table th{text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.02em;border-bottom:1.5px solid #E2E8F0;white-space:nowrap;}
+.admin-table th.sortable{cursor:pointer;user-select:none;}
+.admin-table th.sortable:hover{color:#1E293B;}
+.admin-table td{padding:10px 12px;border-bottom:1px solid #F1F5F9;color:#334155;vertical-align:top;}
+.admin-table tbody tr:hover{background:#F8FAFC;}
+.admin-table tbody tr:last-child td{border-bottom:none;}
+.admin-filter-chip{padding:4px 10px;font-size:11px;}
+.admin-details-toggle{cursor:pointer;color:#6366F1;font-weight:700;font-size:11px;}
+
 </style>
 
 <!-- ============================================================
@@ -24742,6 +24754,114 @@ function logScreenView(screenName) {
   }).catch(() => {});
 }
 
+// ── Shared sortable/filterable table component (Phase 3) ───────
+// Sort/filter state lives here, keyed by tableId, so clicking a header or a
+// filter chip is instant (re-render from already-fetched rows) rather than
+// re-hitting Supabase. Registry below maps tableId -> the pure render
+// function to call after a state change.
+STATE.adminTableState = STATE.adminTableState || {};
+const ADMIN_TABLE_RENDERERS = {};
+
+// defaults only apply the first time a table's state is created (e.g. a
+// sensible initial sort) -- never overwrites state once the admin has
+// actually clicked a header or filter chip.
+function _getAdminTableState(tableId, defaults) {
+  if (!STATE.adminTableState[tableId]) STATE.adminTableState[tableId] = Object.assign({ sortKey: null, sortDir: 'asc', filters: {} }, defaults || {});
+  return STATE.adminTableState[tableId];
+}
+
+function _sortAdminTable(tableId, key) {
+  const st = _getAdminTableState(tableId);
+  if (st.sortKey === key) st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc';
+  else { st.sortKey = key; st.sortDir = 'asc'; }
+  ADMIN_TABLE_RENDERERS[tableId]?.();
+}
+
+function _setAdminTableFilter(tableId, filterKey, value) {
+  const st = _getAdminTableState(tableId);
+  st.filters[filterKey] = value;
+  ADMIN_TABLE_RENDERERS[tableId]?.();
+}
+
+// columns: [{ key, label, sortable, sortValue(row), render(row) }]
+// filters: [{ key, label, options: [{value,label}], defaultValue, apply(row, value) }]
+function renderAdminTable({ tableId, columns, rows, filters, emptyLabel }) {
+  const st = _getAdminTableState(tableId);
+
+  let filtered = rows;
+  (filters || []).forEach(f => {
+    const active = st.filters[f.key] ?? f.defaultValue ?? 'all';
+    if (active !== 'all') filtered = filtered.filter(r => f.apply(r, active));
+  });
+
+  if (st.sortKey) {
+    const col = columns.find(c => c.key === st.sortKey);
+    if (col) {
+      filtered = [...filtered].sort((a, b) => {
+        const va = col.sortValue ? col.sortValue(a) : (a[st.sortKey] ?? '');
+        const vb = col.sortValue ? col.sortValue(b) : (b[st.sortKey] ?? '');
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return st.sortDir === 'desc' ? -cmp : cmp;
+      });
+    }
+  }
+
+  const filterChipsHtml = (filters || []).length === 0 ? '' : `<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;">
+    ${filters.map(f => {
+      const active = st.filters[f.key] ?? f.defaultValue ?? 'all';
+      return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:#94A3B8;font-weight:700;">${escHtml(f.label)}:</span>
+        ${f.options.map(o => `<button class="btn admin-filter-chip ${active===o.value?'btn-primary':'btn-ghost'}" onclick="_setAdminTableFilter('${tableId}','${f.key}','${o.value}')">${escHtml(o.label)}</button>`).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  const headerHtml = columns.map(c => {
+    const isSorted = st.sortKey === c.key;
+    const arrow = isSorted ? (st.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return c.sortable
+      ? `<th class="sortable" onclick="_sortAdminTable('${tableId}','${c.key}')">${escHtml(c.label)}${arrow}</th>`
+      : `<th>${escHtml(c.label)}</th>`;
+  }).join('');
+
+  const rowsHtml = filtered.length === 0
+    ? `<tr><td colspan="${columns.length}" style="text-align:center;padding:40px;color:#64748B;">${escHtml(emptyLabel || 'No data')}</td></tr>`
+    : filtered.map(r => `<tr>${columns.map(c => `<td>${c.render ? c.render(r) : escHtml(r[c.key] ?? '')}</td>`).join('')}</tr>`).join('');
+
+  return `${filterChipsHtml}<div style="overflow-x:auto;background:#fff;border:1px solid #E2E8F0;border-radius:12px;">
+    <table class="admin-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
+  </div>`;
+}
+
+// Lazy-loads Chart.js on demand, same pattern as _loadSheetJS() -- admin-only,
+// rarely visited, no reason to make every student pay for it. Charts fall
+// back to the plain bar-div rendering already used elsewhere if this fails
+// (CDN unreachable etc.) rather than showing a blank/broken chart.
+let _chartJSLoadPromise = null;
+function _loadChartJS() {
+  if (window.Chart) return Promise.resolve();
+  if (_chartJSLoadPromise) return _chartJSLoadPromise;
+  _chartJSLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => { _chartJSLoadPromise = null; reject(new Error('load failed')); };
+    document.head.appendChild(script);
+  });
+  return _chartJSLoadPromise;
+}
+
+// Destroys any previous Chart.js instance on a canvas before creating a new
+// one -- Chart.js throws if you construct a second chart on a canvas that
+// already has one attached, which happens on every filter/tab re-render.
+const _adminChartInstances = {};
+function _destroyAdminChart(canvasId) {
+  if (_adminChartInstances[canvasId]) {
+    _adminChartInstances[canvasId].destroy();
+    delete _adminChartInstances[canvasId];
+  }
+}
+
 const ADMIN_VIEWS = [
   { id: 'feedback', label: '💬 Feedback',   fn: 'showAdminFeedback' },
   { id: 'costs',    label: '💰 AI Costs',   fn: 'showAdminCosts' },
@@ -24801,41 +24921,51 @@ function showAdminDashboard() {
 }
 
 // ── Feedback viewer ─────────────────────────────────────────
-async function showAdminFeedback(type) {
+const _FEEDBACK_TYPE_ICON = { bug: '🐛', feature: '✨', feedback: '💬' };
+
+async function showAdminFeedback() {
   if (!STATE.user?.is_admin) return showAdminDashboard();
   STATE.screen = 'admin';
-  STATE.adminFeedbackType = type || STATE.adminFeedbackType || 'all';
   logScreenView('admin-feedback');
   render(renderAdminShell('feedback', _adminLoading()));
 
-  const filterType = STATE.adminFeedbackType;
-  let url = CONFIG.SUPABASE_URL + '/rest/v1/feedback?select=id,user_id,user_role,type,message,page_context,created_at&order=created_at.desc&limit=100';
-  if (filterType !== 'all') url += '&type=eq.' + encodeURIComponent(filterType);
-
   let rows = [];
   try {
-    const res = await fetch(url, { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/feedback?select=id,user_id,user_role,type,message,page_context,created_at&order=created_at.desc&limit=100',
+      { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
     rows = res.ok ? await res.json() : [];
   } catch (e) {}
-
-  const typeIcon = { bug: '🐛', feature: '✨', feedback: '💬' };
-  const filters = ['all', 'bug', 'feature', 'feedback'];
-  const body = `
-    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
-      ${filters.map(f => `<button class="btn ${filterType===f?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminFeedback('${f}')">${f==='all' ? 'All' : (typeIcon[f]+' '+f)}</button>`).join('')}
-    </div>
-    ${rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No feedback yet</div>` :
-      rows.map(r => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-          <span style="font-weight:700;font-size:13px;">${typeIcon[r.type]||''} ${escHtml(r.type)} · ${escHtml(r.user_role||'')}</span>
-          <span style="font-size:11px;color:#94A3B8;">${new Date(r.created_at).toLocaleString()}</span>
-        </div>
-        <div style="font-size:13px;color:#334155;line-height:1.5;white-space:pre-wrap;">${escHtml(r.message||'')}</div>
-        ${r.page_context ? `<div style="font-size:11px;color:#94A3B8;margin-top:6px;">on: ${escHtml(r.page_context)}</div>` : ''}
-      </div>`).join('')}
-  `;
-  _renderAdminBody('feedback', body);
+  STATE.adminFeedbackRows = rows;
+  _getAdminTableState('feedback', { sortKey: 'created_at', sortDir: 'desc' });
+  _renderAdminFeedbackTable();
 }
+
+function _renderAdminFeedbackTable() {
+  const table = renderAdminTable({
+    tableId: 'feedback',
+    rows: STATE.adminFeedbackRows || [],
+    emptyLabel: 'No feedback yet',
+    filters: [{
+      key: 'type', label: 'Type', defaultValue: 'all',
+      options: [
+        { value: 'all', label: 'All' },
+        { value: 'bug', label: '🐛 bug' },
+        { value: 'feature', label: '✨ feature' },
+        { value: 'feedback', label: '💬 feedback' },
+      ],
+      apply: (r, v) => r.type === v,
+    }],
+    columns: [
+      { key: 'type', label: 'Type', sortable: true, render: r => `${_FEEDBACK_TYPE_ICON[r.type] || ''} ${escHtml(r.type)}` },
+      { key: 'user_role', label: 'Role', sortable: true, render: r => escHtml(r.user_role || '') },
+      { key: 'message', label: 'Message', render: r => `<div style="max-width:360px;white-space:pre-wrap;">${escHtml(r.message || '')}</div>` },
+      { key: 'page_context', label: 'Page', sortable: true, render: r => escHtml(r.page_context || '—') },
+      { key: 'created_at', label: 'Date', sortable: true, sortValue: r => new Date(r.created_at).getTime(), render: r => new Date(r.created_at).toLocaleString() },
+    ],
+  });
+  _renderAdminBody('feedback', table);
+}
+ADMIN_TABLE_RENDERERS.feedback = _renderAdminFeedbackTable;
 
 // ── AI cost dashboard ───────────────────────────────────────
 // Pricing confirmed in PRICING_COST_ANALYSIS.md: $3/1M input tokens,
@@ -24843,6 +24973,8 @@ async function showAdminFeedback(type) {
 // priced identically, so a single flat rate is correct here.
 const AI_COST_PER_INPUT_TOKEN = 3 / 1e6;
 const AI_COST_PER_OUTPUT_TOKEN = 15 / 1e6;
+
+function _adminMoney(n) { return '$' + n.toFixed(n < 1 ? 4 : 2); }
 
 async function showAdminCosts(days) {
   if (!STATE.user?.is_admin) return showAdminDashboard();
@@ -24889,51 +25021,115 @@ async function showAdminCosts(days) {
   });
 
   const userRows = Object.entries(byUser)
-    .map(([uid, v]) => ({ uid, name: profileByUser[uid]?.display_name || uid, tier: profileByUser[uid]?.subscription_tier || 'unknown', ...v }))
-    .sort((a, b) => b.cost - a.cost)
-    .slice(0, 25);
-
-  const tierRows = Object.entries(byTier).sort((a, b) => b[1] - a[1]);
+    .map(([uid, v]) => ({ uid, name: profileByUser[uid]?.display_name || uid, tier: profileByUser[uid]?.subscription_tier || 'unknown', ...v }));
+  const tierRows = Object.entries(byTier).map(([tier, cost]) => ({ tier, cost }));
   const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxDayCost = Math.max(1e-9, ...dayRows.map(d => d[1]));
-  const money = n => '$' + n.toFixed(n < 1 ? 4 : 2);
+
+  STATE.adminCostsData = { totalCost, callCount: usageRows.length, userRows, tierRows, dayRows, windowDays };
+  _getAdminTableState('costs-users', { sortKey: 'cost', sortDir: 'desc' });
+  _renderAdminCostsView();
+}
+
+function _renderAdminCostsView() {
+  const d = STATE.adminCostsData;
+  if (!d) return;
+
+  const userTable = renderAdminTable({
+    tableId: 'costs-users',
+    rows: d.userRows,
+    emptyLabel: 'No data',
+    columns: [
+      { key: 'name', label: 'User', sortable: true, render: r => escHtml(r.name) },
+      { key: 'tier', label: 'Tier', sortable: true, render: r => escHtml(r.tier) },
+      { key: 'calls', label: 'Calls', sortable: true, render: r => r.calls },
+      { key: 'cost', label: 'Cost', sortable: true, render: r => _adminMoney(r.cost) },
+    ],
+  });
 
   const body = `
     <div style="display:flex;gap:6px;margin-bottom:16px;">
-      ${[7, 30].map(d => `<button class="btn ${windowDays===d?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminCosts(${d})">Last ${d}d</button>`).join('')}
+      ${[7, 30].map(x => `<button class="btn ${d.windowDays===x?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminCosts(${x})">Last ${x}d</button>`).join('')}
     </div>
     <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
-      <div style="font-size:12px;color:#64748B;font-weight:700;">TOTAL AI SPEND (${windowDays}d)</div>
-      <div style="font-size:28px;font-weight:800;color:#1E293B;">${money(totalCost)}</div>
-      <div style="font-size:12px;color:#94A3B8;">${usageRows.length} calls logged</div>
+      <div style="font-size:12px;color:#64748B;font-weight:700;">TOTAL AI SPEND (${d.windowDays}d)</div>
+      <div style="font-size:28px;font-weight:800;color:#1E293B;">${_adminMoney(d.totalCost)}</div>
+      <div style="font-size:12px;color:#94A3B8;">${d.callCount} calls logged</div>
     </div>
 
     <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Spend over time</div>
     <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
-      ${dayRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No AI usage logged in this window</div>` :
-        dayRows.map(([day, cost]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <span style="font-size:11px;color:#64748B;width:80px;flex-shrink:0;">${day}</span>
-          <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2, (cost/maxDayCost)*100)}%;height:100%;background:#6366F1;"></div></div>
-          <span style="font-size:11px;color:#334155;width:60px;text-align:right;">${money(cost)}</span>
-        </div>`).join('')}
+      ${d.dayRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No AI usage logged in this window</div>` :
+        `<div style="position:relative;height:220px;"><canvas id="admin-costs-day-chart"></canvas></div>`}
     </div>
 
     <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Spend per tier</div>
     <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
-      ${tierRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No data</div>` :
-        tierRows.map(([tier, cost]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#334155;">${escHtml(tier)}</span><span style="font-weight:700;">${money(cost)}</span></div>`).join('')}
+      ${d.tierRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No data</div>` :
+        `<div style="position:relative;height:220px;max-width:320px;margin:0 auto;"><canvas id="admin-costs-tier-chart"></canvas></div>`}
     </div>
 
     <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Top spend per user</div>
-    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;">
-      ${userRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No data</div>` :
-        userRows.map(u => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #F1F5F9;font-size:13px;">
-          <span style="color:#334155;">${escHtml(u.name)} <span style="color:#94A3B8;font-size:11px;">(${escHtml(u.tier)}, ${u.calls} calls)</span></span>
-          <span style="font-weight:700;">${money(u.cost)}</span>
-        </div>`).join('')}
-    </div>
+    ${userTable}
   `;
   _renderAdminBody('costs', body);
+  _renderAdminCostsCharts();
+}
+ADMIN_TABLE_RENDERERS['costs-users'] = _renderAdminCostsView;
+
+async function _renderAdminCostsCharts() {
+  const d = STATE.adminCostsData;
+  if (!d) return;
+  const dayCanvas = document.getElementById('admin-costs-day-chart');
+  const tierCanvas = document.getElementById('admin-costs-tier-chart');
+  if (!dayCanvas && !tierCanvas) return;
+
+  try {
+    await _loadChartJS();
+    if (dayCanvas) {
+      _destroyAdminChart('admin-costs-day-chart');
+      _adminChartInstances['admin-costs-day-chart'] = new Chart(dayCanvas, {
+        type: 'line',
+        data: {
+          labels: d.dayRows.map(([day]) => day),
+          datasets: [{ label: 'Spend', data: d.dayRows.map(([, cost]) => cost), borderColor: '#6366F1', backgroundColor: 'rgba(99,102,241,0.12)', fill: true, tension: 0.25 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => _adminMoney(ctx.parsed.y) } } },
+          scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(2) } } },
+        },
+      });
+    }
+    if (tierCanvas) {
+      _destroyAdminChart('admin-costs-tier-chart');
+      _adminChartInstances['admin-costs-tier-chart'] = new Chart(tierCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: d.tierRows.map(t => t.tier),
+          datasets: [{ data: d.tierRows.map(t => t.cost), backgroundColor: ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6'] }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { tooltip: { callbacks: { label: ctx => `${ctx.label}: ${_adminMoney(ctx.parsed)}` } } },
+        },
+      });
+    }
+  } catch (e) {
+    // Graceful fallback: Chart.js failed to load (CDN unreachable etc.) --
+    // render the plain bar-div visuals this app already had, rather than
+    // leaving a blank canvas.
+    if (dayCanvas) {
+      const maxDayCost = Math.max(1e-9, ...d.dayRows.map(([, c]) => c));
+      dayCanvas.parentElement.outerHTML = d.dayRows.map(([day, cost]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:11px;color:#64748B;width:80px;flex-shrink:0;">${day}</span>
+        <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2,(cost/maxDayCost)*100)}%;height:100%;background:#6366F1;"></div></div>
+        <span style="font-size:11px;color:#334155;width:60px;text-align:right;">${_adminMoney(cost)}</span>
+      </div>`).join('');
+    }
+    if (tierCanvas) {
+      tierCanvas.parentElement.outerHTML = d.tierRows.map(t => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span style="color:#334155;">${escHtml(t.tier)}</span><span style="font-weight:700;">${_adminMoney(t.cost)}</span></div>`).join('');
+    }
+  }
 }
 
 // ── User lookup ──────────────────────────────────────────────
@@ -24969,25 +25165,56 @@ async function showAdminUsers(searchOverride) {
   // onclick string.
   STATE.adminUserResults = {};
   rows.forEach(u => { STATE.adminUserResults[u.user_id] = u; });
-
-  const list = rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No matching users</div>` :
-    rows.slice(0, 50).map(u => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <span style="font-weight:700;font-size:13px;color:#1E293B;">${escHtml(u.display_name||'(no name)')} <span style="color:#94A3B8;font-weight:600;">· ${escHtml(u.role||'')}</span></span>
-        <span style="font-size:11px;color:#94A3B8;">joined ${new Date(u.created_at).toLocaleDateString()}</span>
-      </div>
-      <div style="font-size:12px;color:#64748B;margin-top:4px;">${escHtml(u.email||'')}</div>
-      <div style="font-size:12px;color:#334155;margin-top:6px;">Tier: <strong>${escHtml(u.subscription_tier||'free')}</strong> · Status: <strong>${escHtml(u.subscription_status||'free')}</strong> · Paid: <strong>${u.is_paid ? 'yes' : 'no'}</strong></div>
-      ${u.stripe_customer_id ? `<div style="font-size:12px;margin-top:6px;"><a href="https://dashboard.stripe.com/test/customers/${encodeURIComponent(u.stripe_customer_id)}" target="_blank" rel="noopener" style="color:#6366F1;font-weight:700;">View in Stripe (test mode) →</a></div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="openAdminTierModal('${u.user_id}')">Manage tier</button>
-        ${u.stripe_subscription_id ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="checkAdminStripeStatus('${u.user_id}')">🔄 Check live Stripe status</button>` : ''}
-      </div>
-      <div id="stripe-status-${u.user_id}"></div>
-    </div>`).join('');
-
-  _renderAdminBody('users', searchBar + list);
+  STATE.adminUserRows = rows;
+  _getAdminTableState('users', { sortKey: 'created_at', sortDir: 'desc' });
+  _renderAdminUsersTable(searchBar);
 }
+
+function _renderAdminUsersTable(searchBarHtml) {
+  const searchBar = searchBarHtml !== undefined ? searchBarHtml
+    : `<div style="margin-bottom:16px;">
+        <input id="admin-user-search" class="input" type="text" placeholder="Search by name or email…" value="${escHtml(STATE.adminUserSearch || '')}"
+          style="width:100%;box-sizing:border-box;"
+          onkeydown="if(event.key==='Enter') showAdminUsers(document.getElementById('admin-user-search').value.trim())">
+        <button class="btn btn-primary" style="margin-top:8px;padding:8px 14px;font-size:13px;" onclick="showAdminUsers(document.getElementById('admin-user-search').value.trim())">Search</button>
+      </div>`;
+
+  const table = renderAdminTable({
+    tableId: 'users',
+    rows: STATE.adminUserRows || [],
+    emptyLabel: 'No matching users',
+    filters: [{
+      key: 'role', label: 'Role', defaultValue: 'all',
+      options: [
+        { value: 'all', label: 'All' },
+        { value: 'student', label: '🎓 Student' },
+        { value: 'teacher', label: '🏫 Teacher' },
+        { value: 'parent', label: '👨‍👩‍👧 Parent' },
+      ],
+      apply: (r, v) => r.role === v,
+    }],
+    columns: [
+      { key: 'display_name', label: 'Name', sortable: true, render: r => escHtml(r.display_name || '(no name)') },
+      { key: 'role', label: 'Role', sortable: true, render: r => escHtml(r.role || '') },
+      { key: 'email', label: 'Email', sortable: true, render: r => escHtml(r.email || '') },
+      { key: 'subscription_tier', label: 'Tier', sortable: true, render: r => escHtml(r.subscription_tier || 'free') },
+      { key: 'subscription_status', label: 'Status', sortable: true, render: r => escHtml(r.subscription_status || 'free') },
+      { key: 'is_paid', label: 'Paid', sortable: true, sortValue: r => r.is_paid ? 1 : 0, render: r => r.is_paid ? 'yes' : 'no' },
+      { key: 'created_at', label: 'Joined', sortable: true, sortValue: r => new Date(r.created_at).getTime(), render: r => new Date(r.created_at).toLocaleDateString() },
+      { key: 'actions', label: 'Actions', render: r => `
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;" onclick="openAdminTierModal('${r.user_id}')">Manage tier</button>
+            ${r.stripe_subscription_id ? `<button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;" onclick="checkAdminStripeStatus('${r.user_id}')">🔄 Stripe</button>` : ''}
+          </div>
+          ${r.stripe_customer_id ? `<a href="https://dashboard.stripe.com/test/customers/${encodeURIComponent(r.stripe_customer_id)}" target="_blank" rel="noopener" style="color:#6366F1;font-weight:700;font-size:11px;">View in Stripe →</a>` : ''}
+          <div id="stripe-status-${r.user_id}"></div>
+        </div>` },
+    ],
+  });
+  _renderAdminBody('users', searchBar + table);
+}
+ADMIN_TABLE_RENDERERS.users = () => _renderAdminUsersTable();
 
 // On-demand live Stripe subscription status -- not fetched automatically for
 // every result row (would fire a Stripe call per search), only when asked for.
@@ -25127,7 +25354,12 @@ async function showAdminUsage(days) {
   const byScreen = {};
   rows.forEach(r => { byScreen[r.screen_name] = (byScreen[r.screen_name] || 0) + 1; });
   const screenRows = Object.entries(byScreen).sort((a, b) => b[1] - a[1]);
-  const maxScreenCount = Math.max(1, ...screenRows.map(s => s[1]));
+
+  // Views per day -- wasn't surfaced before even though the data was already
+  // being fetched; gives the same over-time density the Costs tab already has.
+  const byDay = {};
+  rows.forEach(r => { const day = (r.created_at || '').slice(0, 10); byDay[day] = (byDay[day] || 0) + 1; });
+  const dayRows = Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0]));
 
   // Rough session lengths: group each user's views chronologically, starting a
   // new session whenever the gap since the previous view exceeds 30 minutes.
@@ -25150,36 +25382,106 @@ async function showAdminUsage(days) {
   const sessionLengthsMin = sessions.map(s => (s.last - s.start) / 60000);
   const avgSessionMin = sessionLengthsMin.length ? sessionLengthsMin.reduce((a, b) => a + b, 0) / sessionLengthsMin.length : 0;
 
+  STATE.adminUsageData = { totalViews: rows.length, sessionCount: sessions.length, avgSessionMin, screenRows, dayRows, windowDays };
+  _renderAdminUsageView();
+}
+
+function _renderAdminUsageView() {
+  const d = STATE.adminUsageData;
+  if (!d) return;
+
   const body = `
     <div style="display:flex;gap:6px;margin-bottom:16px;">
-      ${[7, 30].map(d => `<button class="btn ${windowDays===d?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminUsage(${d})">Last ${d}d</button>`).join('')}
+      ${[7, 30].map(x => `<button class="btn ${d.windowDays===x?'btn-primary':'btn-ghost'}" style="padding:6px 12px;font-size:12px;" onclick="showAdminUsage(${x})">Last ${x}d</button>`).join('')}
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
-        <div style="font-size:12px;color:#64748B;font-weight:700;">SCREEN VIEWS (${windowDays}d)</div>
-        <div style="font-size:24px;font-weight:800;color:#1E293B;">${rows.length}</div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;">SCREEN VIEWS (${d.windowDays}d)</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${d.totalViews}</div>
       </div>
       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
         <div style="font-size:12px;color:#64748B;font-weight:700;">SESSIONS</div>
-        <div style="font-size:24px;font-weight:800;color:#1E293B;">${sessions.length}</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${d.sessionCount}</div>
       </div>
       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;flex:1;min-width:160px;">
         <div style="font-size:12px;color:#64748B;font-weight:700;">AVG SESSION LENGTH</div>
-        <div style="font-size:24px;font-weight:800;color:#1E293B;">${avgSessionMin.toFixed(1)}m</div>
+        <div style="font-size:24px;font-weight:800;color:#1E293B;">${d.avgSessionMin.toFixed(1)}m</div>
       </div>
+    </div>
+
+    <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Views per day</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;margin-bottom:16px;">
+      ${d.dayRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No usage logged in this window</div>` :
+        `<div style="position:relative;height:200px;"><canvas id="admin-usage-day-chart"></canvas></div>`}
     </div>
 
     <div style="font-size:13px;font-weight:800;color:#1E293B;margin:16px 0 8px;">Most-visited screens</div>
     <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px;">
-      ${screenRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No usage logged in this window</div>` :
-        screenRows.map(([name, count]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <span style="font-size:12px;color:#334155;width:120px;flex-shrink:0;">${escHtml(name)}</span>
-          <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2, (count/maxScreenCount)*100)}%;height:100%;background:#10B981;"></div></div>
-          <span style="font-size:11px;color:#334155;width:40px;text-align:right;">${count}</span>
-        </div>`).join('')}
+      ${d.screenRows.length === 0 ? `<div style="color:#94A3B8;font-size:13px;">No usage logged in this window</div>` :
+        `<div style="position:relative;height:${Math.max(120, d.screenRows.length * 34)}px;"><canvas id="admin-usage-screen-chart"></canvas></div>`}
     </div>
   `;
   _renderAdminBody('usage', body);
+  _renderAdminUsageCharts();
+}
+
+async function _renderAdminUsageCharts() {
+  const d = STATE.adminUsageData;
+  if (!d) return;
+  const dayCanvas = document.getElementById('admin-usage-day-chart');
+  const screenCanvas = document.getElementById('admin-usage-screen-chart');
+  if (!dayCanvas && !screenCanvas) return;
+
+  try {
+    await _loadChartJS();
+    if (dayCanvas) {
+      _destroyAdminChart('admin-usage-day-chart');
+      _adminChartInstances['admin-usage-day-chart'] = new Chart(dayCanvas, {
+        type: 'line',
+        data: {
+          labels: d.dayRows.map(([day]) => day),
+          datasets: [{ label: 'Views', data: d.dayRows.map(([, count]) => count), borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', fill: true, tension: 0.25 }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        },
+      });
+    }
+    if (screenCanvas) {
+      _destroyAdminChart('admin-usage-screen-chart');
+      _adminChartInstances['admin-usage-screen-chart'] = new Chart(screenCanvas, {
+        type: 'bar',
+        data: {
+          labels: d.screenRows.map(([name]) => name),
+          datasets: [{ label: 'Views', data: d.screenRows.map(([, count]) => count), backgroundColor: '#10B981' }],
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+        },
+      });
+    }
+  } catch (e) {
+    if (dayCanvas) {
+      const maxDayCount = Math.max(1, ...d.dayRows.map(([, c]) => c));
+      dayCanvas.parentElement.outerHTML = d.dayRows.map(([day, count]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:11px;color:#64748B;width:80px;flex-shrink:0;">${day}</span>
+        <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2,(count/maxDayCount)*100)}%;height:100%;background:#10B981;"></div></div>
+        <span style="font-size:11px;color:#334155;width:40px;text-align:right;">${count}</span>
+      </div>`).join('');
+    }
+    if (screenCanvas) {
+      const maxScreenCount = Math.max(1, ...d.screenRows.map(s => s[1]));
+      screenCanvas.parentElement.outerHTML = d.screenRows.map(([name, count]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:12px;color:#334155;width:120px;flex-shrink:0;">${escHtml(name)}</span>
+        <div style="flex:1;background:#F1F5F9;border-radius:4px;height:14px;overflow:hidden;"><div style="width:${Math.max(2, (count/maxScreenCount)*100)}%;height:100%;background:#10B981;"></div></div>
+        <span style="font-size:11px;color:#334155;width:40px;text-align:right;">${count}</span>
+      </div>`).join('');
+    }
+  }
 }
 
 // ── Promo code management ───────────────────────────────────
@@ -25215,39 +25517,58 @@ async function showAdminPromoCodes() {
   } catch (e) {}
 
   STATE.adminPromoResults = {};
-  dbRows.forEach(r => { STATE.adminPromoResults[r.code] = r; });
-
-  const money = (type, val) => type === 'percent' ? `${val}% off` : `£${Number(val).toFixed(2)} off`;
-
-  const list = dbRows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No promo codes yet</div>` :
-    dbRows.map(r => {
-      const stripeMatch = r.stripe_promotion_code_id ? stripePromosByCode[r.code] : null;
-      const driftWarning = r.stripe_promotion_code_id && !stripeMatch
-        ? `<div style="font-size:11px;color:#DC2626;margin-top:4px;">⚠️ Not found in live Stripe list — may be out of sync</div>`
-        : (stripeMatch && stripeMatch.active !== r.active
-          ? `<div style="font-size:11px;color:#DC2626;margin-top:4px;">⚠️ Stripe says ${stripeMatch.active ? 'active' : 'inactive'}, database says ${r.active ? 'active' : 'inactive'}</div>`
-          : '');
-      return `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <span style="font-weight:700;font-size:14px;color:#1E293B;letter-spacing:0.5px;">${escHtml(r.code)}</span>
-          <span style="font-size:11px;font-weight:700;color:${r.active ? '#16A34A' : '#94A3B8'};">${r.active ? '● active' : '○ inactive'}</span>
-        </div>
-        <div style="font-size:12px;color:#334155;margin-top:6px;">
-          Tier: <strong>${escHtml(r.tier)}</strong>${r.is_beta ? ' (Founding Member comp — no Stripe payment)' : r.discount_type ? ` · ${money(r.discount_type, r.discount_value)}` : ''}
-        </div>
-        <div style="font-size:12px;color:#64748B;margin-top:4px;">
-          Uses: ${r.used_count}/${r.max_uses} · Expires: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString() : 'never'}
-        </div>
-        ${r.stripe_promotion_code_id ? `<div style="font-size:11px;color:#94A3B8;margin-top:4px;">Stripe-linked · ${stripeMatch ? (stripeMatch.times_redeemed + ' real redemptions') : 'checking…'}</div>` : `<div style="font-size:11px;color:#94A3B8;margin-top:4px;">Legacy DB-only code (no Stripe linkage)</div>`}
-        ${driftWarning}
-        ${r.active && r.stripe_promotion_code_id ? `<div style="margin-top:10px;"><button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;color:#DC2626;" onclick="openAdminDeactivatePromoModal('${escHtml(r.code)}')">Deactivate</button></div>` : ''}
-      </div>`;
-    }).join('');
-
-  const createBtn = `<div style="margin-bottom:16px;"><button class="btn btn-primary" style="padding:8px 14px;font-size:13px;" onclick="openAdminCreatePromoModal()">+ Create code</button></div>`;
-
-  _renderAdminBody('promos', createBtn + list);
+  dbRows.forEach(r => {
+    STATE.adminPromoResults[r.code] = r;
+    const stripeMatch = r.stripe_promotion_code_id ? stripePromosByCode[r.code] : null;
+    r._stripeMatch = stripeMatch;
+    r._driftWarning = r.stripe_promotion_code_id && !stripeMatch
+      ? '⚠️ Not found in live Stripe list — may be out of sync'
+      : (stripeMatch && stripeMatch.active !== r.active
+        ? `⚠️ Stripe says ${stripeMatch.active ? 'active' : 'inactive'}, database says ${r.active ? 'active' : 'inactive'}`
+        : null);
+  });
+  STATE.adminPromoRows = dbRows;
+  // No client-side default sort key -- promo_codes isn't fetched with
+  // created_at, and the SQL query already orders newest-first, so leaving
+  // sortKey null preserves that incoming order until the admin clicks a header.
+  _getAdminTableState('promos');
+  _renderAdminPromoTable();
 }
+
+const _PROMO_MONEY = (type, val) => type === 'percent' ? `${val}% off` : `£${Number(val).toFixed(2)} off`;
+
+function _renderAdminPromoTable() {
+  const table = renderAdminTable({
+    tableId: 'promos',
+    rows: STATE.adminPromoRows || [],
+    emptyLabel: 'No promo codes yet',
+    filters: [{
+      key: 'active', label: 'Status', defaultValue: 'all',
+      options: [{ value: 'all', label: 'All' }, { value: 'true', label: '● Active' }, { value: 'false', label: '○ Inactive' }],
+      apply: (r, v) => String(r.active) === v,
+    }],
+    columns: [
+      { key: 'code', label: 'Code', sortable: true, render: r => `<strong style="letter-spacing:0.5px;">${escHtml(r.code)}</strong>` },
+      { key: 'tier', label: 'Tier', sortable: true, render: r => escHtml(r.tier) },
+      { key: 'discount_value', label: 'Discount', sortable: true, render: r => r.is_beta ? 'Founding Member comp' : (r.discount_type ? _PROMO_MONEY(r.discount_type, r.discount_value) : '—') },
+      { key: 'used_count', label: 'Uses', sortable: true, render: r => `${r.used_count}/${r.max_uses}` },
+      { key: 'expires_at', label: 'Expires', sortable: true, sortValue: r => r.expires_at ? new Date(r.expires_at).getTime() : Infinity, render: r => r.expires_at ? new Date(r.expires_at).toLocaleDateString() : 'never' },
+      { key: 'active', label: 'Status', sortable: true, sortValue: r => r.active ? 1 : 0, render: r => `<span style="font-weight:700;color:${r.active ? '#16A34A' : '#94A3B8'};">${r.active ? '● active' : '○ inactive'}</span>` },
+      { key: 'stripe', label: 'Stripe', render: r => {
+          const linkage = r.stripe_promotion_code_id
+            ? `Linked · ${r._stripeMatch ? r._stripeMatch.times_redeemed + ' redemptions' : 'checking…'}`
+            : 'Legacy DB-only';
+          return `<div style="font-size:11px;color:#94A3B8;max-width:180px;">${escHtml(linkage)}${r._driftWarning ? `<div style="color:#DC2626;margin-top:2px;">${escHtml(r._driftWarning)}</div>` : ''}</div>`;
+        } },
+      { key: 'actions', label: 'Actions', render: r => r.active && r.stripe_promotion_code_id
+        ? `<button class="btn btn-ghost" style="padding:4px 9px;font-size:11px;color:#DC2626;" onclick="openAdminDeactivatePromoModal('${escHtml(r.code)}')">Deactivate</button>`
+        : '—' },
+    ],
+  });
+  const createBtn = `<div style="margin-bottom:16px;"><button class="btn btn-primary" style="padding:8px 14px;font-size:13px;" onclick="openAdminCreatePromoModal()">+ Create code</button></div>`;
+  _renderAdminBody('promos', createBtn + table);
+}
+ADMIN_TABLE_RENDERERS.promos = _renderAdminPromoTable;
 
 function openAdminCreatePromoModal() {
   showModal(`
@@ -25423,6 +25744,8 @@ async function confirmAdminDeactivatePromo(code) {
 }
 
 // ── Audit log ────────────────────────────────────────────────
+const _AUDIT_ACTION_LABEL = { grant_tier: '🎯 Tier grant', create_promo_code: '🎟️ Promo created', deactivate_promo_code: '🚫 Promo deactivated' };
+
 async function showAdminAuditLog() {
   if (!STATE.user?.is_admin) return showAdminDashboard();
   STATE.screen = 'admin';
@@ -25435,22 +25758,37 @@ async function showAdminAuditLog() {
       { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
     rows = res.ok ? await res.json() : [];
   } catch (e) {}
-
-  const actionLabel = { grant_tier: '🎯 Tier grant', create_promo_code: '🎟️ Promo created', deactivate_promo_code: '🚫 Promo deactivated' };
-
-  const list = rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No admin actions logged yet</div>` :
-    rows.map(a => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <span style="font-weight:700;font-size:13px;color:#1E293B;">${escHtml(actionLabel[a.action_type] || a.action_type)}</span>
-        <span style="font-size:11px;color:#94A3B8;">${new Date(a.created_at).toLocaleString()}</span>
-      </div>
-      ${a.target_resource ? `<div style="font-size:12px;color:#64748B;margin-top:4px;">Target: ${escHtml(a.target_resource)}</div>` : ''}
-      ${a.target_user_id ? `<div style="font-size:11px;color:#94A3B8;margin-top:2px;">User: ${escHtml(a.target_user_id)}</div>` : ''}
-      ${a.before_value || a.after_value ? `<div style="font-size:11px;color:#94A3B8;margin-top:6px;font-family:monospace;background:#F8FAFC;border-radius:6px;padding:6px 8px;overflow-x:auto;">before: ${escHtml(JSON.stringify(a.before_value))}<br>after: ${escHtml(JSON.stringify(a.after_value))}</div>` : ''}
-    </div>`).join('');
-
-  _renderAdminBody('audit', list);
+  STATE.adminAuditRows = rows;
+  _getAdminTableState('audit', { sortKey: 'created_at', sortDir: 'desc' });
+  _renderAdminAuditTable();
 }
+
+function _renderAdminAuditTable() {
+  const actionTypes = [...new Set((STATE.adminAuditRows || []).map(a => a.action_type))];
+  const table = renderAdminTable({
+    tableId: 'audit',
+    rows: STATE.adminAuditRows || [],
+    emptyLabel: 'No admin actions logged yet',
+    filters: actionTypes.length === 0 ? [] : [{
+      key: 'action_type', label: 'Action', defaultValue: 'all',
+      options: [{ value: 'all', label: 'All' }, ...actionTypes.map(t => ({ value: t, label: _AUDIT_ACTION_LABEL[t] || t }))],
+      apply: (r, v) => r.action_type === v,
+    }],
+    columns: [
+      { key: 'action_type', label: 'Action', sortable: true, render: r => escHtml(_AUDIT_ACTION_LABEL[r.action_type] || r.action_type) },
+      { key: 'target_resource', label: 'Target', sortable: true, render: r => escHtml(r.target_resource || '—') },
+      { key: 'target_user_id', label: 'Target user', render: r => r.target_user_id ? `<span style="font-size:11px;color:#94A3B8;">${escHtml(r.target_user_id)}</span>` : '—' },
+      { key: 'created_at', label: 'Date', sortable: true, sortValue: r => new Date(r.created_at).getTime(), render: r => new Date(r.created_at).toLocaleString() },
+      { key: 'details', label: 'Details', render: r => (r.before_value || r.after_value)
+        ? `<details><summary class="admin-details-toggle">view</summary>
+            <div style="font-size:11px;color:#94A3B8;margin-top:6px;font-family:monospace;background:#F8FAFC;border-radius:6px;padding:6px 8px;max-width:300px;overflow-x:auto;">before: ${escHtml(JSON.stringify(r.before_value))}<br>after: ${escHtml(JSON.stringify(r.after_value))}</div>
+          </details>`
+        : '—' },
+    ],
+  });
+  _renderAdminBody('audit', table);
+}
+ADMIN_TABLE_RENDERERS.audit = _renderAdminAuditTable;
 
 // ============================================================
 // INIT
