@@ -1670,6 +1670,21 @@ textarea.input { resize: vertical; min-height: 100px; }
   flex-direction: column;
   height: 550px;
 }
+/* The widget had no mobile-specific rules at all -- a fixed 500px width
+   pinned to bottom:0 sat directly on top of .v3-bottom-nav (also bottom:0)
+   on every screen under 1024px where the widget isn't explicitly hidden,
+   obscuring the nav bar underneath it (z-index 9999 vs 200). */
+@media (max-width: 1023px) {
+  #ai-chat-widget {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+  }
+  #ai-chat-body {
+    height: min(550px, 60vh);
+  }
+}
 #ai-chat-widget.closed #ai-chat-body { display: none; }
 #ai-chat-widget.hidden { display: none; }
 #ai-chat-messages {
@@ -15838,38 +15853,58 @@ function _renderBeforeTomorrowScreen() {
   const results = STATE._btResults || [];
   const selected = STATE._btSelected || [];
   const target = Math.min(3, results.length);
-  const isComplete = target > 0 && selected.length >= target;
+  // target === 0 (no results) now counts as complete rather than an
+  // unreachable dead end -- defensive, since the only current caller already
+  // guards against empty results, but this screen should never be able to
+  // render with literally no way forward regardless of input.
+  const isComplete = target === 0 || selected.length >= target;
+  const gradeMeta = {
+    0: { label: 'Again 😰', color: '#DC2626', bg: '#FEF2F2' },
+    1: { label: 'Hard 😤',  color: '#D97706', bg: '#FFFBEB' },
+  };
 
+  // Restored from the original 4 July build (git 6433a4f) -- per-card grade
+  // badges and per-card key-term callouts, simplified away by an 8 July
+  // commit whose stated purpose was an unrelated session-flow fix.
   const cardsHTML = results.map(entry => {
     const card = entry.card;
+    const meta = gradeMeta[entry.grade] || gradeMeta[0];
     const isSelected = selected.includes(card.id);
-    const answerHTML = (Array.isArray(card.a) ? card.a : []).map(a => _btBoldForest(a)).join('<br>');
-    return `<div id="bt-card-${card.id}" onclick="toggleBeforeTomorrowCard('${card.id}')" style="background:${isSelected ? '#F0FDF4' : 'white'};border-radius:12px;padding:14px;margin-bottom:8px;border-left:3px solid #DC2626;box-shadow:0 1px 4px rgba(0,0,0,0.06);cursor:pointer;transition:border-color 0.15s ease,background 0.15s ease;${isSelected ? 'border:2px solid #216D39;' : ''}">
-      <div style="font-size:13px;font-weight:700;color:#1A2E22;margin-bottom:6px;">${_btBoldForest(card.q || card.question || '')}</div>
-      <div style="font-size:12px;color:#1A2E22;line-height:1.6;">${answerHTML}</div>
+    return `<div id="bt-card-${card.id}" onclick="toggleBeforeTomorrowCard('${card.id}')" style="background:${isSelected ? '#F0FDF4' : 'white'};border:${isSelected ? '2px' : '1.5px'} solid ${isSelected ? 'var(--gm-forest)' : 'var(--gm-border)'};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color 0.15s ease,background 0.15s ease;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="font-size:14px;font-weight:600;color:var(--gm-text);line-height:1.4;flex:1;">${_btBoldForest(card.q || card.question || '')}</div>
+        <span style="flex-shrink:0;font-size:11px;font-weight:700;color:${meta.color};background:${meta.bg};border-radius:999px;padding:3px 10px;white-space:nowrap;">${meta.label}</span>
+      </div>
     </div>`;
   }).join('');
 
-  const uniqueTerms = isComplete
-    ? [...new Set(selected.flatMap(id => {
-        const entry = results.find(e => e.card.id === id);
-        return entry ? _btKeyTerms(entry.card) : [];
-      }))]
-    : [];
-  const pillsHTML = uniqueTerms.length
-    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">${uniqueTerms.map(t => `<span style="background:#216D39;color:white;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;">${t}</span>`).join('')}</div>`
+  const masteredHTML = (isComplete && selected.length > 0) ? selected.map(id => {
+    const entry = results.find(e => e.card.id === id);
+    if (!entry) return '';
+    const terms = _btKeyTerms(entry.card);
+    const pillsHTML = terms.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${terms.map(t => `<span style="display:inline-flex;align-items:center;background:#216D39;color:white;border-radius:999px;font-size:10px;padding:3px 10px;">${t}</span>`).join('')}</div>`
+      : '';
+    return `<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;color:#216D39;margin-bottom:6px;">KEY TERMS TO REMEMBER:</div>
+      ${pillsHTML}
+    </div>`;
+  }).join('') : '';
+
+  // Live progress so the tap-to-select requirement is legible instead of a
+  // silent precondition -- part of the actual bug fix, not just a restore.
+  const progressHTML = target > 0
+    ? `<div style="font-size:12px;color:#64748B;font-weight:700;text-align:center;margin-top:12px;">${isComplete ? `${selected.length} of ${target} selected ✓` : `Selected ${selected.length} of ${target} — tap ${target - selected.length} more card${target - selected.length === 1 ? '' : 's'} above`}</div>`
     : '';
 
-  const actionHTML = isComplete ? `
-    <div style="margin-top:24px;">
-      <div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Your ${selected.length} to master:</div>
-      ${pillsHTML}
+  const doneHTML = isComplete ? `
+    <div style="margin-top:16px;">
+      ${selected.length > 0 ? `<div style="font-size:15px;font-weight:800;color:var(--gm-text);margin-bottom:12px;">Your ${selected.length} to master:</div>${masteredHTML}` : ''}
       <div style="font-size:13px;color:#64748B;font-style:italic;margin-top:8px;text-align:center;">Say each one out loud 3 times. Write it in the air. Done. ✓</div>
       <div style="background:#FEFCE8;border:1.5px solid #FDE68A;border-radius:10px;padding:10px 14px;text-align:center;margin-top:12px;">
         <span style="font-size:13px;color:#B45309;font-style:italic;">"${STATE._btMsg}"</span>
       </div>
-      <button class="btn btn-primary btn-full" style="height:48px;margin-top:16px;" onclick="_beforeTomorrowContinue(true)">I've said them out loud ✓</button>
-      <button onclick="_beforeTomorrowContinue(false)" style="background:none;border:none;color:var(--gm-muted);font-size:13px;font-weight:600;padding:10px;width:100%;cursor:pointer;margin-top:4px;">Skip for now</button>
+      <button class="btn btn-primary btn-full" style="height:48px;margin-top:16px;" onclick="_beforeTomorrowContinue(true)">I did it! ✓</button>
     </div>` : '';
 
   const html = `
@@ -15881,7 +15916,9 @@ function _renderBeforeTomorrowScreen() {
   <div style="padding:20px;max-width:520px;margin:0 auto;">
     <div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:8px;">Pick 3 of these facts. Read them out loud. Pay attention to the <span style="color:#216D39;font-weight:800;">bold words</span> — that's where the marks hide!</div>
     ${cardsHTML}
-    ${actionHTML}
+    ${progressHTML}
+    ${doneHTML}
+    <button onclick="_beforeTomorrowContinue(false)" style="background:none;border:none;color:var(--gm-muted);font-size:13px;font-weight:600;padding:10px;width:100%;cursor:pointer;margin-top:8px;">Skip for now</button>
   </div>
 </div>`;
 
@@ -18423,10 +18460,23 @@ function showAIResult(grade, feedback, copyPaste) {
     ? '<div style="font-size:12px;color:#64748B;font-weight:700;margin-top:6px;font-style:italic;">' + encourageMsgs[STATE._encourageIdx] + '</div>'
     : '';
 
+  // "YOUR ANSWER" -- was already captured (STATE.currentStudentAnswer, via
+  // the textarea's oninput) and already saved to study_history, but was
+  // never actually rendered on this result screen. No matched-terms list is
+  // available here (that's specific to the Smart-Mark keyword path), so
+  // this is plain legible text, not the highlighted version used there.
+  const studentAnswerHTML = STATE.currentStudentAnswer
+    ? '<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:8px;">' +
+        '<div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">YOUR ANSWER</div>' +
+        '<div style="font-size:14px;color:#1A2E22;line-height:1.6;white-space:pre-wrap;">' + escHtml(STATE.currentStudentAnswer) + '</div>' +
+      '</div>'
+    : '';
+
   const resultDiv = document.getElementById('ai-result');
   if (resultDiv) {
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<div style="background:white;border-radius:12px;padding:14px 16px;border-left:4px solid ' + col + ';margin-bottom:8px;">' +
+    resultDiv.innerHTML = studentAnswerHTML +
+      '<div style="background:white;border-radius:12px;padding:14px 16px;border-left:4px solid ' + col + ';margin-bottom:8px;">' +
       '<div style="font-size:16px;font-weight:900;color:' + col + ';">' + emojis[grade] + ' ' + grade.charAt(0).toUpperCase() + grade.slice(1) + '</div>' +
       '<div style="font-size:13px;color:#64748B;font-weight:700;">' + feedback + '</div>' +
       (copyPaste ? '<div style="font-size:11px;color:#D97706;margin-top:4px;">⚠️ Answered very quickly</div>' : '') +
