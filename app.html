@@ -24735,10 +24735,12 @@ function logScreenView(screenName) {
 }
 
 const ADMIN_VIEWS = [
-  { id: 'feedback', label: '💬 Feedback',  fn: 'showAdminFeedback' },
-  { id: 'costs',    label: '💰 AI Costs',  fn: 'showAdminCosts' },
-  { id: 'users',    label: '🔍 Users',     fn: 'showAdminUsers' },
-  { id: 'usage',    label: '📊 Usage',     fn: 'showAdminUsage' },
+  { id: 'feedback', label: '💬 Feedback',   fn: 'showAdminFeedback' },
+  { id: 'costs',    label: '💰 AI Costs',   fn: 'showAdminCosts' },
+  { id: 'users',    label: '🔍 Users',      fn: 'showAdminUsers' },
+  { id: 'usage',    label: '📊 Usage',      fn: 'showAdminUsage' },
+  { id: 'promos',   label: '🎟️ Promo Codes', fn: 'showAdminPromoCodes' },
+  { id: 'audit',    label: '📜 Audit Log',  fn: 'showAdminAuditLog' },
 ];
 
 function renderAdminShell(activeId, bodyHtml) {
@@ -24944,6 +24946,13 @@ async function showAdminUsers(searchOverride) {
     rows = res.ok ? await res.json() : [];
   } catch (e) {}
 
+  // Keyed by user_id so button handlers can pass just the id (safe to inline
+  // in onclick attrs) and look up the rest from state -- display_name/email
+  // are untrusted user text and must never be interpolated into an inline
+  // onclick string.
+  STATE.adminUserResults = {};
+  rows.forEach(u => { STATE.adminUserResults[u.user_id] = u; });
+
   const list = rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No matching users</div>` :
     rows.slice(0, 50).map(u => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
@@ -24953,9 +24962,130 @@ async function showAdminUsers(searchOverride) {
       <div style="font-size:12px;color:#64748B;margin-top:4px;">${escHtml(u.email||'')}</div>
       <div style="font-size:12px;color:#334155;margin-top:6px;">Tier: <strong>${escHtml(u.subscription_tier||'free')}</strong> · Status: <strong>${escHtml(u.subscription_status||'free')}</strong> · Paid: <strong>${u.is_paid ? 'yes' : 'no'}</strong></div>
       ${u.stripe_customer_id ? `<div style="font-size:12px;margin-top:6px;"><a href="https://dashboard.stripe.com/test/customers/${encodeURIComponent(u.stripe_customer_id)}" target="_blank" rel="noopener" style="color:#6366F1;font-weight:700;">View in Stripe (test mode) →</a></div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="openAdminTierModal('${u.user_id}')">Manage tier</button>
+        ${u.stripe_subscription_id ? `<button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="checkAdminStripeStatus('${u.user_id}')">🔄 Check live Stripe status</button>` : ''}
+      </div>
+      <div id="stripe-status-${u.user_id}"></div>
     </div>`).join('');
 
   _renderAdminBody('users', searchBar + list);
+}
+
+// On-demand live Stripe subscription status -- not fetched automatically for
+// every result row (would fire a Stripe call per search), only when asked for.
+async function checkAdminStripeStatus(userId) {
+  const u = STATE.adminUserResults?.[userId];
+  const el = document.getElementById('stripe-status-' + userId);
+  if (!u || !el) return;
+  el.innerHTML = `<div style="font-size:11px;color:#94A3B8;margin-top:6px;">Checking Stripe…</div>`;
+  try {
+    const res = await fetch('https://sciencespark-worker.sciencespark.workers.dev/admin-stripe-subscription-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ subscription_id: u.stripe_subscription_id }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div style="font-size:11px;color:#DC2626;margin-top:6px;">${escHtml(data.error || 'Failed to fetch Stripe status')}</div>`;
+      return;
+    }
+    const periodEnd = data.current_period_end ? new Date(data.current_period_end * 1000).toLocaleDateString() : '—';
+    const amount = data.plan_amount != null ? `${(data.plan_amount/100).toFixed(2)} ${(data.plan_currency||'').toUpperCase()}` : '—';
+    el.innerHTML = `<div style="font-size:12px;color:#334155;margin-top:6px;background:#F8FAFC;border-radius:8px;padding:8px 10px;">
+      Live Stripe status: <strong>${escHtml(data.status||'unknown')}</strong>${data.cancel_at_period_end ? ' (cancels at period end)' : ''}<br>
+      Renews/ends: ${periodEnd} · Plan: ${escHtml(amount)}
+    </div>`;
+  } catch (e) {
+    el.innerHTML = `<div style="font-size:11px;color:#DC2626;margin-top:6px;">Could not reach Stripe — try again</div>`;
+  }
+}
+
+// ── Tier management (typed-name confirmation, same pattern as Export & Reset) ──
+function openAdminTierModal(userId) {
+  const u = STATE.adminUserResults?.[userId];
+  if (!u) return;
+  const name = u.display_name || u.email || 'this account';
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:44px;margin-bottom:8px;">🎯</div>
+      <div class="modal-title">Change ${escHtml(name)}'s tier?</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:13px;line-height:1.5;text-align:left;margin-top:8px;">
+        Current: <strong>${escHtml(u.subscription_tier||'free')}</strong>${u.is_beta_grant ? ' (Founding Member)' : ''}
+      </p>
+      <div style="text-align:left;margin-top:14px;">
+        <label style="font-size:12px;font-weight:700;color:#334155;">New tier</label>
+        <select id="admin-tier-select" class="input" style="width:100%;margin-top:4px;">
+          <option value="free">Free</option>
+          <option value="basic">Basic</option>
+          <option value="standard">Standard</option>
+          <option value="premium">Premium</option>
+          <option value="premium_plus">Premium Plus</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;color:#334155;text-align:left;">
+        <input type="checkbox" id="admin-tier-beta"> Grant as Founding Member (free comp, not a real Stripe payment)
+      </label>
+      <p style="color:var(--text-secondary);font-weight:700;font-size:13px;margin-top:16px;text-align:left;">
+        Type <strong>${escHtml(name)}</strong> to confirm:
+      </p>
+      <input id="admin-tier-confirm-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        style="width:100%;margin-top:8px;padding:10px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:14px;font-family:inherit;box-sizing:border-box;"
+        oninput="_checkAdminTierConfirmMatch('${userId}')" />
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline btn-full" onclick="closeModal()">Cancel</button>
+        <button id="admin-tier-confirm-btn" class="btn btn-full" disabled
+          style="background:#6366F1;color:white;opacity:0.5;cursor:not-allowed;border:none;"
+          onclick="confirmAdminGrantTier('${userId}')">Change Tier</button>
+      </div>
+    </div>
+  `);
+  const sel = document.getElementById('admin-tier-select');
+  if (sel) sel.value = u.subscription_tier || 'free';
+
+  setTimeout(() => {
+    const input = document.getElementById('admin-tier-confirm-input');
+    if (input) {
+      input.addEventListener('paste', e => e.preventDefault());
+      input.addEventListener('drop', e => e.preventDefault());
+      input.addEventListener('contextmenu', e => e.preventDefault());
+      input.focus();
+    }
+  }, 0);
+}
+
+function _checkAdminTierConfirmMatch(userId) {
+  const u = STATE.adminUserResults?.[userId];
+  const expected = u?.display_name || u?.email || '';
+  const input = document.getElementById('admin-tier-confirm-input');
+  const btn = document.getElementById('admin-tier-confirm-btn');
+  if (!input || !btn) return;
+  const matches = input.value === expected;
+  btn.disabled = !matches;
+  btn.style.opacity = matches ? '1' : '0.5';
+  btn.style.cursor = matches ? 'pointer' : 'not-allowed';
+}
+
+async function confirmAdminGrantTier(userId) {
+  const btn = document.getElementById('admin-tier-confirm-btn');
+  const newTier = document.getElementById('admin-tier-select')?.value || 'free';
+  const isBeta = !!document.getElementById('admin-tier-beta')?.checked;
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/admin_grant_tier', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ target_user_id: userId, new_tier: newTier, is_beta: isBeta }),
+    });
+    if (!res.ok) throw new Error('grant failed');
+    closeModal();
+    showToast('Tier updated ✅');
+    showAdminUsers();
+  } catch (e) {
+    showToast("Couldn't update tier — try again");
+    if (btn) { btn.disabled = false; btn.textContent = 'Change Tier'; }
+  }
 }
 
 // ── Site-usage analytics ────────────────────────────────────
@@ -25033,6 +25163,276 @@ async function showAdminUsage(days) {
     </div>
   `;
   _renderAdminBody('usage', body);
+}
+
+// ── Promo code management ───────────────────────────────────
+const WORKER_BASE = 'https://sciencespark-worker.sciencespark.workers.dev';
+
+async function showAdminPromoCodes() {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  logScreenView('admin-promos');
+  render(renderAdminShell('promos', _adminLoading()));
+
+  let dbRows = [];
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/promo_codes?select=code,tier,discount_type,discount_value,max_uses,used_count,expires_at,active,is_beta,stripe_coupon_id,stripe_promotion_code_id&order=created_at.desc',
+      { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
+    dbRows = res.ok ? await res.json() : [];
+  } catch (e) {}
+
+  // Live cross-check against Stripe -- flags drift instead of assuming the
+  // DB is current. A failure here (worker unreachable) degrades gracefully:
+  // the DB list still renders, just without the live-status badge.
+  let stripePromosByCode = {};
+  try {
+    const res = await fetch(WORKER_BASE + '/admin-list-stripe-promos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + STATE.user.token },
+      body: '{}',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      (data.promos || []).forEach(p => { stripePromosByCode[p.code] = p; });
+    }
+  } catch (e) {}
+
+  STATE.adminPromoResults = {};
+  dbRows.forEach(r => { STATE.adminPromoResults[r.code] = r; });
+
+  const money = (type, val) => type === 'percent' ? `${val}% off` : `£${Number(val).toFixed(2)} off`;
+
+  const list = dbRows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No promo codes yet</div>` :
+    dbRows.map(r => {
+      const stripeMatch = r.stripe_promotion_code_id ? stripePromosByCode[r.code] : null;
+      const driftWarning = r.stripe_promotion_code_id && !stripeMatch
+        ? `<div style="font-size:11px;color:#DC2626;margin-top:4px;">⚠️ Not found in live Stripe list — may be out of sync</div>`
+        : (stripeMatch && stripeMatch.active !== r.active
+          ? `<div style="font-size:11px;color:#DC2626;margin-top:4px;">⚠️ Stripe says ${stripeMatch.active ? 'active' : 'inactive'}, database says ${r.active ? 'active' : 'inactive'}</div>`
+          : '');
+      return `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:14px;color:#1E293B;letter-spacing:0.5px;">${escHtml(r.code)}</span>
+          <span style="font-size:11px;font-weight:700;color:${r.active ? '#16A34A' : '#94A3B8'};">${r.active ? '● active' : '○ inactive'}</span>
+        </div>
+        <div style="font-size:12px;color:#334155;margin-top:6px;">
+          Tier: <strong>${escHtml(r.tier)}</strong>${r.is_beta ? ' (Founding Member comp — no Stripe payment)' : r.discount_type ? ` · ${money(r.discount_type, r.discount_value)}` : ''}
+        </div>
+        <div style="font-size:12px;color:#64748B;margin-top:4px;">
+          Uses: ${r.used_count}/${r.max_uses} · Expires: ${r.expires_at ? new Date(r.expires_at).toLocaleDateString() : 'never'}
+        </div>
+        ${r.stripe_promotion_code_id ? `<div style="font-size:11px;color:#94A3B8;margin-top:4px;">Stripe-linked · ${stripeMatch ? (stripeMatch.times_redeemed + ' real redemptions') : 'checking…'}</div>` : `<div style="font-size:11px;color:#94A3B8;margin-top:4px;">Legacy DB-only code (no Stripe linkage)</div>`}
+        ${driftWarning}
+        ${r.active && r.stripe_promotion_code_id ? `<div style="margin-top:10px;"><button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;color:#DC2626;" onclick="openAdminDeactivatePromoModal('${escHtml(r.code)}')">Deactivate</button></div>` : ''}
+      </div>`;
+    }).join('');
+
+  const createBtn = `<div style="margin-bottom:16px;"><button class="btn btn-primary" style="padding:8px 14px;font-size:13px;" onclick="openAdminCreatePromoModal()">+ Create code</button></div>`;
+
+  _renderAdminBody('promos', createBtn + list);
+}
+
+function openAdminCreatePromoModal() {
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div class="modal-title">Create promo code</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:12px;line-height:1.5;text-align:left;margin-top:8px;">
+        Creates a real Stripe Coupon + Promotion Code, redeemable by real customers at checkout. "Tier" is an organizational label only — Stripe does not restrict the discount to that tier.
+      </p>
+      <div style="text-align:left;margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <div><label style="font-size:12px;font-weight:700;color:#334155;">Code</label>
+          <input id="promo-create-code" class="input" style="width:100%;box-sizing:border-box;" placeholder="SUMMER25" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div><label style="font-size:12px;font-weight:700;color:#334155;">Tier (label only)</label>
+          <select id="promo-create-tier" class="input" style="width:100%;">
+            <option value="basic">Basic</option>
+            <option value="standard" selected>Standard</option>
+            <option value="premium">Premium</option>
+            <option value="premium_plus">Premium Plus</option>
+          </select></div>
+        <div><label style="font-size:12px;font-weight:700;color:#334155;">Discount</label>
+          <div style="display:flex;gap:8px;">
+            <select id="promo-create-disc-type" class="input" style="flex:1;">
+              <option value="percent">% off</option>
+              <option value="amount">£ off</option>
+            </select>
+            <input id="promo-create-disc-value" class="input" type="number" min="0" step="0.01" style="flex:1;" placeholder="e.g. 25">
+          </div></div>
+        <div><label style="font-size:12px;font-weight:700;color:#334155;">Max uses</label>
+          <input id="promo-create-max-uses" class="input" type="number" min="1" style="width:100%;box-sizing:border-box;" value="100"></div>
+        <div><label style="font-size:12px;font-weight:700;color:#334155;">Expires (optional)</label>
+          <input id="promo-create-expires" class="input" type="date" style="width:100%;box-sizing:border-box;"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline btn-full" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary btn-full" onclick="reviewAdminCreatePromo()">Review →</button>
+      </div>
+    </div>
+  `);
+}
+
+// Review-and-confirm summary rather than typed-name confirmation -- a new
+// code doesn't target an existing account/resource where picking the wrong
+// one matters (unlike tier changes or deactivating an existing code), so a
+// clear one-click confirm of the exact details being created is proportionate.
+function reviewAdminCreatePromo() {
+  const code = (document.getElementById('promo-create-code')?.value || '').trim().toUpperCase();
+  const tier = document.getElementById('promo-create-tier')?.value;
+  const discType = document.getElementById('promo-create-disc-type')?.value;
+  const discValue = parseFloat(document.getElementById('promo-create-disc-value')?.value);
+  const maxUses = parseInt(document.getElementById('promo-create-max-uses')?.value, 10) || 100;
+  const expiresRaw = document.getElementById('promo-create-expires')?.value;
+
+  if (!/^[A-Z0-9_-]{3,40}$/.test(code)) { showToast('Code must be 3-40 characters: letters, numbers, - or _'); return; }
+  if (!discValue || discValue <= 0) { showToast('Enter a valid discount amount'); return; }
+  if (discType === 'percent' && discValue > 100) { showToast('Percent off cannot exceed 100'); return; }
+
+  const discLabel = discType === 'percent' ? `${discValue}% off` : `£${discValue.toFixed(2)} off`;
+  const expiresLabel = expiresRaw ? new Date(expiresRaw).toLocaleDateString() : 'never';
+
+  STATE._pendingPromoCreate = { code, tier, discount_type: discType, discount_value: discValue, max_uses: maxUses, expires_at: expiresRaw || null };
+
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:44px;margin-bottom:8px;">🎟️</div>
+      <div class="modal-title">Confirm new promo code</div>
+      <div style="text-align:left;margin-top:14px;background:#F8FAFC;border-radius:10px;padding:14px;font-size:13px;color:#334155;line-height:1.8;">
+        <strong>Code:</strong> ${escHtml(code)}<br>
+        <strong>Tier label:</strong> ${escHtml(tier)}<br>
+        <strong>Discount:</strong> ${escHtml(discLabel)}<br>
+        <strong>Max uses:</strong> ${maxUses}<br>
+        <strong>Expires:</strong> ${escHtml(expiresLabel)}
+      </div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:12px;margin-top:12px;text-align:left;">
+        This creates a real, live Stripe test-mode Coupon + Promotion Code immediately.
+      </p>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline btn-full" onclick="openAdminCreatePromoModal()">← Back</button>
+        <button id="promo-create-confirm-btn" class="btn btn-primary btn-full" onclick="confirmAdminCreatePromo()">Create code</button>
+      </div>
+    </div>
+  `);
+}
+
+async function confirmAdminCreatePromo() {
+  const btn = document.getElementById('promo-create-confirm-btn');
+  const payload = STATE._pendingPromoCreate;
+  if (!payload) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+  try {
+    const res = await fetch(WORKER_BASE + '/admin-create-promo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + STATE.user.token },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'create failed');
+    closeModal();
+    showToast('Promo code created ✅');
+    showAdminPromoCodes();
+  } catch (e) {
+    showToast(e.message || "Couldn't create promo code — try again");
+    if (btn) { btn.disabled = false; btn.textContent = 'Create code'; }
+  } finally {
+    STATE._pendingPromoCreate = null;
+  }
+}
+
+// Deactivation targets a specific existing code -- typed confirmation (same
+// pattern as Export & Reset / tier changes), not just a review screen.
+function openAdminDeactivatePromoModal(code) {
+  showModal(`
+    <div class="modal-handle"></div>
+    <div style="text-align:center;padding:8px 0 4px;">
+      <div style="font-size:44px;margin-bottom:8px;">⚠️</div>
+      <div class="modal-title">Deactivate ${escHtml(code)}?</div>
+      <p style="color:var(--text-secondary);font-weight:600;font-size:14px;line-height:1.5;text-align:left;margin-top:12px;">
+        This deactivates the code in Stripe immediately — no one will be able to redeem it at checkout again. This cannot be undone from here.
+      </p>
+      <p style="color:var(--text-secondary);font-weight:700;font-size:13px;margin-top:16px;text-align:left;">
+        Type <strong>${escHtml(code)}</strong> to confirm:
+      </p>
+      <input id="promo-deactivate-confirm-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        style="width:100%;margin-top:8px;padding:10px 12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:14px;font-family:inherit;box-sizing:border-box;"
+        oninput="_checkPromoDeactivateConfirmMatch('${escHtml(code)}')" />
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button class="btn btn-outline btn-full" onclick="closeModal()">Cancel</button>
+        <button id="promo-deactivate-confirm-btn" class="btn btn-full" disabled
+          style="background:#DC2626;color:white;opacity:0.5;cursor:not-allowed;border:none;"
+          onclick="confirmAdminDeactivatePromo('${escHtml(code)}')">Deactivate</button>
+      </div>
+    </div>
+  `);
+  setTimeout(() => {
+    const input = document.getElementById('promo-deactivate-confirm-input');
+    if (input) {
+      input.addEventListener('paste', e => e.preventDefault());
+      input.addEventListener('drop', e => e.preventDefault());
+      input.addEventListener('contextmenu', e => e.preventDefault());
+      input.focus();
+    }
+  }, 0);
+}
+
+function _checkPromoDeactivateConfirmMatch(code) {
+  const input = document.getElementById('promo-deactivate-confirm-input');
+  const btn = document.getElementById('promo-deactivate-confirm-btn');
+  if (!input || !btn) return;
+  const matches = input.value === code;
+  btn.disabled = !matches;
+  btn.style.opacity = matches ? '1' : '0.5';
+  btn.style.cursor = matches ? 'pointer' : 'not-allowed';
+}
+
+async function confirmAdminDeactivatePromo(code) {
+  const btn = document.getElementById('promo-deactivate-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deactivating…'; }
+  try {
+    const res = await fetch(WORKER_BASE + '/admin-deactivate-promo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'deactivate failed');
+    closeModal();
+    showToast('Promo code deactivated');
+    showAdminPromoCodes();
+  } catch (e) {
+    showToast(e.message || "Couldn't deactivate — try again");
+    if (btn) { btn.disabled = false; btn.textContent = 'Deactivate'; }
+  }
+}
+
+// ── Audit log ────────────────────────────────────────────────
+async function showAdminAuditLog() {
+  if (!STATE.user?.is_admin) return showAdminDashboard();
+  STATE.screen = 'admin';
+  logScreenView('admin-audit');
+  render(renderAdminShell('audit', _adminLoading()));
+
+  let rows = [];
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/admin_actions?select=*&order=created_at.desc&limit=100',
+      { headers: { apikey: CONFIG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + STATE.user.token } });
+    rows = res.ok ? await res.json() : [];
+  } catch (e) {}
+
+  const actionLabel = { grant_tier: '🎯 Tier grant', create_promo_code: '🎟️ Promo created', deactivate_promo_code: '🚫 Promo deactivated' };
+
+  const list = rows.length === 0 ? `<div style="text-align:center;padding:40px;color:#64748B;">No admin actions logged yet</div>` :
+    rows.map(a => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <span style="font-weight:700;font-size:13px;color:#1E293B;">${escHtml(actionLabel[a.action_type] || a.action_type)}</span>
+        <span style="font-size:11px;color:#94A3B8;">${new Date(a.created_at).toLocaleString()}</span>
+      </div>
+      ${a.target_resource ? `<div style="font-size:12px;color:#64748B;margin-top:4px;">Target: ${escHtml(a.target_resource)}</div>` : ''}
+      ${a.target_user_id ? `<div style="font-size:11px;color:#94A3B8;margin-top:2px;">User: ${escHtml(a.target_user_id)}</div>` : ''}
+      ${a.before_value || a.after_value ? `<div style="font-size:11px;color:#94A3B8;margin-top:6px;font-family:monospace;background:#F8FAFC;border-radius:6px;padding:6px 8px;overflow-x:auto;">before: ${escHtml(JSON.stringify(a.before_value))}<br>after: ${escHtml(JSON.stringify(a.after_value))}</div>` : ''}
+    </div>`).join('');
+
+  _renderAdminBody('audit', list);
 }
 
 // ============================================================
