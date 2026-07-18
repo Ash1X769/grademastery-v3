@@ -17029,7 +17029,12 @@ async function loadUserPaidStatus() {
       }
       _resetAICountsIfNeeded();
       LS.set('demo_user', STATE.user);
+      // Re-render whichever portal is currently on screen so fields that only
+      // arrive via this background fetch (is_admin, is_paid, ...) actually
+      // show up -- the initial render at login happens before this resolves.
       if (STATE.screen === 'home') showHome();
+      else if (STATE.screen === 'teacher') showTeacherDashboard(STATE.teacherSelectedClass);
+      else if (STATE.screen === 'parent') showParentPortal();
     }
   } catch(e) {}
 }
@@ -21675,7 +21680,10 @@ async function showTeacherDashboard(selectedClass) {
       <div style="font-size:13px;font-weight:700;opacity:0.9;margin-bottom:3px;">${user.display_name || 'Teacher'}</div>
       <div style="font-size:26px;font-weight:900;line-height:1.15;">${selectedName}</div>
       ${selectedCode ? `<div style="margin-top:7px;display:inline-block;background:rgba(255,255,255,0.2);border-radius:8px;padding:4px 12px;font-size:12px;font-weight:800;letter-spacing:1.5px;">${selectedCode}</div>` : ''}
-      <button onclick="doLogout()" style="position:absolute;top:18px;right:16px;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Log out</button>
+      <div style="position:absolute;top:18px;right:16px;display:flex;gap:8px;">
+        ${STATE.user?.is_admin ? `<button onclick="showAdminDashboard()" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🛠️ Admin</button>` : ''}
+        <button onclick="doLogout()" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Log out</button>
+      </div>
     </div>
 
     <div style="background:white;border-bottom:1px solid #E2E8F0;padding:10px 14px;display:flex;align-items:center;gap:10px;">
@@ -24743,10 +24751,19 @@ const ADMIN_VIEWS = [
   { id: 'audit',    label: '📜 Audit Log',  fn: 'showAdminAuditLog' },
 ];
 
+// Admin accounts aren't necessarily students (the real admin account is a
+// teacher) -- Exit must return to whichever portal the account actually
+// belongs to, not assume showHome().
+function _adminExit() {
+  if (STATE.role === 'teacher') showTeacherDashboard();
+  else if (STATE.role === 'parent') showParentPortal();
+  else showHome();
+}
+
 function renderAdminShell(activeId, bodyHtml) {
   return `<div class="v3-screen" id="screen-admin" style="max-width:1000px;margin:0 auto;padding:24px 16px 80px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-      <button class="btn btn-ghost" onclick="showHome()" style="padding:6px 12px;">← Exit</button>
+      <button class="btn btn-ghost" onclick="_adminExit()" style="padding:6px 12px;">← Exit</button>
       <div style="font-size:20px;font-weight:800;color:#1E293B;">🛠️ Admin</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
@@ -24775,7 +24792,7 @@ function showAdminDashboard() {
       <div style="font-size:48px;margin-bottom:14px;">🔒</div>
       <div style="font-size:18px;font-weight:800;color:#1E293B;margin-bottom:8px;">Access denied</div>
       <div style="font-size:14px;color:#64748B;font-weight:600;margin-bottom:20px;">This area is for admin accounts only.</div>
-      <button class="btn btn-primary" onclick="showHome()">Back to app</button>
+      <button class="btn btn-primary" onclick="_adminExit()">Back to app</button>
     </div>`);
     return;
   }
