@@ -23835,6 +23835,21 @@ function showAddChildScreen() {
           <input type="hidden" id="ac-year" value="11">
         </div>
         <div class="v3-form-group"><label class="v3-form-label">Exam Tier</label><select id="ac-tier" class="v3-form-input" style="height:48px;"><option value="combined_foundation">Combined Foundation</option><option value="combined_higher" selected>Combined Higher</option><option value="triple_foundation">Triple Foundation</option><option value="triple_higher">Triple Higher</option></select></div>
+        <div class="v3-form-group" id="ac-username-group" style="display:none;">
+          <label class="v3-form-label">Username</label>
+          <input type="text" id="ac-username" class="v3-form-input" placeholder="e.g. alexr" autocapitalize="none" autocomplete="off">
+          <div style="font-size:12px;color:#64748B;margin-top:4px;">Under 13 — no email needed. We'll generate a password you can share with them.</div>
+        </div>
+        <div class="v3-form-group" id="ac-email-group" style="display:none;">
+          <label class="v3-form-label">Child's Email</label>
+          <input type="email" id="ac-email" class="v3-form-input" placeholder="their@email.com">
+          <div style="font-size:12px;color:#64748B;margin-top:4px;">13 and older — they'll get an email to set their own password.</div>
+        </div>
+        <div class="v3-form-group">
+          <label class="v3-form-label">Your Email <span style="color:var(--gm-muted);font-size:11px;">(optional)</span></label>
+          <input type="email" id="ac-guardian-email" class="v3-form-input" placeholder="you@email.com">
+          <div style="font-size:12px;color:#64748B;margin-top:4px;">Add your own email for updates about your child? Purely for progress reports and reminders — never used for login.</div>
+        </div>
         <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="submitAddChild()" id="ac-submit-btn">Create Child Account</button>
       </div>
       <div style="text-align:center;margin-top:16px;">
@@ -23843,6 +23858,20 @@ function showAddChildScreen() {
     </div>
   </div>`;
   render(html);
+  // Year 9+ turns 14 during that school year under the standard UK age-on-1-Sept
+  // convention, meaning every Year 9 pupil has already turned 13 before the year
+  // starts -- the only cutoff derivable from year group alone without a birthdate.
+  // Year 7/8 is treated as under-13 even though some Year 8 pupils have already
+  // turned 13, since that only ever routes a child to the MORE restrictive
+  // (no-email) path, never the reverse -- see the migration comment on
+  // profiles.username for the same reasoning.
+  function _updateAddChildAgePath() {
+    const year = parseInt(document.getElementById('ac-year')?.value || '11', 10);
+    const isUnder13 = year <= 8;
+    document.getElementById('ac-username-group').style.display = isUnder13 ? '' : 'none';
+    document.getElementById('ac-email-group').style.display = isUnder13 ? 'none' : '';
+  }
+  _updateAddChildAgePath();
   // selectYearGroup() (reused from the signup form) targets #su-year by id --
   // wire the add-child pills to #ac-year instead without duplicating that function.
   document.querySelectorAll('#screen-add-child .v3-year-pill').forEach(btn => {
@@ -23851,6 +23880,7 @@ function showAddChildScreen() {
       btn.classList.add('active');
       const match = btn.textContent.match(/\d+/);
       if (match) document.getElementById('ac-year').value = match[0];
+      _updateAddChildAgePath();
     });
   });
 }
@@ -23860,13 +23890,28 @@ async function submitAddChild(existingChildId) {
   const name = (document.getElementById('ac-name')?.value || '').trim();
   const yearGroup = parseInt(document.getElementById('ac-year')?.value || '11', 10);
   const examTier = document.getElementById('ac-tier')?.value || 'combined_higher';
+  const isUnder13 = yearGroup <= 8;
+  const username = (document.getElementById('ac-username')?.value || '').trim();
+  const childEmail = (document.getElementById('ac-email')?.value || '').trim();
+  const guardianContactEmail = (document.getElementById('ac-guardian-email')?.value || '').trim();
   if (!name) { showToast('Enter your child\'s name'); return; }
+  if (isUnder13 && !username) { showToast('Enter a username for your child'); return; }
+  if (!isUnder13 && !childEmail) { showToast('Enter your child\'s email address'); return; }
   if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
   try {
     const res = await fetch(WORKER_BASE + '/create-child-account', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user.token },
-      body: JSON.stringify({ childName: name, yearGroup, examTier, existingChildId: existingChildId || null })
+      body: JSON.stringify({
+        childName: name, yearGroup, examTier,
+        // Server re-derives the age path itself from yearGroup -- never trusts
+        // which fields the client happened to send -- these are just the raw
+        // inputs for whichever path applies.
+        username: username || null,
+        childEmail: childEmail || null,
+        guardianContactEmail: guardianContactEmail || null,
+        existingChildId: existingChildId || null
+      })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -23877,33 +23922,46 @@ async function submitAddChild(existingChildId) {
         showToast('Something went wrong linking the account — retrying...', 4000);
         return submitAddChild(data.childId);
       }
-      showToast('Could not create child account — please try again.', 5000);
+      showToast(data.error === 'username_taken' ? 'That username is already in use — try another.'
+        : data.error === 'email_taken' ? 'That email is already registered to an account.'
+        : 'Could not create child account — please try again.', 5000);
       if (btn) { btn.disabled = false; btn.textContent = 'Create Child Account'; }
       return;
     }
     STATE.user.linked_student_ids = Array.isArray(STATE.user.linked_student_ids) ? STATE.user.linked_student_ids.concat([data.childId]) : [data.childId];
-    showChildCreatedConfirmation(data.childName || name, data.email, data.password);
+    showChildCreatedConfirmation(data.childName || name, data.email, data.password, data.inviteSent === true, data.username || null);
   } catch (e) {
     showToast('Could not reach the server — check your connection and try again.', 5000);
     if (btn) { btn.disabled = false; btn.textContent = 'Create Child Account'; }
   }
 }
 
-function showChildCreatedConfirmation(childName, email, password) {
+function showChildCreatedConfirmation(childName, email, password, inviteSent, username) {
   STATE.screen = 'add-child-confirm';
   // Stashed (not embedded in the onclick attribute) so loginAsChild() can log
   // straight into the new child account without worrying about quoting
-  // special characters from a generated password into inline HTML.
-  STATE._lastCreatedChild = { email, password };
-  const html = `
+  // special characters from a generated password into inline HTML. Under-13
+  // accounts log in with `username` (resolved server-side to the real,
+  // synthetic auth email); 13+ accounts log in with their own real `email`
+  // directly -- loginAsChild() needs whichever one is actually correct.
+  STATE._lastCreatedChild = { email, password, username };
+  const html = inviteSent ? `
+  <div class="screen" id="screen-add-child-confirm" style="min-height:100vh;background:#F8FAFC;">
+    <div style="max-width:480px;margin:0 auto;padding:32px 20px 80px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:8px;">📧</div>
+      <div style="font-size:22px;font-weight:900;color:#0F172A;">${childName}'s account is ready!</div>
+      <div style="font-size:14px;color:#64748B;font-weight:600;margin-top:6px;line-height:1.5;">We've sent an email to <strong>${email || 'their email'}</strong> so ${childName} can set their own password and log in.</div>
+      <button class="btn btn-primary btn-full" style="margin-top:20px;" onclick="showParentPortal()">Go to My Dashboard</button>
+    </div>
+  </div>` : `
   <div class="screen" id="screen-add-child-confirm" style="min-height:100vh;background:#F8FAFC;">
     <div style="max-width:480px;margin:0 auto;padding:32px 20px 80px;text-align:center;">
       <div style="font-size:48px;margin-bottom:8px;">🎉</div>
       <div style="font-size:22px;font-weight:900;color:#0F172A;">${childName}'s account is ready!</div>
       <div style="font-size:14px;color:#64748B;font-weight:600;margin-top:6px;">Save these login details — write them down or share them with ${childName}.</div>
       <div style="background:white;border-radius:16px;padding:20px;margin-top:20px;border:1px solid #E2E8F0;box-shadow:0 1px 6px rgba(0,0,0,.06);text-align:left;">
-        <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:6px;">LOGIN EMAIL</div>
-        <div style="font-size:15px;font-weight:800;color:#0F172A;margin-bottom:16px;word-break:break-all;">${email || '—'}</div>
+        <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:6px;">${username ? 'USERNAME' : 'LOGIN EMAIL'}</div>
+        <div style="font-size:15px;font-weight:800;color:#0F172A;margin-bottom:16px;word-break:break-all;">${username || email || '—'}</div>
         <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:6px;">PASSWORD</div>
         <div style="font-size:18px;font-weight:900;color:var(--gm-forest);letter-spacing:1px;">${password || '(already set — this account was created earlier)'}</div>
       </div>
