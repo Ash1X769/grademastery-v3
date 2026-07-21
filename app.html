@@ -2946,6 +2946,20 @@ function isTrialActive() {
 
 function getEffectiveSubscriptionTier() {
   if (isTrialActive()) return 'standard';
+  // Child accounts (pay-first "Add Your Child" flow) never carry their own
+  // subscription_tier -- it's deliberately left null on their profiles row to
+  // prevent drift. Effective tier always comes from a live lookup of the
+  // parent's row (see fetchParentTierForChild() / get_parent_tier()), never
+  // from a cached copy. If linked_parent_id is set but the live lookup hasn't
+  // returned anything (broken link, RPC failure, not yet fetched), fall back
+  // to 'free' as a safety default -- this is a least-privilege fallback, not
+  // a way to treat "no data" as an access grant.
+  if (STATE.role === 'student' && STATE.user?.linked_parent_id) {
+    const parentTier = STATE.user?._parentTier;
+    if (!parentTier) return 'free';
+    if (!parentTier.is_paid) return 'free';
+    return parentTier.subscription_tier || 'free';
+  }
   if (!STATE.user?.is_paid) return 'free';
   return STATE.user?.subscription_tier || 'standard';
 }
@@ -3291,16 +3305,16 @@ function _buildMasteryTrackerSampleHTML() {
 }
 
 const STRIPE_PRICES = {
-  basic_monthly: 'price_1TpbzOBeyG4M2T8lSxHgOlPM',
-  basic_annual: 'price_1Tpc50BeyG4M2T8ldkBPg1O5',
-  standard_monthly: 'price_1Tpc0fBeyG4M2T8lAM06cuGZ',          // Summer Offer price — permanent, do not edit
+  basic_monthly: 'price_1Tve4nBtMarr5zayBQ3x0NHe',
+  basic_annual: 'price_1TveI0BtMarr5zay9GLWm3vZ',
+  standard_monthly: 'price_1TveSnBtMarr5zaye2t7drGw',          // Summer Offer price — permanent, do not edit
   standard_monthly_regular: 'price_1Tr4RhBeyG4M2T8lFHLD4dj5',  // post-offer price (from 1 Sept 2026)
-  standard_annual: 'price_1Tr4WYBeyG4M2T8lrnT3U0KN',           // Summer Offer annual price
+  standard_annual: 'price_1TveS8BtMarr5zayRUCX4SRU',           // Summer Offer annual price
   standard_annual_regular: 'price_1Tr4Z6BeyG4M2T8lD3J6EfSH',   // post-offer annual price
-  premium_monthly: 'price_1Tpc1oBeyG4M2T8lTcMKYkVx',
-  premium_annual: 'price_1Tpc5tBeyG4M2T8l5ew9RA1j',
-  premium_plus_monthly: 'price_1Tpc2eBeyG4M2T8lY6cdAme5',
-  premium_plus_annual: 'price_1Tpc6OBeyG4M2T8lcB8pjIYd'
+  premium_monthly: 'price_1Tve4oBtMarr5zayRfnrmgdE',
+  premium_annual: 'price_1TvftSBtMarr5zay6ueNsOJj',
+  premium_plus_monthly: 'price_1Tve4pBtMarr5zaySpG8Fi0S',
+  premium_plus_annual: 'price_1TvfueBtMarr5zayAACPYskd'
 };
 
 function getStandardPriceDisplay(period) { // period: 'm' | 'a'
@@ -15538,7 +15552,7 @@ function getSessionStartMessage() {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
+  const PRICES = {basic:{m:'£7.99',a:'£87.89'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
@@ -16930,10 +16944,17 @@ async function afterLogin(startScreen) {
     setTimeout(() => showUpgradeModal('Choose your plan'), 500);
   }
 
-  // If arriving from the checkout-first landing page flow (paid before creating an account)
+  // If arriving from the checkout-first landing page flow (paid before creating an account).
+  // Pay-first accounts are always role:'parent' (see worker/src/index.js's pending-checkout
+  // branch) -- show the "Add Your Child" screen instead of the bare parent dashboard so the
+  // parent immediately links a child account, rather than landing somewhere with nothing to do.
   if (urlParams.get('newuser') === 'true') {
     showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
     setTimeout(() => loadUserPaidStatus(), 3000);
+    if (STATE.role === 'parent') {
+      showAddChildScreen();
+      return;
+    }
   }
 
   const hwParams = new URLSearchParams(window.location.search);
@@ -17076,6 +17097,16 @@ async function loadUserPaidStatus() {
       } else {
         STATE.user.class_allow_student_unlock = true;
       }
+      // Live parent-tier lookup for linked child accounts -- deliberately never
+      // cached to the child's own subscription_tier column (that column stays
+      // null for children; see get_parent_tier()). Refetched every load so a
+      // parent's plan change/cancellation reflects on the child immediately,
+      // rather than drifting from a stale copy.
+      if (STATE.role === 'student' && p.linked_parent_id) {
+        fetchParentTierForChild(user);
+      } else {
+        STATE.user._parentTier = null;
+      }
       _resetAICountsIfNeeded();
       LS.set('demo_user', STATE.user);
       // Re-render whichever portal is currently on screen so fields that only
@@ -17086,6 +17117,27 @@ async function loadUserPaidStatus() {
       else if (STATE.screen === 'parent') showParentPortal();
     }
   } catch(e) {}
+}
+
+// Live RPC lookup of a linked child's effective tier via the parent, through
+// get_parent_tier() (SECURITY DEFINER) -- returns only is_paid/subscription_tier,
+// never the parent's full profile row. Populates STATE.user._parentTier only;
+// never written back to the child's own profiles row (see getEffectiveSubscriptionTier()).
+// A missing/failed lookup leaves _parentTier null, which getEffectiveSubscriptionTier()
+// treats as a safety default (falls back to 'free') -- never as an all-access bypass.
+async function fetchParentTierForChild(user) {
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/get_parent_tier', {
+      method: 'POST',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_child_id: user.id })
+    });
+    const rows = res.ok ? await res.json() : [];
+    STATE.user._parentTier = rows[0] || null;
+    if (STATE.screen === 'home') showHome();
+  } catch(e) {
+    STATE.user._parentTier = null;
+  }
 }
 
 function getWeeklyCardCount() {
@@ -17188,7 +17240,7 @@ function showUpgradeModal(reason) {
   // Remove any existing upgrade overlay
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
-    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£79.99'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
+    { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£87.89'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
     { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Get Pro', trial:false, popular:true },
     { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£41.99',a:'£461.89'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£55.99',a:'£615.89'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
@@ -17225,7 +17277,7 @@ function showUpgradeModal(reason) {
 window.v3SwitchBilling = function(period) {
   document.getElementById('v3-bill-m')?.classList.toggle('active', period==='m');
   document.getElementById('v3-bill-a')?.classList.toggle('active', period==='a');
-  const PRICES = {basic:{m:'£7.99',a:'£79.99'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
+  const PRICES = {basic:{m:'£7.99',a:'£87.89'},standard:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},premium:{m:'£41.99',a:'£461.89'},premium_plus:{m:'£55.99',a:'£615.89'}};
   const PRICE_IDS = {basic:{m:STRIPE_PRICES.basic_monthly,a:STRIPE_PRICES.basic_annual},standard:{m:STRIPE_PRICES.standard_monthly,a:STRIPE_PRICES.standard_annual},premium:{m:STRIPE_PRICES.premium_monthly,a:STRIPE_PRICES.premium_annual},premium_plus:{m:STRIPE_PRICES.premium_plus_monthly,a:STRIPE_PRICES.premium_plus_annual}};
   Object.entries(PRICES).forEach(([id, p]) => {
     const el = document.getElementById('v3-price-'+id);
@@ -23684,6 +23736,147 @@ async function showParentPortal() {
   loadParentHomeworkWidget(child.class_code, child.user_id);
 }
 
+// ============================================================
+// ADD YOUR CHILD (pay-first flow) — parent directly creates a linked child
+// account (distinct from the existing student-led "enter your child's Parent
+// Code" flow above, which requires the child to have signed up first).
+// ============================================================
+function showAddChildScreen() {
+  STATE.screen = 'add-child';
+  const html = `
+  <div class="screen" id="screen-add-child" style="min-height:100vh;background:#F8FAFC;">
+    <div style="max-width:480px;margin:0 auto;padding:32px 20px 80px;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:40px;margin-bottom:8px;">👨‍👩‍👧</div>
+        <div style="font-size:22px;font-weight:900;color:#0F172A;">Add Your Child</div>
+        <div style="font-size:14px;color:#64748B;font-weight:600;margin-top:6px;line-height:1.5;">Create your child's account now — they'll inherit your plan automatically.</div>
+      </div>
+      <div style="background:white;border-radius:16px;padding:20px;border:1px solid #E2E8F0;box-shadow:0 1px 6px rgba(0,0,0,.06);">
+        <div class="v3-form-group"><label class="v3-form-label">Child's Name</label><input type="text" id="ac-name" class="v3-form-input" placeholder="First name"></div>
+        <div class="v3-form-group">
+          <label class="v3-form-label">Year Group</label>
+          <div class="v3-year-grid">${[7,8,9,10,11].map(y=>`<button class="v3-year-pill${y===11?' active':''}" onclick="selectYearGroup(${y},this)" id="ac-year-${y}">Year ${y}</button>`).join('')}</div>
+          <input type="hidden" id="ac-year" value="11">
+        </div>
+        <div class="v3-form-group"><label class="v3-form-label">Exam Tier</label><select id="ac-tier" class="v3-form-input" style="height:48px;"><option value="combined_foundation">Combined Foundation</option><option value="combined_higher" selected>Combined Higher</option><option value="triple_foundation">Triple Foundation</option><option value="triple_higher">Triple Higher</option></select></div>
+        <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="submitAddChild()" id="ac-submit-btn">Create Child Account</button>
+      </div>
+      <div style="text-align:center;margin-top:16px;">
+        <a href="javascript:void(0)" onclick="showParentPortal()" style="font-size:13px;color:#64748B;font-weight:700;text-decoration:underline;">Skip for now — go to my dashboard</a>
+      </div>
+    </div>
+  </div>`;
+  render(html);
+  // selectYearGroup() (reused from the signup form) targets #su-year by id --
+  // wire the add-child pills to #ac-year instead without duplicating that function.
+  document.querySelectorAll('#screen-add-child .v3-year-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#screen-add-child .v3-year-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const match = btn.textContent.match(/\d+/);
+      if (match) document.getElementById('ac-year').value = match[0];
+    });
+  });
+}
+
+async function submitAddChild(existingChildId) {
+  const btn = document.getElementById('ac-submit-btn');
+  const name = (document.getElementById('ac-name')?.value || '').trim();
+  const yearGroup = parseInt(document.getElementById('ac-year')?.value || '11', 10);
+  const examTier = document.getElementById('ac-tier')?.value || 'combined_higher';
+  if (!name) { showToast('Enter your child\'s name'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
+  try {
+    const res = await fetch(WORKER_BASE + '/create-child-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + STATE.user.token },
+      body: JSON.stringify({ childName: name, yearGroup, examTier, existingChildId: existingChildId || null })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Retryable failures (auth user created but linking failed) return the
+      // childId/email so a resubmit reuses the same account instead of
+      // creating a duplicate orphan -- retry-in-place, no auto-rollback.
+      if (data.retryable && data.childId) {
+        showToast('Something went wrong linking the account — retrying...', 4000);
+        return submitAddChild(data.childId);
+      }
+      showToast('Could not create child account — please try again.', 5000);
+      if (btn) { btn.disabled = false; btn.textContent = 'Create Child Account'; }
+      return;
+    }
+    STATE.user.linked_student_ids = Array.isArray(STATE.user.linked_student_ids) ? STATE.user.linked_student_ids.concat([data.childId]) : [data.childId];
+    showChildCreatedConfirmation(data.childName || name, data.email, data.password);
+  } catch (e) {
+    showToast('Could not reach the server — check your connection and try again.', 5000);
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Child Account'; }
+  }
+}
+
+function showChildCreatedConfirmation(childName, email, password) {
+  STATE.screen = 'add-child-confirm';
+  // Stashed (not embedded in the onclick attribute) so loginAsChild() can log
+  // straight into the new child account without worrying about quoting
+  // special characters from a generated password into inline HTML.
+  STATE._lastCreatedChild = { email, password };
+  const html = `
+  <div class="screen" id="screen-add-child-confirm" style="min-height:100vh;background:#F8FAFC;">
+    <div style="max-width:480px;margin:0 auto;padding:32px 20px 80px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:8px;">🎉</div>
+      <div style="font-size:22px;font-weight:900;color:#0F172A;">${childName}'s account is ready!</div>
+      <div style="font-size:14px;color:#64748B;font-weight:600;margin-top:6px;">Save these login details — write them down or share them with ${childName}.</div>
+      <div style="background:white;border-radius:16px;padding:20px;margin-top:20px;border:1px solid #E2E8F0;box-shadow:0 1px 6px rgba(0,0,0,.06);text-align:left;">
+        <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:6px;">LOGIN EMAIL</div>
+        <div style="font-size:15px;font-weight:800;color:#0F172A;margin-bottom:16px;word-break:break-all;">${email || '—'}</div>
+        <div style="font-size:11px;font-weight:800;color:#64748B;letter-spacing:.08em;margin-bottom:6px;">PASSWORD</div>
+        <div style="font-size:18px;font-weight:900;color:var(--gm-forest);letter-spacing:1px;">${password || '(already set — this account was created earlier)'}</div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:20px;" onclick="showParentPortal()">Go to My Dashboard</button>
+      ${password ? '<button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="loginAsChild()">Go to Learning</button>' : ''}
+    </div>
+  </div>`;
+  render(html);
+}
+
+// Logs the parent out and straight into the just-created child account using
+// the credentials stashed by showChildCreatedConfirmation() -- only offered
+// when a password was actually generated this call (not on a retry that
+// reused an already-created account, where the password was already shown
+// once and can't be recovered here).
+async function loginAsChild() {
+  const creds = STATE._lastCreatedChild;
+  if (!creds?.email || !creds?.password) { showParentPortal(); return; }
+  doLogout();
+  showToast('Logging in...');
+  const res = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+    body: JSON.stringify({ email: creds.email, password: creds.password })
+  }).then(r => r.json()).catch(() => ({}));
+  if (!res.access_token) {
+    showToast('Could not log in to the child account — please log in manually.', 5000);
+    return;
+  }
+  const meta = res.user.user_metadata || {};
+  STATE.user = {
+    id: res.user.id,
+    email: res.user.email,
+    token: res.access_token,
+    refresh_token: res.refresh_token || '',
+    display_name: meta.display_name || creds.email,
+    role: meta.role || 'student',
+    year_group: meta.year_group || 11,
+    tier: meta.tier || 'combined_higher',
+    exam_board: meta.exam_board || 'AQA',
+    primary_subject: meta.primary_subject || 'Biology',
+    is_paid: false,
+    xp: 0, streak: 0, level: 1,
+  };
+  STATE.role = meta.role || 'student';
+  LS.set('demo_user', STATE.user);
+  afterLogin();
+}
+
 // ── Shared helper: call link RPC, return {userId} or {error:'not_found'|'limit'|'network'} ──
 async function callLinkParentRPC(code) {
   const token = STATE.user?.token;
@@ -23943,6 +24136,9 @@ function buildParentProfileTabHTML(user, children, activeChildId) {
   h += '<input id="add-child-code" type="text" placeholder="e.g. ABCD1234" maxlength="8" oninput="this.value=this.value.toUpperCase()" '
      + 'style="width:100%;padding:12px;border-radius:10px;border:1.5px solid #E2E8F0;font-size:18px;text-align:center;letter-spacing:3px;font-weight:800;font-family:inherit;box-sizing:border-box;margin-bottom:10px;outline:none;" />';
   h += '<button onclick="addLinkedChild()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Link Child →</button>';
+  h += '<div style="text-align:center;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;">';
+  h += '<a href="javascript:void(0)" onclick="showAddChildScreen()" style="font-size:13px;color:var(--gm-forest);font-weight:800;text-decoration:underline;">+ Add Another Child (create a new account)</a>';
+  h += '</div>';
   h += '</div>';
 
   // ── Child target grade setter ──
