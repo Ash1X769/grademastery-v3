@@ -1104,7 +1104,12 @@ async function landingCheckout(tier, priceId) {
         userId: 'pending',
         email: '',
         tier: tier,
-        successUrl: 'https://grademastery.co.uk/app.html?newuser=true&tier=' + tier,
+        // {CHECKOUT_SESSION_ID} is a literal Stripe template placeholder -- Stripe
+        // substitutes the real completed session's ID before redirecting. app.html
+        // uses this to verify the session directly with Stripe and mint a real
+        // session for the account that actually paid, instead of trusting whatever
+        // was already sitting in the browser's localStorage.
+        successUrl: 'https://grademastery.co.uk/app.html?newuser=true&tier=' + tier + '&session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: 'https://grademastery.co.uk/'
       })
     });
