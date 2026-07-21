@@ -16933,6 +16933,82 @@ function showSignupError(msg) {
   showToast(msg, 5000);
 }
 
+// Client-side counterpart to the worker's /resolve-pending-checkout -- see
+// that endpoint's comment for the full incident writeup. Called only from
+// init()'s very first check, before any existing session is ever restored
+// from localStorage, so this flow can never render using a leftover identity
+// from a previous session.
+async function resolvePendingCheckoutAndLogin(sessionId) {
+  render('<div class="loading-spinner">Setting up your account...</div>');
+
+  // Step 1: unconditionally clear whatever session is cached -- never blend
+  // this flow with a leftover identity. STATE.user is still null here
+  // (init()'s normal restore path hasn't run yet), so this is mainly about
+  // wiping stale localStorage/sessionStorage before anything else can read it.
+  doLogout();
+
+  try {
+    // Step 2: ask the worker to verify this checkout directly against Stripe
+    // and resolve/create the correct account. Never trust anything else.
+    const res = await fetch(WORKER_BASE + '/resolve-pending-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.tokenHash) {
+      showAuth();
+      showToast('Could not confirm your payment — please log in, or contact support if you were charged.', 6000);
+      return;
+    }
+
+    // Step 3: redeem the one-time credential for a real session tied to
+    // exactly this account -- never a password, never anything cached.
+    const verifyRes = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ type: data.verificationType || 'magiclink', token_hash: data.tokenHash })
+    });
+    const session = await verifyRes.json().catch(() => ({}));
+    if (!verifyRes.ok || !session.access_token) {
+      showAuth();
+      showToast('Could not confirm your payment — please log in, or contact support if you were charged.', 6000);
+      return;
+    }
+
+    // Step 4: build STATE.user from the verified session only -- same shape
+    // doLogin()/loginAsChild() build, never from anything cached beforehand.
+    const meta = session.user?.user_metadata || {};
+    STATE.user = {
+      id: session.user.id,
+      email: session.user.email,
+      token: session.access_token,
+      refresh_token: session.refresh_token || '',
+      display_name: meta.display_name || data.email,
+      role: meta.role || 'parent',
+      is_paid: false, // corrected immediately below by loadUserPaidStatus() inside afterLogin()
+      xp: 0, streak: 0, level: 1,
+    };
+    STATE.role = meta.role || 'parent';
+    LS.set('demo_user', STATE.user);
+
+    // Strip session_id before proceeding so a later page reload falls through
+    // to the normal cached-session restore path instead of re-resolving (and
+    // re-consuming) the same Stripe checkout session and magic link again.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('session_id');
+    window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search);
+
+    // Step 5: only now, with a verified session for the correct account,
+    // proceed into the normal post-login flow -- which (per its own
+    // STATE.role === 'parent' check) shows the Add Your Child screen.
+    afterLogin();
+  } catch (e) {
+    showAuth();
+    showToast('Something went wrong confirming your payment — please log in, or contact support if you were charged.', 6000);
+  }
+}
+
 async function afterLogin(startScreen) {
   // Always refresh paid status in background after login
   loadUserPaidStatus();
@@ -26056,6 +26132,19 @@ async function init() {
   }
   if (_authHash?.error) {
     STATE._pendingAuthError = _authHash.error;
+  }
+
+  // Pay-first checkout landing takes priority over everything below, same as
+  // the recovery-link check above -- a browser arriving here from a completed
+  // Stripe Checkout must never render using whatever session happens to
+  // already be cached. (Incident, 21 Jul 2026: a real test payment landed on
+  // an unrelated pre-existing account's already-logged-in session, because
+  // nothing here ever verified who actually paid before rendering.) This
+  // never consults localStorage for this landing -- it establishes a fresh,
+  // Stripe-verified session before anything else runs.
+  const _initParams = new URLSearchParams(window.location.search);
+  if (_initParams.get('newuser') === 'true' && _initParams.get('session_id')) {
+    return resolvePendingCheckoutAndLogin(_initParams.get('session_id'));
   }
 
   // Handle Stripe redirect
