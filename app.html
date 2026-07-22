@@ -20883,7 +20883,15 @@ function showProfile() {
   logScreenView('profile');
   const user = STATE.user;
 
-  const subTier = STATE.user.subscription_tier || 'free';
+  // Bug fix, 22 Jul 2026 (account-security redesign session): was reading
+  // STATE.user.subscription_tier directly, which is deliberately always null
+  // on a linked child's own row (see getEffectiveSubscriptionTier()'s own
+  // comment) -- meaning every linked child showed "Free Plan" regardless of
+  // the parent's real paid tier. getEffectiveSubscriptionTier() already
+  // correctly handles the parent-tier live lookup for children; this just
+  // needed to actually call it, like hasTier() and every other tier check
+  // in the app already does.
+  const subTier = getEffectiveSubscriptionTier();
   const tierDisplay = {
     'free': { name: 'Free Plan', desc: '4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week' },
     'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · 30 cards/day · Smart-AI Marking ✨ 2/day · AI Marking unlimited · AI Tutor 10/week · Parent portal' },
@@ -20938,7 +20946,7 @@ ${renderNavBar('profile')}
   </div>
 
     <!-- Premium Status -->
-    ${user.is_paid && user.is_beta_grant
+    ${subTier !== 'free' && user.is_beta_grant
       ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <div>
@@ -20957,7 +20965,7 @@ ${renderNavBar('profile')}
             </div>
           </div>
         </div>`
-      : user.is_paid
+      : subTier !== 'free'
       ? `<div class="v3-profile-section" style="margin-bottom:12px;background:linear-gradient(135deg,#F0FDF4,#fff);border:1.5px solid #BBF7D0;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
@@ -21082,7 +21090,7 @@ ${renderNavBar('profile')}
           <option value="triple_higher" ${user.tier==='triple_higher'?'selected':''}>Triple Higher</option>
         </select>
       </div>
-      ${!user.is_paid ? `<div class="form-group">
+      ${subTier === 'free' ? `<div class="form-group">
         <label class="label">Free Subject <span style="color:#F97316;font-size:11px;font-weight:800;">(upgrade for all 3)</span></label>
         <select id="edit-subject" class="select">
           <option value="Biology" ${(user.primary_subject||'Biology')==='Biology'?'selected':''}>🌿 Biology</option>
