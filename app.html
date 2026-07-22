@@ -16846,11 +16846,24 @@ async function doLogin() {
 
   showToast('Logging in...');
 
-  const res = await fetch(CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
-    body: JSON.stringify({ email, password })
-  }).then(r => r.json()).catch(() => ({}));
+  // Shape detection only decides which URL to call -- never a trust
+  // boundary. No '@' means this is a possible under-13 child username;
+  // the real verification (does it exist, is the password correct) happens
+  // entirely server-side in handleUsernameLogin() (worker/src/index.js),
+  // which returns the exact same generic invalid-credentials shape on any
+  // failure that Supabase's own /auth/v1/token already returns for a wrong
+  // email -- this branch can never leak whether a given username exists.
+  const looksLikeUsername = !email.includes('@');
+  const res = await fetch(
+    looksLikeUsername ? (WORKER_BASE + '/username-login') : (CONFIG.SUPABASE_URL + '/auth/v1/token?grant_type=password'),
+    {
+      method: 'POST',
+      headers: looksLikeUsername
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON_KEY },
+      body: JSON.stringify(looksLikeUsername ? { username: email, password } : { email, password })
+    }
+  ).then(r => r.json()).catch(() => ({}));
 
   if (!res.access_token) {
     showToast(res.error_description || res.msg || 'Login failed — check your email and password');
