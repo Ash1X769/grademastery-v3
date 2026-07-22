@@ -17195,8 +17195,22 @@ async function afterLogin(startScreen) {
     _cleanUrl.searchParams.delete('newuser');
     window.history.replaceState({}, '', _cleanUrl.pathname + _cleanUrl.search);
     if (STATE.role === 'parent') {
-      showAddChildScreen();
-      return;
+      // Awaited on purpose -- loadUserPaidStatus() above is fired unawaited,
+      // so STATE.user.add_child_prompt_dismissed wouldn't be populated yet on
+      // this exact login. A small dedicated single-column fetch avoids that race.
+      let alreadyDismissed = false;
+      try {
+        const res = await fetch(
+          CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id + '&select=add_child_prompt_dismissed',
+          { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token } }
+        );
+        const rows = res.ok ? await res.json() : [];
+        alreadyDismissed = rows[0]?.add_child_prompt_dismissed === true;
+      } catch (e) {}
+      if (!alreadyDismissed) {
+        showAddChildScreen();
+        return;
+      }
     }
   }
 
