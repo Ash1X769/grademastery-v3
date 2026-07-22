@@ -17186,6 +17186,14 @@ async function afterLogin(startScreen) {
   if (urlParams.get('newuser') === 'true') {
     showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
     setTimeout(() => loadUserPaidStatus(), 3000);
+    // Strip newuser=true right away -- a stale bookmark/PWA-icon/re-navigated
+    // URL that still carries this param must never re-trigger this block on a
+    // later login. The persistent add_child_prompt_dismissed flag (checked
+    // just below) is the real source of truth; this is defense-in-depth so a
+    // leftover URL alone can't override it.
+    const _cleanUrl = new URL(window.location.href);
+    _cleanUrl.searchParams.delete('newuser');
+    window.history.replaceState({}, '', _cleanUrl.pathname + _cleanUrl.search);
     if (STATE.role === 'parent') {
       showAddChildScreen();
       return;
@@ -17269,7 +17277,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,username,year_group,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start,is_admin',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,username,year_group,add_child_prompt_dismissed,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start,is_admin',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -17285,6 +17293,7 @@ async function loadUserPaidStatus() {
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
       STATE.user.username = p.username || null;
       if (p.year_group) STATE.user.year_group = p.year_group;
+      STATE.user.add_child_prompt_dismissed = p.add_child_prompt_dismissed === true;
       STATE.user.bio_cards_per_day  = p.bio_cards_per_day  || 10;
       STATE.user.chem_cards_per_day = p.chem_cards_per_day || 10;
       STATE.user.phys_cards_per_day = p.phys_cards_per_day || 10;
@@ -23986,6 +23995,23 @@ async function showParentPortal() {
 // account (distinct from the existing student-led "enter your child's Parent
 // Code" flow above, which requires the child to have signed up first).
 // ============================================================
+// Fire-and-forget PATCH, same pattern as the existing parent_last_insight_at
+// tracking -- persists the parent's decision so afterLogin()'s
+// add_child_prompt_dismissed check (added in piece 1) stops re-showing this
+// screen on future logins, even from a stale newuser=true bookmark/link.
+function dismissAddChildPrompt() {
+  STATE.user.add_child_prompt_dismissed = true;
+  const token = STATE.user?.token;
+  if (token) {
+    fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id, {
+      method: 'PATCH',
+      headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ add_child_prompt_dismissed: true })
+    }).catch(() => {});
+  }
+  showParentPortal();
+}
+
 function showAddChildScreen() {
   STATE.screen = 'add-child';
   const html = `
@@ -24027,7 +24053,7 @@ function showAddChildScreen() {
         <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="submitAddChild()" id="ac-submit-btn">Create Child Account</button>
       </div>
       <div style="text-align:center;margin-top:16px;">
-        <a href="javascript:void(0)" onclick="showParentPortal()" style="font-size:13px;color:#64748B;font-weight:700;text-decoration:underline;">Skip for now — go to my dashboard</a>
+        <a href="javascript:void(0)" onclick="dismissAddChildPrompt()" style="font-size:13px;color:#64748B;font-weight:700;text-decoration:underline;">Skip for now — go to my dashboard</a>
       </div>
     </div>
   </div>`;
@@ -24116,6 +24142,18 @@ async function submitAddChild(existingChildId) {
       return;
     }
     STATE.user.linked_student_ids = Array.isArray(STATE.user.linked_student_ids) ? STATE.user.linked_student_ids.concat([data.childId]) : [data.childId];
+    // The add-child prompt is moot once a child's actually been added --
+    // same reasoning as dismissAddChildPrompt() (Skip), same fire-and-forget
+    // PATCH pattern, just without the showParentPortal() redirect (this path
+    // continues to the confirmation screen instead).
+    STATE.user.add_child_prompt_dismissed = true;
+    if (STATE.user.token) {
+      fetch(CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id, {
+        method: 'PATCH',
+        headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ add_child_prompt_dismissed: true })
+      }).catch(() => {});
+    }
     // Under-13: the server never echoes the password back (parent-supplied,
     // never displayed back on a one-time screen -- account-security redesign
     // 22 Jul 2026). Use the client's own already-known value instead.
