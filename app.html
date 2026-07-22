@@ -17269,7 +17269,7 @@ async function loadUserPaidStatus() {
       return;
     }
     const res = await fetch(
-      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start,is_admin',
+      CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + user.id + '&select=is_paid,subscription_tier,trial_start_date,trial_ends_at,primary_subject,display_name,username,bio_cards_per_day,chem_cards_per_day,phys_cards_per_day,bio_frequency,chem_frequency,phys_frequency,schedule_locked,locked_topics,target_grade,dream_job,salary_aspiration,study_blocker,learner_type,learning_preference,science_feeling,tutor_notes,exam_dates,linked_parent_id,linked_student_ids,linked_student_id,tier,ai_tutor_daily_count,ai_tutor_weekly_count,ai_marking_daily_count,ai_marking_weekly_count,ai_last_reset_date,ai_week_start,vision_board_enabled,class_code,allow_self_grade,allow_student_unlock,parent_ai_mode_override,nudge_last_shown,streak_current,last_study_date,streak_bonus_subtopic,is_beta_grant,beta_granted_at,deep_dive_sessions_this_week,deep_dive_week_start,is_admin',
       { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + user.token } }
     );
     const profiles = res.ok ? await res.json() : [];
@@ -17283,6 +17283,7 @@ async function loadUserPaidStatus() {
       STATE.user.nudge_last_shown = (p.nudge_last_shown && typeof p.nudge_last_shown === 'object') ? p.nudge_last_shown : {};
       if (p.display_name) STATE.user.display_name = p.display_name;
       if (p.primary_subject) STATE.user.primary_subject = p.primary_subject;
+      STATE.user.username = p.username || null;
       STATE.user.bio_cards_per_day  = p.bio_cards_per_day  || 10;
       STATE.user.chem_cards_per_day = p.chem_cards_per_day || 10;
       STATE.user.phys_cards_per_day = p.phys_cards_per_day || 10;
@@ -20934,7 +20935,7 @@ ${renderNavBar('profile')}
     <div class="v3-profile-hero">
       <div class="v3-profile-avatar">${(user.display_name||'S').charAt(0).toUpperCase()}</div>
       <div class="v3-profile-name">${user.display_name || 'Student'}</div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:3px;">${user.email || ''}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:3px;">${user.username || user.email || ''}</div>
       <div class="v3-profile-role-pill">${user.role === 'teacher' ? '🏫 Teacher' : user.role === 'parent' ? '👨‍👩‍👧 Parent' : '🎓 Student'} · Year ${user.year_group || 11} · ${user.exam_board || 'AQA'} · ${tierLabel(user.tier)}</div>
     </div>
     <div class="v3-profile-stats">
