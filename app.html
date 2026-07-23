@@ -24506,7 +24506,7 @@ function buildParentProfileTabHTML(user, children, activeChildId) {
       h += '<div style="font-size:15px;font-weight:800;color:#0F172A;">' + (child.name || 'Student') + '</div>';
       if (child.isPaid) {
         const tierNames = { basic: 'Basic', standard: 'Standard', premium: 'Premium', premium_plus: 'Premium Plus' };
-        h += '<span style="background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.03em;">PAID — ' + (tierNames[child.subscriptionTier] || 'Standard') + '</span>';
+        h += '<span style="background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.03em;">' + (tierNames[child.subscriptionTier] || 'Standard') + '</span>';
       }
       h += '</div>';
       // Year group + subject meta line
