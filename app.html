@@ -17109,7 +17109,7 @@ async function resolvePendingCheckoutAndLogin(sessionId) {
   // flow with a leftover identity. STATE.user is still null here (init()'s
   // normal restore path hasn't run yet), so this is mainly about wiping
   // stale localStorage/sessionStorage before anything else can read it.
-  doLogout();
+  doLogout(true);
 
   try {
     // Ask the worker to verify this checkout directly against Stripe,
@@ -21689,7 +21689,7 @@ function showAbout() {
   render(html);
 }
 
-function doLogout() {
+function doLogout(skipRender = false) {
   if (STATE.user && STATE.user.token) {
     fetch(CONFIG.SUPABASE_URL + '/auth/v1/logout', {
       method: 'POST',
@@ -21712,7 +21712,7 @@ function doLogout() {
   STATE.currentCardIndex = 0;
   STATE.todayDone = {};
   STATE.todayGraded = {};
-  showAuth();
+  if (!skipRender) showAuth();
 }
 
 // ============================================================
