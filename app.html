@@ -2945,21 +2945,27 @@ function isTrialActive() {
 }
 
 function getEffectiveSubscriptionTier() {
-  if (isTrialActive()) return 'standard';
-  // Child accounts (pay-first "Add Your Child" flow) never carry their own
-  // subscription_tier -- it's deliberately left null on their profiles row to
-  // prevent drift. Effective tier always comes from a live lookup of the
-  // parent's row (see fetchParentTierForChild() / get_parent_tier()), never
-  // from a cached copy. If linked_parent_id is set but the live lookup hasn't
-  // returned anything (broken link, RPC failure, not yet fetched), fall back
-  // to 'free' as a safety default -- this is a least-privilege fallback, not
-  // a way to treat "no data" as an access grant.
+  // Linked-child accounts (pay-first "Add Your Child" flow) never get their own
+  // trial -- they're immediately paid via their parent's real subscription, so
+  // isTrialActive() must never even run for them. Checked first, before the
+  // trial check below, otherwise the generic 3-day signup-trial grant
+  // (handle_new_user() trigger, meant for organic free-tier signups) masks the
+  // correct parent-inherited tier for the first 72 hours of a child's account --
+  // confirmed 23 Jul 2026 (Pixie: isTrialActive() returned true and
+  // short-circuited before the parent-tier lookup below ever ran, showing
+  // "Standard" instead of her parent's real "Basic" tier).
   if (STATE.role === 'student' && STATE.user?.linked_parent_id) {
     const parentTier = STATE.user?._parentTier;
     if (!parentTier) return 'free';
     if (!parentTier.is_paid) return 'free';
     return parentTier.subscription_tier || 'free';
   }
+  if (isTrialActive()) return 'standard';
+  // Child accounts (pay-first "Add Your Child" flow) never carry their own
+  // subscription_tier -- it's deliberately left null on their profiles row to
+  // prevent drift; the branch above already handles them via a live lookup of
+  // the parent's row. Everything past this point is a non-linked-child identity
+  // (a parent, a teacher, or a self-serve/organic student with no parent link).
   if (!STATE.user?.is_paid) return 'free';
   return STATE.user?.subscription_tier || 'standard';
 }
@@ -21000,9 +21006,6 @@ ${renderNavBar('profile')}
       : `<div class="v3-profile-section" style="margin-bottom:12px;background:#FFF7ED;border:1.5px solid #FED7AA;">
           <div style="font-size:15px;font-weight:900;color:#C2410C;margin-bottom:6px;">⚡ Free Plan</div>
           <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:12px;line-height:1.5;">4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week<br>Upgrade for everything unlimited.</div>
-          <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-            <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All Premium features are unlocked for you as a beta tester. When we launch properly, Standard will be £17.99/month — beta testers get a special founding member discount.</div>
-          </div>
           <button onclick="showUpgradeModal('Choose your plan')" class="btn btn-primary btn-full" style="background:linear-gradient(135deg,#F97316,#EA580C);">Upgrade Plan →</button>
           <div style="margin-top:12px;">
             <div style="font-size:12px;font-weight:700;color:#1A2E22;margin-bottom:6px;">Have a promo code?</div>
@@ -22067,9 +22070,6 @@ async function showTeacherDashboard(selectedClass) {
     </div>
 
     <div style="padding:18px 14px;max-width:960px;margin:0 auto;">
-      <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £41.99/month — beta testers get a special founding member discount.</div>
-      </div>
       <div id="tcontent-overview">
         <div style="display:flex;gap:8px;margin-bottom:16px;">
           <button onclick="switchPerformanceView('summary',this)" id="perf-summary-btn"
@@ -23944,7 +23944,7 @@ async function showParentPortal() {
       // encodeURIComponent would turn commas into %2C, breaking PostgREST in.() syntax
       const idsParam = STATE.parentAllLinkedIds.slice(0, 10).join(',');
       const acRes = await fetch(
-        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=in.(' + idsParam + ')&select=user_id,display_name,parent_code,year_group,primary_subject,is_paid,subscription_tier',
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=in.(' + idsParam + ')&select=user_id,display_name,parent_code,year_group,primary_subject',
         { headers }
       );
       console.log('[ParentPortal] allChildren fetch status:', acRes.status, 'ids:', idsParam);
@@ -23954,7 +23954,12 @@ async function showParentPortal() {
         // Preserve array ordering (first = primary)
         allChildren = STATE.parentAllLinkedIds.map(function(uid) {
           const r = acRows.find(function(x) { return x.user_id === uid; });
-          return r ? { id: r.user_id, name: r.display_name || 'Student', parentCode: r.parent_code || '', yearGroup: r.year_group || '', subject: r.primary_subject || '', isPaid: r.is_paid === true, subscriptionTier: r.subscription_tier || '' } : null;
+          // isPaid/subscriptionTier deliberately come from the PARENT (user), not this
+          // child's own row -- children never carry their own is_paid/subscription_tier
+          // (kept null by design, see handleCreateChildAccount()'s comment); every linked
+          // child inherits the same parent plan, so the parent's already-loaded fields
+          // apply uniformly here instead of a per-child fetch.
+          return r ? { id: r.user_id, name: r.display_name || 'Student', parentCode: r.parent_code || '', yearGroup: r.year_group || '', subject: r.primary_subject || '', isPaid: user.is_paid === true, subscriptionTier: user.subscription_tier || '' } : null;
         }).filter(Boolean);
       }
     } catch(e) {}
@@ -24004,11 +24009,6 @@ async function showParentPortal() {
     </div>
 
     <div style="max-width:860px;margin:0 auto;padding-top:8px;padding-bottom:80px;">
-      <div style="padding:16px 20px 0;">
-        <div style="background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:800;color:#15803D;line-height:1.6;">🎉 Free during beta! All features are unlocked for you as a beta tester. When we launch properly, Premium will be £41.99/month — beta testers get a special founding member discount.</div>
-        </div>
-      </div>
       <div id="pcontent-progress" style="padding:0 20px;">${progressHTML}</div>
       <div id="pcontent-history" style="display:none;padding:0 20px;">${historyHTML}</div>
       <div id="pcontent-tracker" style="display:none;"></div>
