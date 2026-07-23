@@ -3035,7 +3035,7 @@ function _getDeepDiveAccessStatus() {
 
 function _blockDeepDiveAccess(status) {
   if (status.reason === 'locked') {
-    _triggerUpgradeNudge('Deep Dive is a Standard feature 🌊 Unlock full guided lessons with Standard');
+    _triggerUpgradeNudge('Deep Dive is a Pro feature 🌊 Unlock full guided lessons with Pro');
   } else if (status.reason === 'weekly_cap') {
     showToast("You've used all 3 Deep Dive sessions this week — resets Monday. Upgrade to Premium for unlimited Deep Dive.");
   }
@@ -3047,7 +3047,7 @@ function _blockDeepDiveAccess(status) {
 function _buildDeepDiveTileHTML() {
   const status = _getDeepDiveAccessStatus();
   if (status.reason === 'locked') {
-    return '<div class="v3-feature-card" style="position:relative;opacity:0.7;" onclick="showUpgradeModal(\'Unlock Deep Dive with GradeMastery Standard\')">'
+    return '<div class="v3-feature-card" style="position:relative;opacity:0.7;" onclick="showUpgradeModal(\'Unlock Deep Dive with GradeMastery Pro\')">'
       + '<div style="position:absolute;top:10px;right:10px;background:var(--gm-forest);color:white;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:900;letter-spacing:0.05em;">PRO</div>'
       + '<span class="v3-feature-icon">🌊</span><div class="v3-feature-title">Deep Dive</div>'
       + '<div class="v3-feature-desc" style="color:var(--gm-forest);font-weight:700;">Upgrade to unlock</div>'
@@ -3073,7 +3073,7 @@ function notifyAIMarkingLimitReached() {
   if (tier === 'premium' || tier === 'premium_plus') {
     triggerHardWallNudge("You've used today's Smart-AI Marking ✨ for your plan. Upgrade to Premium Plus for more, or grab a top-up.");
   } else {
-    triggerThrottledNudge('ai_marking_limit', "You've used today's Smart-AI Marking ✨ — upgrade to Standard or Premium for more.");
+    triggerThrottledNudge('ai_marking_limit', "You've used today's Smart-AI Marking ✨ — upgrade to Pro or Premium for more.");
   }
 }
 
@@ -17486,8 +17486,8 @@ function showUpgradeModal(reason) {
   document.querySelectorAll('.v3-upgrade-overlay').forEach(e => e.remove());
   const TIERS = [
     { id:'basic',   name:'Basic',   monthly:STRIPE_PRICES.basic_monthly,   annual:STRIPE_PRICES.basic_annual,   price:{m:'£7.99',a:'£87.89'},  features:['Full spaced repetition','All topics unlocked','30 cards/day','Streak tracking','AI Marking','StudyCoach articles','Parent portal'],      cta:'Upgrade', trial:false },
-    { id:'standard',name:'Standard',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Get Pro', trial:false, popular:true },
-    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£41.99',a:'£461.89'},features:['Everything in Standard',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
+    { id:'standard',name:'Pro',monthly:STRIPE_PRICES.standard_monthly,annual:STRIPE_PRICES.standard_annual, price:{m:getStandardPriceDisplay('m'),a:getStandardPriceDisplay('a')},  features:['Everything in Basic',`Smart-AI Marking ✨ (${CONFIG.STANDARD_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.STANDARD_AI_TUTOR_DAILY}/day)`], cta:'Get Pro', trial:false, popular:true },
+    { id:'premium', name:'Premium', monthly:STRIPE_PRICES.premium_monthly, annual:STRIPE_PRICES.premium_annual,  price:{m:'£41.99',a:'£461.89'},features:['Everything in Pro',`Smart-AI Marking ✨ (${CONFIG.PREMIUM_AI_MARKING_DAILY}/day)`,`AI Tutor (${CONFIG.PREMIUM_AI_TUTOR_DAILY}/day)`], cta:'Upgrade', trial:false },
     { id:'premium_plus', name:'Plus', monthly:STRIPE_PRICES.premium_plus_monthly,annual:STRIPE_PRICES.premium_plus_annual,price:{m:'£55.99',a:'£615.89'},features:['Everything in Premium','All 3 subjects','Deep Dive Sessions'],cta:'Upgrade',trial:false },
   ];
   const el = document.createElement('div');
@@ -17580,7 +17580,7 @@ function showUpgradedCelebration() {
   const tier = new URLSearchParams(window.location.search).get('tier') || 'premium';
   const tierNames = {
     basic: 'Basic',
-    standard: 'Standard',
+    standard: 'Pro',
     premium: 'Premium',
     premium_plus: 'Premium Plus'
   };
@@ -17895,7 +17895,7 @@ async function showStudyHistory() {
           ${gatedFeature({
             minTier: 'standard',
             sampleHTML: _buildStudyHistorySampleHTML(),
-            lockMessage: 'Unlock your full study history with Standard'
+            lockMessage: 'Unlock your full study history with Pro'
           })}
         </div>
       </div>
@@ -18482,7 +18482,7 @@ async function startFlashcards() {
     enforceWithThrottledNudge(
       'free_card_daily_limit',
       `Daily card limit reached (${CONFIG.FREE_CARDS_DAILY}/day) — come back tomorrow!`,
-      `You've used your ${CONFIG.FREE_CARDS_DAILY} cards for today. Upgrade to Basic or Standard for more daily revision.`
+      `You've used your ${CONFIG.FREE_CARDS_DAILY} cards for today. Upgrade to Basic or Pro for more daily revision.`
     );
     return;
   }
@@ -18492,7 +18492,7 @@ async function startFlashcards() {
     enforceWithThrottledNudge(
       'basic_card_daily_limit',
       `Daily card limit reached (${CONFIG.BASIC_CARDS_DAILY}/day) — come back tomorrow!`,
-      `You've used your ${CONFIG.BASIC_CARDS_DAILY} cards for today. Upgrade to Standard for more daily revision.`
+      `You've used your ${CONFIG.BASIC_CARDS_DAILY} cards for today. Upgrade to Pro for more daily revision.`
     );
     return;
   }
@@ -19159,7 +19159,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
     // subject is capped at topic 1 + earned bonus), so the master toggle always upsells
     // rather than silently flipping a switch that can't actually unlock everything.
     const masterFreeUpsell = !isParentCtx && getEffectiveSubscriptionTier() === 'free';
-    const masterUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
+    const masterUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Pro — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
 
     h += '<div style="margin-bottom:12px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">';
     // Subject header row with master toggle
@@ -19192,7 +19192,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
         ? saveFn + "('" + topicKey + "'," + isLocked + ",'" + childUserId + "')"
         : saveFn + "('" + topicKey + "'," + isLocked + ")";
       const topicFreeAccessible = isParentCtx || isFreeTierTopicAccessible(subject, topicKey);
-      const topicUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
+      const topicUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Pro — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
       const displayName = topicName.replace(' (Triple)', '');
       const tripleBadge = (showTriple && isTripleTopic(topicKey))
         ? '<span style="background:#E0E7FF;color:var(--gm-forest);font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;">Triple</span>'
@@ -19269,7 +19269,7 @@ function buildTopicsTabHTML(lockedTopics, scheduleLocked, saveFn, childUserId) {
             sToggleHTML = '<div style="cursor:not-allowed;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.55;flex-shrink:0;" title="Your teacher controls topic access">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else if (!isFreeTierTopicAccessible(subject, topicKey, sk)) {
-            const sUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
+            const sUpsellOnclick = "triggerHardWallNudge(" + JSON.stringify('Unlock all topics with Pro — from ' + getStandardMonthlyPriceLabel() + '/month') + ")";
             sToggleHTML = '<div onclick="' + sUpsellOnclick + '" style="cursor:pointer;width:48px;height:26px;border-radius:13px;background:' + sBg + ';position:relative;opacity:0.5;flex-shrink:0;">';
             sToggleHTML += '<div style="position:absolute;top:3px;' + sThumb + ';width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div></div>';
           } else {
@@ -19333,7 +19333,7 @@ function startQuickRevision(topicKey) {
   const topicCards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === key);
   if (topicCards.length === 0) { showToast('No cards found for this topic'); return; }
   if (!isFreeTierTopicAccessible(topicCards[0].subject, key)) {
-    triggerHardWallNudge('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month');
+    triggerHardWallNudge('Unlock all topics with Pro — from ' + getStandardMonthlyPriceLabel() + '/month');
     return;
   }
   const shuffled = [...topicCards].sort(() => Math.random() - 0.5);
@@ -19354,7 +19354,7 @@ function startQuickRevisionSubtopic(subtopicKey) {
   const subtopicCards = SAMPLE_CARDS.filter(c => c.subtopic && c.subtopic.toUpperCase() === key);
   if (subtopicCards.length === 0) { showToast('No cards found for this subtopic'); return; }
   if (!isFreeTierTopicAccessible(subtopicCards[0].subject, subtopicCards[0].topic, key)) {
-    triggerHardWallNudge('Unlock all topics with Standard — from ' + getStandardMonthlyPriceLabel() + '/month');
+    triggerHardWallNudge('Unlock all topics with Pro — from ' + getStandardMonthlyPriceLabel() + '/month');
     return;
   }
   const shuffled = [...subtopicCards].sort(() => Math.random() - 0.5);
@@ -20721,7 +20721,7 @@ function showKnowledgeOrganiser(topicKey) {
   const _FREE_KO = ['B1','C1','P1'];
   const _koTier = getEffectiveSubscriptionTier();
   if ((_koTier === 'free' || _koTier === 'basic') && !_FREE_KO.includes(_tk)) {
-    showUpgradeModal(`Unlock all Knowledge Organisers with Standard — from ${getStandardMonthlyPriceLabel()}/month`);
+    showUpgradeModal(`Unlock all Knowledge Organisers with Pro — from ${getStandardMonthlyPriceLabel()}/month`);
     return;
   }
   const _cards = SAMPLE_CARDS.filter(c => c.topic.toUpperCase() === _tk);
@@ -20918,7 +20918,7 @@ function showProfile() {
   const tierDisplay = {
     'free': { name: 'Free Plan', desc: '4 cards/day (28/week) · B1/C1/P1 + streak bonus · AI Tutor 5/week · Smart-AI Marking ✨ 2/day · AI Marking 10/week' },
     'basic': { name: 'Basic', desc: 'Full spaced repetition · All topics · 30 cards/day · Smart-AI Marking ✨ 2/day · AI Marking unlimited · AI Tutor 10/week · Parent portal' },
-    'standard': { name: 'Standard', desc: '20 AI Tutor messages/day · Smart-AI Marking ✨ 30/day · Deep Dive sessions · Parent portal' },
+    'standard': { name: 'Pro', desc: '20 AI Tutor messages/day · Smart-AI Marking ✨ 30/day · Deep Dive sessions · Parent portal' },
     'premium': { name: 'Premium', desc: '40 AI Tutor/day · Smart-AI Marking ✨ 50/day · Parent portal · Unlimited Deep Dive' },
     'premium_plus': { name: 'Premium Plus', desc: '80 AI Tutor/day · Smart-AI Marking ✨ 100/day · AI Learning Coach · Parent portal · Unlimited everything' }
   };
@@ -21161,7 +21161,7 @@ ${renderNavBar('profile')}
 
     <!-- Vision Board -->
     ${!hasTier('standard')
-      ? gatedFeature({ minTier: 'standard', sampleHTML: _buildVisionBoardSampleHTML(), lockMessage: 'Unlock your Vision Board Journal with Standard' })
+      ? gatedFeature({ minTier: 'standard', sampleHTML: _buildVisionBoardSampleHTML(), lockMessage: 'Unlock your Vision Board Journal with Pro' })
       : STATE.user.vision_board_enabled === false ? '<div class="card" id="profile-journal-section" style="margin-bottom:16px;"><div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:12px;padding:24px;text-align:center;"><div style="font-size:32px;margin-bottom:8px;">🔒</div><div style="font-size:14px;font-weight:700;color:#1A2E22;margin-bottom:4px;">Vision Board locked</div><div style="font-size:12px;color:#64748B;">Your parent has disabled the Vision Board. Ask them to re-enable it in their parent portal.</div></div></div>' : buildVisionBoardHTML(user)}
 
     <!-- Badges -->
@@ -21240,7 +21240,7 @@ async function showProgressTracker() {
         ${gatedFeature({
           minTier: 'standard',
           sampleHTML: _buildMasteryTrackerSampleHTML(),
-          lockMessage: 'Unlock full mastery tracking with Standard'
+          lockMessage: 'Unlock full mastery tracking with Pro'
         })}
       </div>
     `);
@@ -23770,6 +23770,7 @@ async function showParentPortal() {
 
   const tierDisplay = t => {
     if (!t) return '';
+    if (t === 'standard') return 'Pro';
     return t.split('_').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
   };
   const ragCol = p => p >= 75 ? '#22C55E' : p >= 45 ? '#F59E0B' : '#EF4444';
@@ -24505,8 +24506,8 @@ function buildParentProfileTabHTML(user, children, activeChildId) {
       h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
       h += '<div style="font-size:15px;font-weight:800;color:#0F172A;">' + (child.name || 'Student') + '</div>';
       if (child.isPaid) {
-        const tierNames = { basic: 'Basic', standard: 'Standard', premium: 'Premium', premium_plus: 'Premium Plus' };
-        h += '<span style="background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.03em;">' + (tierNames[child.subscriptionTier] || 'Standard') + '</span>';
+        const tierNames = { basic: 'Basic', standard: 'Pro', premium: 'Premium', premium_plus: 'Premium Plus' };
+        h += '<span style="background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.03em;">' + (tierNames[child.subscriptionTier] || 'Pro') + '</span>';
       }
       h += '</div>';
       // Year group + subject meta line
