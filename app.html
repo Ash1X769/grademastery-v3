@@ -17181,37 +17181,21 @@ async function afterLogin(startScreen) {
 
   // If arriving from the checkout-first landing page flow (paid before creating an account).
   // Pay-first accounts are always role:'parent' (see worker/src/index.js's pending-checkout
-  // branch) -- show the "Add Your Child" screen instead of the bare parent dashboard so the
-  // parent immediately links a child account, rather than landing somewhere with nothing to do.
+  // branch) -- surface a welcome toast and refresh paid status; routing into the
+  // add-child/link-child choice is no longer forced from here (see showParentPortal()'s
+  // "0 linked children" check, which now handles every entry path -- pay-first, self-serve
+  // signup, relogin, second device -- instead of relying on this one-time URL param).
+  // add_child_prompt_dismissed / dismissAddChildPrompt() are kept for their existing writes
+  // but are no longer load-bearing for routing, 23 Jul 2026.
   if (urlParams.get('newuser') === 'true') {
     showToast('Welcome to GradeMastery! Your subscription is being activated — it may take a moment to reflect.', 5000);
     setTimeout(() => loadUserPaidStatus(), 3000);
-    // Strip newuser=true right away -- a stale bookmark/PWA-icon/re-navigated
-    // URL that still carries this param must never re-trigger this block on a
-    // later login. The persistent add_child_prompt_dismissed flag (checked
-    // just below) is the real source of truth; this is defense-in-depth so a
-    // leftover URL alone can't override it.
+    // Strip newuser=true right away -- a stale bookmark/PWA-icon/re-navigated URL
+    // should never carry it forward indefinitely, even though nothing keys off it
+    // for routing anymore.
     const _cleanUrl = new URL(window.location.href);
     _cleanUrl.searchParams.delete('newuser');
     window.history.replaceState({}, '', _cleanUrl.pathname + _cleanUrl.search);
-    if (STATE.role === 'parent') {
-      // Awaited on purpose -- loadUserPaidStatus() above is fired unawaited,
-      // so STATE.user.add_child_prompt_dismissed wouldn't be populated yet on
-      // this exact login. A small dedicated single-column fetch avoids that race.
-      let alreadyDismissed = false;
-      try {
-        const res = await fetch(
-          CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=eq.' + STATE.user.id + '&select=add_child_prompt_dismissed',
-          { headers: { 'apikey': CONFIG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + STATE.user.token } }
-        );
-        const rows = res.ok ? await res.json() : [];
-        alreadyDismissed = rows[0]?.add_child_prompt_dismissed === true;
-      } catch (e) {}
-      if (!alreadyDismissed) {
-        showAddChildScreen();
-        return;
-      }
-    }
   }
 
   const hwParams = new URLSearchParams(window.location.search);
@@ -23575,6 +23559,56 @@ function showStudyCoachFeed() {
   loadStudentFeedContent(false);
 }
 
+// Landing state for a parent with zero linked children, shown from
+// showParentPortal()'s "0 linked children" check regardless of how they
+// got here (pay-first checkout, self-serve signup, relogin, second
+// device) -- see that call site's comment for why this replaced the old
+// newuser=true-only trigger.
+function showParentChildChoice() {
+  STATE.screen = 'parent-child-choice';
+  const html = `<div style="min-height:100vh;background:#F8FAFC;">
+    <div style="background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));padding:28px 24px 20px;color:white;position:relative;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;opacity:0.8;margin-bottom:4px;">PARENT PORTAL</div>
+      <div style="font-size:22px;font-weight:900;">Let's get your child set up</div>
+      <button onclick="doLogout()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Log Out</button>
+    </div>
+    <div style="padding:24px;max-width:480px;margin:0 auto;">
+      <div style="background:white;border-radius:16px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
+        <div style="font-size:40px;margin-bottom:14px;">👨‍👩‍👧</div>
+        <div style="font-size:17px;font-weight:800;margin-bottom:20px;">Does your child already have a GradeMastery account?</div>
+        <button onclick="showLinkAccountScreen()" style="width:100%;padding:14px;border-radius:10px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:12px;">Yes — link their account</button>
+        <button onclick="showAddChildScreen()" style="width:100%;padding:14px;border-radius:10px;border:1.5px solid var(--gm-forest);background:white;color:var(--gm-forest);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">No — create their account</button>
+      </div>
+    </div>
+  </div>`;
+  render(html);
+}
+
+// Existing "enter your child's Parent Code" screen -- unchanged from its
+// previous inline form inside showParentPortal(), just extracted into its
+// own function and given a way back to the choice screen above.
+function showLinkAccountScreen() {
+  STATE.screen = 'parent-link-account';
+  const html = `<div style="min-height:100vh;background:#F8FAFC;">
+    <div style="background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));padding:28px 24px 20px;color:white;position:relative;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;opacity:0.8;margin-bottom:4px;">PARENT PORTAL</div>
+      <div style="font-size:22px;font-weight:900;">Link your account</div>
+      <button onclick="doLogout()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Log Out</button>
+    </div>
+    <div style="padding:24px;max-width:480px;margin:0 auto;">
+      <div style="background:white;border-radius:16px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
+        <div style="font-size:40px;margin-bottom:14px;">🔗</div>
+        <div style="font-size:17px;font-weight:800;margin-bottom:8px;">Enter your child's Parent Code</div>
+        <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:20px;line-height:1.6;">Ask your child to open GradeMastery, go to Profile, and share their Parent Code with you.</div>
+        <input id="parent-link-input" type="text" placeholder="e.g. ABCD1234" style="width:100%;padding:12px;border-radius:10px;border:1.5px solid #E2E8F0;font-size:16px;text-align:center;letter-spacing:2px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;outline:none;" oninput="this.value=this.value.toUpperCase()">
+        <button onclick="linkParentAccount()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Link Account</button>
+        <a href="javascript:void(0)" onclick="showParentChildChoice()" style="display:block;margin-top:14px;font-size:13px;color:#64748B;font-weight:700;text-decoration:underline;">← Back</a>
+      </div>
+    </div>
+  </div>`;
+  render(html);
+}
+
 async function showParentPortal() {
   STATE.screen = 'parent'; saveScreen('parent');
   logScreenView('parent');
@@ -23746,25 +23780,15 @@ async function showParentPortal() {
   const ragCol = p => p >= 75 ? '#22C55E' : p >= 45 ? '#F59E0B' : '#EF4444';
   const subCol = s => s === 'Biology' ? '#22C55E' : s === 'Chemistry' ? '#A855F7' : '#3B82F6';
 
-  // ── 6. "Not linked" screen ──
+  // ── 6. No linked child yet — offer the choice between linking an existing
+  // child account and creating a new one, rather than assuming which one
+  // applies. This is the single, durable trigger point for every entry path
+  // (pay-first checkout, self-serve signup, relogin, second device) --
+  // "0 linked children" can never go stale the way a one-time newuser=true
+  // URL param can (see afterLogin()'s comment on why that mechanism was
+  // replaced, 23 Jul 2026).
   if (!linkedStudentId) {
-    const notLinkedHTML = `<div style="min-height:100vh;background:#F8FAFC;">
-      <div style="background:linear-gradient(135deg,var(--gm-forest),var(--gm-forest));padding:28px 24px 20px;color:white;position:relative;">
-        <div style="font-size:11px;font-weight:800;letter-spacing:0.1em;opacity:0.8;margin-bottom:4px;">PARENT PORTAL</div>
-        <div style="font-size:22px;font-weight:900;">Link your account</div>
-        <button onclick="doLogout()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Log Out</button>
-      </div>
-      <div style="padding:24px;max-width:480px;margin:0 auto;">
-        <div style="background:white;border-radius:16px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,0.06);border:1px solid #F1F5F9;text-align:center;">
-          <div style="font-size:40px;margin-bottom:14px;">🔗</div>
-          <div style="font-size:17px;font-weight:800;margin-bottom:8px;">Enter your child's Parent Code</div>
-          <div style="font-size:13px;color:#64748B;font-weight:600;margin-bottom:20px;line-height:1.6;">Ask your child to open GradeMastery, go to Profile, and share their Parent Code with you.</div>
-          <input id="parent-link-input" type="text" placeholder="e.g. ABCD1234" style="width:100%;padding:12px;border-radius:10px;border:1.5px solid #E2E8F0;font-size:16px;text-align:center;letter-spacing:2px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;outline:none;" oninput="this.value=this.value.toUpperCase()">
-          <button onclick="linkParentAccount()" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--gm-forest);color:white;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Link Account</button>
-        </div>
-      </div>
-    </div>`;
-    render(notLinkedHTML);
+    showParentChildChoice();
     return;
   }
 
@@ -23920,7 +23944,7 @@ async function showParentPortal() {
       // encodeURIComponent would turn commas into %2C, breaking PostgREST in.() syntax
       const idsParam = STATE.parentAllLinkedIds.slice(0, 10).join(',');
       const acRes = await fetch(
-        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=in.(' + idsParam + ')&select=user_id,display_name,parent_code,year_group,primary_subject',
+        CONFIG.SUPABASE_URL + '/rest/v1/profiles?user_id=in.(' + idsParam + ')&select=user_id,display_name,parent_code,year_group,primary_subject,is_paid,subscription_tier',
         { headers }
       );
       console.log('[ParentPortal] allChildren fetch status:', acRes.status, 'ids:', idsParam);
@@ -23930,7 +23954,7 @@ async function showParentPortal() {
         // Preserve array ordering (first = primary)
         allChildren = STATE.parentAllLinkedIds.map(function(uid) {
           const r = acRows.find(function(x) { return x.user_id === uid; });
-          return r ? { id: r.user_id, name: r.display_name || 'Student', parentCode: r.parent_code || '', yearGroup: r.year_group || '', subject: r.primary_subject || '' } : null;
+          return r ? { id: r.user_id, name: r.display_name || 'Student', parentCode: r.parent_code || '', yearGroup: r.year_group || '', subject: r.primary_subject || '', isPaid: r.is_paid === true, subscriptionTier: r.subscription_tier || '' } : null;
         }).filter(Boolean);
       }
     } catch(e) {}
@@ -24207,7 +24231,6 @@ function showChildCreatedConfirmation(childName, email, password, inviteSent, us
         <div style="font-size:15px;font-weight:800;color:#0F172A;word-break:break-all;">${username}</div>
       </div>` : ''}
       <button class="btn btn-primary btn-full" style="margin-top:20px;" onclick="showParentPortal()">Go to My Dashboard</button>
-      ${password ? '<button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="loginAsChild()">Go to Learning</button>' : ''}
     </div>
   </div>`;
   render(html);
@@ -24482,7 +24505,13 @@ function buildParentProfileTabHTML(user, children, activeChildId) {
       const isCurrent = child.id === activeChildId;
       h += '<div style="display:flex;align-items:flex-start;gap:12px;">';
       h += '<div style="flex:1;min-width:0;">';
+      h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
       h += '<div style="font-size:15px;font-weight:800;color:#0F172A;">' + (child.name || 'Student') + '</div>';
+      if (child.isPaid) {
+        const tierNames = { basic: 'Basic', standard: 'Standard', premium: 'Premium', premium_plus: 'Premium Plus' };
+        h += '<span style="background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.03em;">PAID — ' + (tierNames[child.subscriptionTier] || 'Standard') + '</span>';
+      }
+      h += '</div>';
       // Year group + subject meta line
       const meta = [child.yearGroup ? 'Year ' + child.yearGroup : '', child.subject || ''].filter(Boolean).join(' · ');
       if (meta) h += '<div style="font-size:12px;color:#64748B;font-weight:600;margin-top:2px;">' + meta + '</div>';
