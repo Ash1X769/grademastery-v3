@@ -24079,9 +24079,9 @@ function showAddChildScreen() {
           <div style="font-size:12px;color:#64748B;margin-top:4px;">13 and older — they'll get an email to set their own password.</div>
         </div>
         <div class="v3-form-group">
-          <label class="v3-form-label">Your Email <span style="color:var(--gm-muted);font-size:11px;">(optional)</span></label>
+          <label class="v3-form-label">Your Email</label>
           <input type="email" id="ac-guardian-email" class="v3-form-input" placeholder="you@email.com">
-          <div style="font-size:12px;color:#64748B;margin-top:4px;">Add your own email for updates about your child? Purely for progress reports and reminders — never used for login.</div>
+          <div style="font-size:12px;color:#64748B;margin-top:4px;">We'll use this for progress reports and reminders about your child — never used for login.</div>
         </div>
         <button class="btn btn-primary btn-full" style="margin-top:8px;" onclick="submitAddChild()" id="ac-submit-btn">Create Child Account</button>
       </div>
@@ -24142,6 +24142,8 @@ async function submitAddChild(existingChildId) {
     if (childPassword !== childPasswordConfirm) { showToast('Passwords do not match.'); return; }
   }
   if (!isUnder13 && !childEmail) { showToast('Enter your child\'s email address'); return; }
+  if (!guardianContactEmail) { showToast('Enter your email address'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianContactEmail)) { showToast('Enter a valid email address'); return; }
   if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
   try {
     const res = await fetch(WORKER_BASE + '/create-child-account', {
